@@ -14,3 +14,8 @@ OUTPUT_FPS = 30  # frames per second
 
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
+
+# Phone limits, measured in Claude's cloud workspace on 2026-10-12 (see docs/phone-limits.md)
+MAX_ATTACHMENT_BYTES = 320 * 1000**2  # one attached file: 80% of the 400 MB upload warning
+MAX_ATTACHMENTS = 10  # files in one message: the most tried, all arrived (a tested number, so no margin)
+MAX_RESULT_BYTES = 24 * 1024**2  # a result sent back: 80% of the 30 MiB send limit
