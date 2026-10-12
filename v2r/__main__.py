@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from v2r import __version__, doctor, join, settings
+from v2r import __version__, build_skill, doctor, join, settings
 
 
 def main(argv=None):
@@ -21,6 +21,7 @@ def main(argv=None):
         help=" or ".join(f"{name} ({w}x{h})" for name, (w, h) in settings.SHAPES.items()) + "; there is no default",
     )
     join_parser.add_argument("videos", nargs="+", type=Path, help="video files, in the order to join them")
+    commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude")
     args = parser.parse_args(argv)
 
     if args.command == "doctor":
@@ -31,6 +32,8 @@ def main(argv=None):
         except subprocess.CalledProcessError:
             print("v2r join: FFmpeg failed; its error is shown above.", file=sys.stderr)
             return 1
+    elif args.command == "build-skill":
+        print(build_skill.build())
     else:
         parser.print_help()
     return 0
