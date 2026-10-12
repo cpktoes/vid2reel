@@ -1,0 +1,68 @@
+# --- Never committed -------------------------------------------------------
+/work/
+/fixtures/
+
+# --- Media: ignored everywhere except tests/ and music/ --------------------
+# Patterns are case-insensitive so camera files like CLIP.MP4 are caught too.
+# Video
+*.[mM][pP]4
+*.[mM]4[vV]
+*.[mM][oO][vV]
+*.[aA][vV][iI]
+*.[mM][kK][vV]
+*.[wW][eE][bB][mM]
+*.[wW][mM][vV]
+*.[fF][lL][vV]
+*.[mM][pP][gG]
+*.[mM][pP][eE][gG]
+*.[mM][tT][sS]
+*.[mM]2[tT][sS]
+*.3[gG][pP]
+*.[oO][gG][vV]
+*.[mM][xX][fF]
+*.[vV][oO][bB]
+# Audio
+*.[mM][pP]3
+*.[wW][aA][vV]
+*.[aA][aA][cC]
+*.[mM]4[aA]
+*.[fF][lL][aA][cC]
+*.[oO][gG][gG]
+*.[oO][gG][aA]
+*.[oO][pP][uU][sS]
+*.[aA][iI][fF]
+*.[aA][iI][fF][fF]
+*.[wW][mM][aA]
+*.[cC][aA][fF]
+# Images
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[pP][nN][gG]
+*.[gG][iI][fF]
+*.[bB][mM][pP]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[wW][eE][bB][pP]
+*.[hH][eE][iI][cC]
+*.[hH][eE][iI][fF]
+*.[aA][vV][iI][fF]
+*.[sS][vV][gG]
+*.[iI][cC][oO]
+*.[pP][sS][dD]
+*.[dD][nN][gG]
+# Exceptions. Everything ABOVE this line is lifted inside tests/ and music/;
+# rules BELOW still apply there, so add new non-media rules below.
+!/tests/**
+!/music/**
+
+# --- Python / tooling -------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+
+# --- OS ---------------------------------------------------------------------
+.DS_Store
