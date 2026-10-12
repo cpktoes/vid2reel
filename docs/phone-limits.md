@@ -1,6 +1,18 @@
 # Phone limits
 
-Measured on 2026-10-12 by using the vid2reel skill from the Claude app on a phone, which runs v2r in Claude's cloud workspace (the sandbox). "Not recorded" means the tests didn't capture that number; nothing here is estimated unless it says so.
+Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from the Claude app on a phone. The app runs v2r in Claude's cloud workspace (the sandbox). "Not recorded" means the tests didn't capture that number; nothing here is estimated unless it says so.
+
+## The tests
+
+| Test | Attached | Outcome |
+| --- | --- | --- |
+| 1 | Two clips of about 10 s | The reel came back and played fine. |
+| 2 | One clip of about 30 s | The reel came back and played fine. |
+| 3 | One 1-minute 1080p clip, in place of the guide's 30-second 4K clip | It arrived and the reel was built (44.8 MiB), but sending it back was refused: over 30 MiB. |
+| 4 | One 3-minute 1080p clip, in place of the guide's 60 to 90 seconds | It arrived and the reel was built (95.9 MiB) in about 467 s, but sending it back was refused: over 30 MiB. |
+| 5 | Ten short clips of about 15 s or less | All ten arrived and the reel was built (58.7 MiB), but sending it back was refused: over 30 MiB. |
+| 6 | Three photos and one short clip | All four arrived. The reel was made from the clip alone. Whether it came back was not recorded. |
+| 7 | Test 4's clip joined with itself three times, wide | Not run: results over 30 MiB were already being refused. |
 
 ## The sandbox's doctor report
 
@@ -29,17 +41,17 @@ pypi.org can be reached.
 
 | Measure | Result |
 | --- | --- |
-| Largest file that arrived | Size not recorded. The longest clip that arrived was a 3-minute 1080p clip. |
-| Smallest file that failed | None failed. The app shows an upload warning for files over 400 MB; whether such a file then arrives, and the warning's text, were not recorded. |
+| Largest file that arrived | The 3-minute 1080p clip of test 4; its size was not recorded. |
+| Smallest file that failed | None failed. The app showed an upload warning for files over 400 MB. Which file triggered it, whether such a file then arrives, and the warning's text were not recorded. |
 | Arrived at phone size or smaller | Not recorded. |
-| Most files in one message | 10 short clips (about 15 s or less each); all arrived. A message with 3 photos and 1 clip also arrived. |
+| Most files in one message | 10 (test 5), and all arrived. |
 
 ## How long each step took
 
 | Step | Test | Time |
 | --- | --- | --- |
-| `doctor` | 3-minute clip | about 1 s |
-| `join --shape tall` | one 3-minute 1080p clip | about 467 s (7.8 min) |
+| `doctor` | 4 | about 1 s |
+| `join --shape tall` | 4 (one 3-minute 1080p clip) | about 467 s (7.8 min) |
 
 The clone, the pip install, the uploads and the other tests' joins were not timed. No time limit was hit, but none was looked for: 467 s is simply the longest step seen.
 
@@ -47,33 +59,35 @@ The clone, the pip install, the uploads and the other tests' joins were not time
 
 | Measure | Result |
 | --- | --- |
-| Largest tall result sent back | None. Every result whose delivery was recorded was refused for being over the 30 MiB send limit (below). |
-| Largest wide result sent back | None; no wide test was run. |
-| Longest wide video that came back | None; no wide test was run. |
+| Largest tall result sent back | Test 2's reel, from a clip of about 30 s. Its size was not recorded. The smallest result refused was 44.8 MiB (test 3). |
+| Largest wide result sent back | None; test 7 (wide) wasn't run. |
+| Longest wide video that came back | None; test 7 wasn't run. |
 
 Results that were built but refused:
 
 | Test | Shape | Result size |
 | --- | --- | --- |
-| one 1-minute 1080p clip | not recorded (EDITOR.md's default is tall) | 44.8 MiB |
-| 10 short clips | not recorded (EDITOR.md's default is tall) | 58.7 MiB |
-| one 3-minute 1080p clip | tall | 95.9 MiB (100,539,471 bytes, `join-tall-20261012-143223.mp4`) |
-
-With 3 photos and 1 clip, Claude reported: "Only the .mov is a video, so the join used just that clip. The three photos were not included in the reel." Whether that reel was sent back was not recorded.
+| 3 | not recorded (EDITOR.md's default is tall) | 44.8 MiB |
+| 5 | not recorded (EDITOR.md's default is tall) | 58.7 MiB |
+| 4 | tall | 95.9 MiB (100,539,471 bytes, `join-tall-20261012-143223.mp4`) |
 
 ## Errors, exact text
 
-1. One 1-minute clip: "The reel is built, but I couldn’t send it to you. The file is 44.8 MiB and the upload limit is 30 MiB. Vid2Reel has no option to make a smaller export, and I’m not allowed to write my own FFmpeg commands, so I’ve stopped here."
-2. One 3-minute clip: "Delivery failed: the send was refused with this message: “95.9 MiB exceeds the 30 MiB upload limit — send a smaller or compressed copy.”"
-3. Ten short clips: "The reel is built, but I couldn’t send it. The file is 58.7 MiB and the upload limit is 30 MiB. Per your instructions I’m stopping here."
+1. Test 3: "The reel is built, but I couldn’t send it to you. The file is 44.8 MiB and the upload limit is 30 MiB. Vid2Reel has no option to make a smaller export, and I’m not allowed to write my own FFmpeg commands, so I’ve stopped here."
+2. Test 4: "Delivery failed: the send was refused with this message: “95.9 MiB exceeds the 30 MiB upload limit — send a smaller or compressed copy.”"
+3. Test 5: "The reel is built, but I couldn’t send it. The file is 58.7 MiB and the upload limit is 30 MiB. Per your instructions I’m stopping here."
 4. Files over 400 MB: an upload warning appeared; its text was not recorded.
 
 Errors 1 and 3 are Claude's wording. Only error 2 quotes the sandbox's own refusal.
 
+Test 6 was not an error. Claude reported: "Only the .mov is a video, so the join used just that clip. The three photos were not included in the reel."
+
 ## What the numbers mean (estimates)
 
-- A result comes back only if it is at most 30 MiB. At today's join settings the results ran 32 to 45 MiB per minute of video, so only reels shorter than about 40 seconds would fit, or about 32 seconds within the safety margin below.
-- The sandbox's join took about 2.6 seconds per second of video (the 3-minute tall clip, 2 processors). The Mac takes about 1.3 (8 processors).
+- A result comes back only if it is at most 30 MiB. Tests 1 and 2 (reels of about 20 and 30 seconds) came back. Tests 3 to 5 (a minute or more) were refused.
+- At today's join settings, results ran 32 to 45 MiB per minute of video. So the cut-off is about 40 seconds, or about 32 seconds within the safety margin below.
+- A wide frame has as many pixels as a tall one, so the same cut-off probably applies to wide videos. Test 7 would confirm it.
+- The sandbox's join took about 2.6 seconds per second of video (test 4, 2 processors). The Mac takes about 1.3 (8 processors).
 
 ## What the sandbox's doctor report lacks that the Mac's has
 
@@ -93,5 +107,5 @@ Python is 3.13.16 in the sandbox and 3.13.15 on the Mac, which makes no differen
 | Setting | Value | From |
 | --- | --- | --- |
 | `MAX_ATTACHMENT_BYTES` | 320 MB | 80% of the 400 MB upload warning |
-| `MAX_ATTACHMENTS` | 10 | the most files tried, all of which arrived; no margin, because 10 is a tested success, not a limit that was found |
+| `MAX_ATTACHMENTS` | 10 | test 5: the most files tried, all of which arrived; no margin, because 10 is a tested success, not a limit that was found |
 | `MAX_RESULT_BYTES` | 24 MiB | 80% of the 30 MiB send limit |
