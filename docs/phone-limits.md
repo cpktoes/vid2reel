@@ -9,7 +9,7 @@ Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from t
 | 1 | Two clips of about 10 s | The reel came back and played fine. |
 | 2 | One clip of about 30 s | The reel came back and played fine. |
 | 3a | One 1-minute 1080p clip, run first in place of the guide's 30-second 4K clip | It arrived and the reel was built (44.8 MiB), but sending it back was refused: over 30 MiB. |
-| 3b | One 30-second 4K landscape clip (103.3 MB on the phone); a 7.5-second 1080×1920 HDR clip added for the second attempt. Joined wide. | Attempt 1, the 4K clip alone: it arrived, but Claude wouldn't "join" a single file, though the command accepts one. Attempt 2, with the second clip: the join ran in the background and took 142.96 s. The result came back at 1920×1080, 19.4 MiB, and looked fine. |
+| 3b | One 30-second 4K landscape clip (103.3 MB on the phone); a 7.5-second landscape HDR clip (1920×1080 as shown, stored as 1080×1920 with a 90° rotation flag) added for the second attempt. Joined wide. | Attempt 1, the 4K clip alone: it arrived, but Claude wouldn't "join" a single file, though the command accepts one. Attempt 2, with the second clip: the join ran in the background and took 142.96 s. The result came back at 1920×1080, 19.4 MiB, and looked fine. |
 | 3c | One 4K HDR clip of 2 min 7 s, 408 MB on the phone. No reel; only checked whether it arrived. | It arrived whole: 408,714,877 bytes, 3840×2160, 30 fps, 126.9 s, still HEVC 10-bit HLG HDR. |
 | 4 | One 3-minute 1080p clip, in place of the guide's 60 to 90 seconds | It arrived and the reel was built (95.9 MiB) in about 467 s, but sending it back was refused: over 30 MiB. |
 | 5 | Ten short clips of about 15 s or less | All ten arrived and the reel was built (58.7 MiB), but sending it back was refused: over 30 MiB. |
@@ -45,7 +45,7 @@ pypi.org can be reached.
 | --- | --- |
 | Largest file that arrived | 408,714,877 bytes (test 3c), 408 MB on the phone |
 | Smallest file that failed | None failed. The app warns about files over 400 MB, but test 3c's 408.7 MB file arrived anyway. The warning's text was not recorded. |
-| Arrived at phone size or smaller | At phone size, unchanged. Test 3c's clip was 408 MB on the phone and arrived at 408,714,877 bytes, still 4K HEVC HDR. Uploads arrive as the original file, not a shrunk copy. |
+| Arrived at phone size or smaller | At phone size, unchanged. Test 3c's clip was 408 MB on the phone and arrived at 408,714,877 bytes, still 4K HEVC HDR. Test 3b's 7.5-second clip arrived at 8,725,576 bytes, byte for byte the size of the original sent to the Mac by AirDrop. Uploads arrive as the original file, not a shrunk copy. |
 | Most files in one message | 10 (test 5), and all arrived. |
 | Where attachments land | `/mnt/user-data/uploads/` in the sandbox (test 7) |
 
@@ -103,6 +103,7 @@ Test 6 was not an error. Claude reported: "Only the .mov is a video, so the join
 - Any single command is stopped after 2 minutes. At full size, the join needs about 2.6 seconds of work per second of video (test 4), so anything over about 45 seconds would be stopped. That is why the join runs in the background.
 - Frame size sets the speed. At 960×540 the join needed about 0.7 seconds of work per second of video (test 7), nearly four times quicker than at full size (test 4). The Mac needs about 1.3 at full size (8 processors).
 - Uploads arrive as the original file, at full size and quality (test 3c). At 4K that is about 3.2 MB per second of video, so 400 MB is about 2 minutes of 4K. Test 7's 1080p clip came to about 1.15 MB per second, so 400 MB is about 6 minutes of 1080p.
+- Claude's own description of a clip can get its shape wrong. It reported test 3b's second clip as "1080 × 1920 (portrait)", reading the stored size and ignoring the rotation flag. v2r's join applied the flag and showed the clip whole in the wide video.
 - 4K is the slowest to read. Test 3b took about 3.8 seconds of work per second of video (30 s of 4K plus 7.5 s of 1080p, at full size). So even a 30-second 4K clip runs past the 2-minute limit and needs the background join.
 
 ## What the sandbox's doctor report lacks that the Mac's has
