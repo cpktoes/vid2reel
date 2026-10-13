@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from v2r import __version__, build_skill, doctor, join, settings
+from v2r import __version__, build_skill, doctor, join, normalize, settings
 
 
 def main(argv=None):
@@ -21,6 +21,17 @@ def main(argv=None):
         help=" or ".join(f"{name} ({w}x{h})" for name, (w, h) in settings.SHAPES.items()) + "; there is no default",
     )
     join_parser.add_argument("videos", nargs="+", type=Path, help="video files, in the order to join them")
+    normalize_parser = commands.add_parser("normalize", help="convert clips to one working format in work/")
+    normalize_parser.add_argument(
+        "--shape",
+        required=True,
+        choices=list(settings.SHAPES),
+        help=" or ".join(f"{name} ({w}x{h})" for name, (w, h) in settings.SHAPES.items()) + "; there is no default",
+    )
+    normalize_parser.add_argument(
+        "files", nargs="+", type=Path,
+        help="files, in the order they were attached; they get the letters A, B, C...",
+    )
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude")
     args = parser.parse_args(argv)
 
@@ -37,6 +48,13 @@ def main(argv=None):
             return 1
         print(summary)
         print(output)
+    elif args.command == "normalize":
+        try:
+            manifest = normalize.normalize(args.files, args.shape)
+        except normalize.NormalizeError as error:
+            print(f"v2r normalize: {error}", file=sys.stderr)
+            return 1
+        return 0 if any(clip["status"] == "done" for clip in manifest["clips"]) else 1
     elif args.command == "build-skill":
         print(build_skill.build())
     else:

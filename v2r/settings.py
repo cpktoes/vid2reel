@@ -23,6 +23,28 @@ FIT_STEPS = [
     (1 / 2, 700_000),  # 540x960 tall, 960x540 wide
 ]
 
+# normalize: working size per job shape and source orientation, as (max width, max height) in pixels;
+# None means no limit on that side. Nothing is ever scaled up. A square source uses the shape's own
+# entry ("portrait" in a tall job, "landscape" in a wide job).
+WORKING_SIZE = {
+    "tall": {"portrait": (1080, 1920), "landscape": (None, 1920)},
+    "wide": {"landscape": (1920, 1080), "portrait": (1920, None)},
+}
+PHOTO_SECONDS = 4  # seconds a photo's still clip lasts
+PHOTO_JPEG_QUALITY = 92  # 1-100, quality of the upright full-size copy of a photo
+X264_PRESET = "veryfast"  # working copies: fast encode (the renderer re-encodes them later)
+X264_CRF = 20  # working copies: video quality, lower is better
+WORKING_AUDIO_BITRATE = 160_000  # bits per second of AAC sound in a working copy
+AUDIO_RATE = 48_000  # samples per second of every working copy's sound
+TONEMAP = "hable"  # HDR to ordinary colour: hable, mobius or reinhard
+# Research (2026-10-13) found hable at 203 closest to Apple's own rendering of the same clips; mobius and
+# reinhard need 800 to match that brightness, and 1000 is too dark with any operator. Switching is these two numbers.
+TONEMAP_NPL = 203  # nits: nominal peak for HLG sources; 203 is BT.2408's HLG reference white
+TONEMAP_NPL_PQ = 100  # nits: nominal peak for PQ sources
+SLOW_MOTION_MIN_FPS = 100  # frames per second: a median frame rate at or above this marks slow-motion source
+STEADY_TOLERANCE = 0.25  # share of the median frame gap that a frame gap may differ by and still count as steady
+ERROR_DETAIL_CHARS = 400  # characters of FFmpeg's own error text kept in a skipped entry
+
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
 
