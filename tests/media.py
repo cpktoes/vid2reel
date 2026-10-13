@@ -1,5 +1,6 @@
 """Helpers for tests: clips made by FFmpeg on the spot, and ffprobe readers. Nothing here is committed footage."""
 
+import hashlib
 import json
 import re
 import subprocess
@@ -109,3 +110,23 @@ def mean_luma(path, at=0.5):
     """Average brightness (0-255) of one whole picture of `path`."""
     frame, _, _ = gray_frame(path, at)
     return sum(frame) / len(frame)
+
+
+def sha256(path):
+    """The SHA-256 of a file, read in blocks."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def filter_names(graph):
+    """The filter names in an FFmpeg filter graph: split on ; and ,, drop [labels], keep the text before "="."""
+    names = []
+    for piece in re.split(r"[;,]", graph):
+        piece = re.sub(r"^(\[[^\]]*\])+|(\[[^\]]*\])+$", "", piece.strip())
+        name = piece.split("=")[0].strip()
+        if name:
+            names.append(name)
+    return names

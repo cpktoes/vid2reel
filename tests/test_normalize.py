@@ -1,14 +1,16 @@
 import errno
 import json
+import os
+import stat
 
 import pytest
-from media import corner_mean, gray_frame, make_audio, make_clip, mean_luma, peak_volume, probe, stream
+from media import corner_mean, gray_frame, filter_names, make_audio, make_clip, mean_luma, peak_volume, probe, sha256, stream
 
 import v2r.normalize
-from v2r import settings
+from v2r import doctor, settings
 from v2r.__main__ import main
-from v2r.normalize import (clear_last_job, colour_notes, frame_facts, hdr_kind, letter, normalize, ordinal,
-                           video_chain, working_size)
+from v2r.normalize import (NormalizeError, clear_last_job, colour_notes, frame_facts, hdr_kind, letter, normalize, ordinal,
+                           video_chain, video_command, working_size)
 
 SMALL_CAPS = {
     "tall": {"portrait": (180, 320), "landscape": (None, 320)},
@@ -530,3 +532,164 @@ def test_refuse_whole_run_out_of_room_sentence(tmp_path, monkeypatch, capsys, sm
     assert manifest["finished"] is False
     assert "ran out of room" in manifest["stopped"]
     assert not [p for p in (tmp_path / "work").iterdir() if ".part." in p.name]
+
+
+def fingerprint(path):
+    info = os.stat(path)
+    return sha256(path), info.st_size, info.st_mtime_ns
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_files_unchanged_hash_and_mtime(shape, tmp_path, small_caps):
+    sources = [
+        make_clip(tmp_path / "sideways.mp4", 640, 360, rotate=90),
+        make_clip(tmp_path / "silent.mp4", 640, 360, sound=False),
+        make_clip(tmp_path / "hlg.mp4", 640, 360, pattern="flat", hdr="hlg"),
+        make_clip(tmp_path / "fast.mp4", 640, 360, fps=60),
+    ]
+    before = [fingerprint(path) for path in sources]
+
+    manifest = convert(sources, shape, tmp_path / "out")
+
+    assert [c["status"] for c in manifest["clips"]] == ["done"] * 4
+    assert [fingerprint(path) for path in sources] == before
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_read_only_inputs_convert(shape, tmp_path, small_caps):
+    clip = make_clip(tmp_path / "locked.mp4", 320, 180)
+    before = fingerprint(clip)
+    clip.chmod(0o444)
+    try:
+        manifest = convert([clip], shape, tmp_path / "out")
+    finally:
+        clip.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+    assert manifest["clips"][0]["status"] == "done"
+    assert fingerprint(clip) == before
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_inside_work_folder_skipped_not_deleted(shape, tmp_path, small_caps):
+    out = tmp_path / "out"
+    out.mkdir()
+    inside = make_clip(out / "A.mp4", 320, 180)
+    other = make_clip(tmp_path / "other.mp4", 320, 180)
+    before = fingerprint(inside)
+
+    manifest = convert([inside, other], shape, out)
+
+    assert [(c["letter"], c["status"]) for c in manifest["clips"]] == [("A", "skipped"), ("B", "done")]
+    assert manifest["clips"][0]["sentence"] == "The first file, A.mp4, is already in the work folder, so it was left alone."
+    assert fingerprint(inside) == before
+    assert (out / "B.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_inside_work_folder_with_a_lettered_name_is_not_overwritten(shape, tmp_path, small_caps):
+    out = tmp_path / "out"
+    out.mkdir()
+    other = make_clip(tmp_path / "other.mp4", 320, 180)
+    inside = make_clip(out / "A.mp4", 320, 180)
+    before = fingerprint(inside)
+
+    manifest = convert([other, inside], shape, out)  # the copy of the first would be named A.mp4
+
+    assert [c["status"] for c in manifest["clips"]] == ["skipped", "skipped"]
+    assert fingerprint(inside) == before
+    assert not (out / "A.part.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_clear_keeps_other_files(shape, tmp_path, small_caps):
+    out = tmp_path / "out"
+    out.mkdir()
+    for name in ["A.part.mp4", "A.mp4", "manifest.json"]:
+        (out / name).write_bytes(b"stale")
+    for name in ["join-tall-x.mp4", "notes.txt"]:
+        (out / name).write_bytes(b"keep")
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+
+    manifest = convert([clip], shape, out)
+
+    assert manifest["clips"][0]["status"] == "done"
+    assert not (out / "A.part.mp4").exists()
+    assert probe(out / "A.mp4")["streams"]  # the stale bytes were replaced by a real clip
+    assert (out / "join-tall-x.mp4").read_bytes() == b"keep"
+    assert (out / "notes.txt").read_bytes() == b"keep"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_failed_conversion_leaves_no_partial_file(shape, tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(settings, "X264_PRESET", "nosuchpreset")
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+    before = fingerprint(clip)
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "skipped"
+    assert entry["sentence"] == "The first file, in.mp4, could not be converted."
+    assert entry["detail"]
+    assert len(entry["detail"]) <= settings.ERROR_DETAIL_CHARS
+    assert entry["sentence"] in capsys.readouterr().out
+    assert not (tmp_path / "out" / "A.mp4").exists()
+    assert not (tmp_path / "out" / "A.part.mp4").exists()
+    assert fingerprint(clip) == before
+
+
+def test_doctor_missing_feature_stops_run(tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(doctor, "FILTERS", [*doctor.FILTERS, "nosuchfilter"])
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+    out = tmp_path / "out"
+    out.mkdir()
+
+    with pytest.raises(NormalizeError) as stopped:
+        normalize([clip], "tall", out_dir=out)
+
+    assert str(stopped.value) == "This computer's FFmpeg lacks the nosuchfilter filter, so nothing was converted."
+    assert list(out.iterdir()) == []
+
+
+def test_doctor_missing_ffmpeg_and_several_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(doctor, "missing_ffmpeg_features", lambda: ["FFmpeg"])
+    with pytest.raises(NormalizeError, match="FFmpeg is not installed here, so nothing was converted."):
+        normalize([tmp_path / "x.mov"], "wide", out_dir=tmp_path / "out")
+    monkeypatch.setattr(doctor, "missing_ffmpeg_features", lambda: ["the a filter", "the b filter", "the c decoder"])
+    with pytest.raises(NormalizeError, match="lacks the a filter, the b filter and the c decoder, so nothing"):
+        normalize([tmp_path / "x.mov"], "wide", out_dir=tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+def test_doctor_graph_filters_all_listed():
+    streams = {
+        "ordinary": {},
+        "hlg": {"color_transfer": "arib-std-b67"},
+        "pq": {"color_transfer": "smpte2084"},
+        "gamut": {"color_primaries": "bt2020"},
+    }
+    seen = set()
+    for stream_facts in streams.values():
+        for tonemap in (True, False):
+            for audio_index in (1, None):
+                command = video_command("in.mov", "A.part.mp4", stream_facts, (320, 180), 2.0, audio_index, tonemap)
+                seen.update(filter_names(command[command.index("-filter_complex") + 1]))
+    assert {"fps", "scale", "zscale", "tonemap", "format", "setsar", "aresample", "apad", "anullsrc"} <= seen
+    assert seen <= set(doctor.FILTERS)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_original_no_location_or_device_tags(shape, tmp_path, small_caps):
+    tags = {"location": "+37.7749-122.4194/", "make": "TestMaker", "model": "TestModel"}
+    source = make_clip(tmp_path / "tagged.mov", 320, 180, metadata=tags)
+    source_tags = {k.lower(): v for k, v in probe(source)["format"].get("tags", {}).items()}
+    assert any("37.7749" in value for value in source_tags.values())  # the source really carries the location
+
+    convert([source], shape, tmp_path / "out")
+
+    made_tags = probe(tmp_path / "out" / "A.mp4")["format"].get("tags", {})
+    forbidden = {"location", "location-eng", "make", "model", "com.apple.quicktime.location.iso6709"}
+    assert not forbidden & {key.lower() for key in made_tags}
+    manifest_text = (tmp_path / "out" / "manifest.json").read_text(encoding="utf-8")
+    assert "TestMaker" not in manifest_text
+    assert "37.7749" not in manifest_text
