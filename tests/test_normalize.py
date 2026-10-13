@@ -1,12 +1,12 @@
 import json
 
 import pytest
-from media import corner_mean, gray_frame, make_clip, probe, stream
+from media import corner_mean, gray_frame, make_clip, peak_volume, probe, stream
 
 import v2r.normalize
 from v2r import settings
 from v2r.__main__ import main
-from v2r.normalize import frame_facts, hdr_kind, normalize, working_size
+from v2r.normalize import clear_last_job, frame_facts, hdr_kind, letter, normalize, ordinal, working_size
 
 SMALL_CAPS = {
     "tall": {"portrait": (180, 320), "landscape": (None, 320)},
@@ -182,3 +182,123 @@ def test_facts_one_frame_clip(shape, tmp_path):
     assert entry["status"] == "done"
     assert entry["original"]["fps_steady"] is True
     assert entry["original"]["slow_motion"] is False
+
+
+def durations(path):
+    info = probe(path)
+    return float(stream(info, "video")["duration"]), float(stream(info, "audio")["duration"])
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_working_60fps_becomes_constant_30(shape, tmp_path):
+    clip = make_clip(tmp_path / "fast.mp4", 320, 180, fps=60)
+
+    entry = convert([clip], shape, tmp_path / "out")["clips"][0]
+
+    assert entry["original"]["fps"] == pytest.approx(60, abs=0.5)
+    working = tmp_path / "out" / "A.mp4"
+    assert stream(probe(working), "video")["r_frame_rate"] == "30/1"
+    picture, sound = durations(working)
+    assert picture == pytest.approx(2.0, abs=0.1)
+    assert sound == pytest.approx(2.0, abs=0.1)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_working_uneven_timing_becomes_constant_30(shape, tmp_path):
+    clip = make_clip(tmp_path / "uneven.mp4", 320, 180, vfr=True)
+    original_picture, _ = durations(clip)
+
+    entry = convert([clip], shape, tmp_path / "out")["clips"][0]
+
+    assert entry["original"]["fps_steady"] is False
+    working = tmp_path / "out" / "A.mp4"
+    assert stream(probe(working), "video")["r_frame_rate"] == "30/1"
+    picture, sound = durations(working)
+    assert picture == pytest.approx(sound, abs=0.1)
+    assert picture == pytest.approx(original_picture, abs=0.1)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_working_silent_clip_gets_silence(shape, tmp_path):
+    clip = make_clip(tmp_path / "quiet.mp4", 320, 180, sound=False)
+
+    entry = convert([clip], shape, tmp_path / "out")["clips"][0]
+
+    assert entry["original"]["has_sound"] is False
+    assert entry["working"]["sound_added"] is True
+    working = tmp_path / "out" / "A.mp4"
+    audio = stream(probe(working), "audio")
+    assert (audio["codec_name"], audio["channels"], int(audio["sample_rate"])) == ("aac", 2, 48000)
+    picture, sound = durations(working)
+    assert sound == pytest.approx(picture, abs=0.1)
+    assert peak_volume(working) <= -80
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_working_short_sound_padded(shape, tmp_path):
+    clip = make_clip(tmp_path / "short.mp4", 320, 180, sound_seconds=1.0)
+
+    convert([clip], shape, tmp_path / "out")
+
+    _, sound = durations(tmp_path / "out" / "A.mp4")
+    assert sound == pytest.approx(2.0, abs=0.1)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_manifest_second_run_replaces_last_job(shape, tmp_path):
+    clips = [make_clip(tmp_path / "one.mp4", 320, 180), make_clip(tmp_path / "two.mp4", 320, 180)]
+    out = tmp_path / "out"
+    out.mkdir()
+    keep = out / "join-tall-test.mp4"
+    keep.write_bytes(b"a joined video that must stay")
+
+    convert(clips, shape, out)
+    assert (out / "B.mp4").exists()
+    manifest = convert(clips[:1], shape, out)
+
+    assert (out / "A.mp4").exists()
+    assert not (out / "B.mp4").exists()
+    assert len(manifest["clips"]) == 1
+    assert keep.read_bytes() == b"a joined video that must stay"
+
+
+def test_clear_last_job_never_touches_an_input_or_other_files(tmp_path):
+    for name in ["A.mp4", "B.part.mp4", "C-photo.jpg", "manifest.json", "manifest.json.tmp"]:
+        (tmp_path / name).write_bytes(b"old")
+    for name in ["notes.txt", "join-wide-1.mp4", "ABCD.mp4", "abc.mp4"]:
+        (tmp_path / name).write_bytes(b"other")
+
+    clear_last_job(tmp_path, [tmp_path / "A.mp4"])
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["A.mp4", "ABCD.mp4", "abc.mp4", "join-wide-1.mp4", "notes.txt"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_manifest_same_file_twice_gets_two_letters(shape, tmp_path):
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+
+    manifest = convert([clip, clip], shape, tmp_path / "out")
+
+    assert [(c["letter"], c["status"]) for c in manifest["clips"]] == [("A", "done"), ("B", "done")]
+    assert (tmp_path / "out" / "A.mp4").exists()
+    assert (tmp_path / "out" / "B.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_manifest_letters_follow_given_order(shape, tmp_path):
+    long_clip = make_clip(tmp_path / "long.mp4", 320, 180, seconds=3)
+    short_clip = make_clip(tmp_path / "short.mp4", 320, 180, seconds=2)
+
+    manifest = convert([long_clip, short_clip], shape, tmp_path / "out")
+
+    assert [(c["letter"], c["number"], c["original"]["name"]) for c in manifest["clips"]] == [
+        ("A", 1, "long.mp4"), ("B", 2, "short.mp4")]
+    assert float(probe(tmp_path / "out" / "A.mp4")["format"]["duration"]) == pytest.approx(3.0, abs=0.1)
+    assert float(probe(tmp_path / "out" / "B.mp4")["format"]["duration"]) == pytest.approx(2.0, abs=0.1)
+
+
+def test_letters_and_ordinals():
+    assert [letter(n) for n in (1, 26, 27, 28, 52, 53, 702, 703)] == ["A", "Z", "AA", "AB", "AZ", "BA", "ZZ", "AAA"]
+    assert [ordinal(n) for n in (1, 2, 10)] == ["first", "second", "tenth"]
+    assert [ordinal(n) for n in (11, 12, 13, 21, 22, 23, 101, 111)] == [
+        "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th"]

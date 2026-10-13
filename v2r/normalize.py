@@ -20,6 +20,7 @@ No GPS, device make or device model appears anywhere.
 
 import json
 import os
+import re
 import statistics
 import subprocess
 import time
@@ -46,6 +47,28 @@ def letter(n):
         n, rest = divmod(n - 1, 26)
         name = chr(ord("A") + rest) + name
     return name
+
+
+ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
+LAST_JOB_FILES = re.compile(r"^[A-Z]{1,3}(-photo)?(\.part)?\.(mp4|jpg)$")
+
+
+def ordinal(n):
+    """1 gives "first" ... 10 "tenth", then "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th"."""
+    if 1 <= n <= len(ORDINAL_WORDS):
+        return ORDINAL_WORDS[n - 1]
+    if n % 100 in (11, 12, 13):
+        return f"{n}th"
+    return f"{n}{({1: 'st', 2: 'nd', 3: 'rd'}).get(n % 10, 'th')}"
+
+
+def clear_last_job(out_dir, inputs):
+    """Delete the last run's lettered files and manifest in `out_dir`; nothing else, and never one of `inputs`."""
+    protected = {Path(path).resolve() for path in inputs}
+    for entry in Path(out_dir).iterdir():
+        last_job = LAST_JOB_FILES.match(entry.name) or entry.name in ("manifest.json", "manifest.json.tmp")
+        if last_job and entry.is_file() and entry.resolve() not in protected:
+            entry.unlink()
 
 
 def working_size(shape, width, height):
@@ -156,6 +179,8 @@ def video_chain(stream, width, height):
 
 def audio_chain(audio_index, seconds):
     """The sound branch of the filter graph, ending in the label [a], exactly `seconds` long."""
+    if audio_index is None:  # no usable sound: silence exactly as long as the picture, never an endless source
+        return f"anullsrc=r={settings.AUDIO_RATE}:cl=stereo:d={seconds:.3f}[a]"
     return (
         f"[0:{audio_index}]aresample={settings.AUDIO_RATE}:async=1:first_pts=0,"
         f"apad=whole_dur={seconds:.3f}[a]"
@@ -214,6 +239,7 @@ def normalize(files, shape, out_dir=None):
     out_dir.mkdir(parents=True, exist_ok=True)
     inputs = [Path(file).resolve() for file in files]
     given = [Path(file) for file in files]
+    clear_last_job(out_dir, inputs)  # a new run is a new job (D-18)
     manifest = {"version": 1, "shape": shape, "finished": False, "stopped": None, "clips": []}
     write_manifest(out_dir, manifest)
 
@@ -229,6 +255,9 @@ def normalize(files, shape, out_dir=None):
         final = out_dir / f"{name}.mp4"
         part = part_path(final)
         audio_index = audio["index"] if audio else None
+        notes = []
+        if audio is None and any(s["codec_type"] == "audio" for s in info["streams"]):
+            notes.append(f"The sound of the {ordinal(number)} file, {original['name']}, could not be read, so silence was added.")
         run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
 
         made = probe(final)
@@ -246,11 +275,11 @@ def normalize(files, shape, out_dir=None):
                 "fps": float(numerator) / float(denominator),
                 "seconds": float(made["format"]["duration"]),
                 "bytes": final.stat().st_size,
-                "sound_added": False,
+                "sound_added": audio is None,
                 "colour_converted": False,
             },
             "convert_seconds": round(time.monotonic() - started, 1),
-            "notes": [],
+            "notes": notes,
         })
         print(f"{name} done in {round(time.monotonic() - started)} s", flush=True)
         write_manifest(out_dir, manifest)

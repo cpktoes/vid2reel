@@ -1,6 +1,7 @@
 """Helpers for tests: clips made by FFmpeg on the spot, and ffprobe readers. Nothing here is committed footage."""
 
 import json
+import re
 import subprocess
 
 BARS = "smptehdbars=size={w}x{h}:rate={fps}:duration={s}"
@@ -14,18 +15,22 @@ def run(command):
     subprocess.run(command, check=True, timeout=TIMEOUT)
 
 
-def make_clip(path, width, height, seconds=2, fps=30, sound=True, rotate=None, pattern="bars", metadata=None):
+def make_clip(path, width, height, seconds=2, fps=30, sound=True, rotate=None, pattern="bars", metadata=None,
+              sound_seconds=None, vfr=False):
     """A test clip made by FFmpeg.
 
     `pattern` is "bars" (colour bars) or "marker" (black with a white corner square). `sound` adds a 1 kHz beep.
     `rotate` (90, -90 or 180) stores the clip sideways: the picture is unchanged and only the turn flag is set.
+    `sound_seconds` makes the beep shorter than the picture. `vfr` drops random pictures, so the timing is uneven.
     `metadata` is a dict of tags written into the file (use a .mov name for the Apple tags).
     """
     source = (MARKER if pattern == "marker" else BARS).format(w=width, h=height, fps=fps, s=seconds)
     first = path.with_name(f"plain-{path.name}") if rotate else path
     command = ["ffmpeg", "-loglevel", "error", "-nostdin", "-f", "lavfi", "-i", source]
     if sound:
-        command += ["-f", "lavfi", "-i", BEEP.format(s=seconds)]
+        command += ["-f", "lavfi", "-i", BEEP.format(s=sound_seconds or seconds)]
+    if vfr:
+        command += ["-vf", "select='gt(random(1),0.35)'", "-fps_mode", "passthrough"]
     command += ["-c:v", "libx264", "-preset", "ultrafast"]
     command += ["-c:a", "aac"] if sound else ["-an"]
     if metadata:
@@ -76,3 +81,12 @@ def corner_mean(frame, width, height, corner, size=40):
     columns = range(0, size) if side == "left" else range(width - size, width)
     values = [frame[y * width + x] for y in rows for x in columns]
     return sum(values) / len(values)
+
+
+def peak_volume(path):
+    """The loudest moment of the sound, in dB (silence is -inf or about -91)."""
+    err = subprocess.run(
+        ["ffmpeg", "-nostdin", "-i", str(path), "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True, text=True, check=True, timeout=TIMEOUT,
+    ).stderr
+    return float(re.search(r"max_volume: (\S+) dB", err).group(1))
