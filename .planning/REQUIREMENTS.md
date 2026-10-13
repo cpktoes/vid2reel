@@ -17,9 +17,9 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 ### Normalize (Stage 14)
 
 - [ ] **NORM-01**: `python -m v2r normalize` reads each attached file's facts with ffprobe (length, picture size, orientation, frames per second, HDR or not, sound or not, when shot) without changing the file
-- [ ] **NORM-02**: Each clip gets a working copy in work/ in one format: upright; sized for the job's shape (tall: portrait at most 1080×1920 and landscape at most 1920 high; wide: landscape at most 1920×1080 and portrait at most 1920 wide; never scaled up); constant 30 fps; ordinary colour with HDR tone-mapped so it looks natural; H.264; AAC stereo at 48 kHz, with silence added where a clip has none
+- [x] **NORM-02**: Each clip gets a working copy in work/ in one format: upright; sized for the job's shape (tall: portrait at most 1080×1920 and landscape at most 1920 high; wide: landscape at most 1920×1080 and portrait at most 1920 wide; never scaled up); constant 30 fps; ordinary colour with HDR tone-mapped so it looks natural; H.264; AAC stereo at 48 kHz, with silence added where a clip has none
 - [ ] **NORM-03**: A photo becomes a still clip of a length set in settings.py, and the manifest records the full-resolution photo alongside
-- [ ] **NORM-04**: A clip shot at 120 or 240 fps is flagged as slow-motion source material and converted at normal speed
+- [x] **NORM-04**: A clip shot at 120 or 240 fps is flagged as slow-motion source material and converted at normal speed
 - [ ] **NORM-05**: Clips are named A, B, C in the order given, and work/manifest.json lists each clip's original facts, its working copy and how long the conversion took
 - [ ] **NORM-06**: A file over the limits in settings.py, or one that can't be read, gets one plain-English sentence and does not stop the others
 - [ ] **NORM-07**: No original file is ever written to
