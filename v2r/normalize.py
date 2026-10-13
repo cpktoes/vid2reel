@@ -20,6 +20,7 @@ No GPS, device make or device model appears anywhere.
 
 import json
 import os
+import statistics
 import subprocess
 import time
 from pathlib import Path
@@ -68,6 +69,78 @@ def probe(path):
         capture_output=True, text=True, check=True,
     ).stdout
     return json.loads(out)
+
+
+def packet_times(path):
+    """When each picture of the first video track is shown, in seconds, sorted (reads the index only, so it is fast)."""
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return sorted(float(t) for t in out.split() if t != "N/A")
+
+
+def frame_facts(times):
+    """(fps, steady, slow_motion) from the times pictures are shown; this reports, the editing decision is later."""
+    if len(times) < 2:  # a one-frame clip has no gaps: steady, not slow motion
+        return None, True, False
+    gaps = [b - a for a, b in zip(times, times[1:])]
+    median = statistics.median(gaps)
+    steady = all(abs(gap - median) <= settings.STEADY_TOLERANCE * median for gap in gaps)
+    return round(1 / median, 2), steady, 1 / median >= settings.SLOW_MOTION_MIN_FPS
+
+
+def hdr_kind(stream):
+    """"hlg", "pq" or "bt2020" when the colour is not ordinary, else None. Missing or "unknown" tags count as missing."""
+    def tag(key):
+        value = stream.get(key)
+        return None if value in (None, "unknown", "unspecified") else value
+
+    if tag("color_transfer") == "arib-std-b67":
+        return "hlg"
+    if tag("color_transfer") == "smpte2084":
+        return "pq"
+    if tag("color_primaries") == "bt2020":
+        return "bt2020"
+    return None
+
+
+def fraction(text):
+    """"30000/1001" as a number; None for "0/0" or anything unreadable."""
+    try:
+        top, bottom = text.split("/")
+        return round(float(top) / float(bottom), 2)
+    except (AttributeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def video_facts(path, info, times):
+    """The `original` block of a video's manifest entry: every fact about the file as it was given."""
+    path = Path(path)
+    video = next(s for s in info["streams"] if s["codec_type"] == "video")
+    side_data = video.get("side_data_list", [])
+    # Rotation is read for sizing only; FFmpeg's autorotate does the turning.
+    rotation = next((int(round(item["rotation"])) for item in side_data if "rotation" in item), 0)
+    stored = [video["width"], video["height"]]
+    fps, steady, slow_motion = frame_facts(times)
+    tags = {key.lower(): value for key, value in info.get("format", {}).get("tags", {}).items()}
+    return {
+        "path": str(path.resolve()),
+        "name": path.name,
+        "bytes": path.stat().st_size,
+        "seconds": float(video.get("duration") or info["format"]["duration"]),
+        "stored_size": stored,
+        "rotation": rotation,
+        "upright_size": stored[::-1] if rotation % 180 else list(stored),
+        "fps": fps if fps is not None else fraction(video.get("avg_frame_rate")),
+        "fps_steady": steady,
+        "slow_motion": slow_motion,
+        "hdr": hdr_kind(video),
+        "dolby_vision": any(item.get("side_data_type") == "DOVI configuration record" for item in side_data),
+        "has_sound": any(s["codec_type"] == "audio" and s.get("codec_name") for s in info["streams"]),
+        "shot_at": tags.get("com.apple.quicktime.creationdate") or tags.get("creation_time"),
+    }
 
 
 def video_chain(stream, width, height):
@@ -150,16 +223,8 @@ def normalize(files, shape, out_dir=None):
         info = probe(path)
         video = next(s for s in info["streams"] if s["codec_type"] == "video")
         audio = next((s for s in info["streams"] if s["codec_type"] == "audio" and s.get("codec_name")), None)
-        seconds = float(video.get("duration") or info["format"]["duration"])
-        stored = [video["width"], video["height"]]
-        original = {
-            "path": str(path),
-            "name": as_given.name,
-            "bytes": path.stat().st_size,
-            "seconds": seconds,
-            "stored_size": stored,
-            "upright_size": list(stored),
-        }
+        original = video_facts(as_given, info, packet_times(path))
+        seconds = original["seconds"]
         size = working_size(shape, *original["upright_size"])
         final = out_dir / f"{name}.mp4"
         part = part_path(final)
