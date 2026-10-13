@@ -1,6 +1,6 @@
 # Phone limits
 
-Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from the Claude app on a phone. The app runs v2r in Claude's cloud workspace (the sandbox). "Not recorded" means the tests didn't capture that number; nothing here is estimated unless it says so.
+Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from the Claude app on a phone. The app runs v2r in Claude's cloud workspace (the sandbox). Test 7 ran after the fit update, which keeps every result under `MAX_RESULT_BYTES`. "Not recorded" means the tests didn't capture that number; nothing here is estimated unless it says so.
 
 ## The tests
 
@@ -12,7 +12,7 @@ Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from t
 | 4 | One 3-minute 1080p clip, in place of the guide's 60 to 90 seconds | It arrived and the reel was built (95.9 MiB) in about 467 s, but sending it back was refused: over 30 MiB. |
 | 5 | Ten short clips of about 15 s or less | All ten arrived and the reel was built (58.7 MiB), but sending it back was refused: over 30 MiB. |
 | 6 | Three photos and one short clip | All four arrived. The reel was made from the clip alone. Whether it came back was not recorded. |
-| 7 | Test 4's clip joined with itself three times, wide | Not run: results over 30 MiB were already being refused. |
+| 7 | One sideways clip of someone talking: 1920×1080 HDR (HLG), about 3 min 25 s, 236.6 MB on the phone. Joined wide. | Attempts 1 and 2 were stopped by the sandbox's 2-minute command limit. Attempt 3 ran the join in the background and finished in 142 s. The result came back: 960×540, 17.2 MiB. It looked great on a computer screen and on the phone. |
 
 ## The sandbox's doctor report
 
@@ -41,29 +41,35 @@ pypi.org can be reached.
 
 | Measure | Result |
 | --- | --- |
-| Largest file that arrived | The 3-minute 1080p clip of test 4; its size was not recorded. |
+| Largest file that arrived | Test 7's clip, 236.6 MB on the phone. Its size as it arrived was not recorded. |
 | Smallest file that failed | None failed. The app showed an upload warning for files over 400 MB. Which file triggered it, whether such a file then arrives, and the warning's text were not recorded. |
 | Arrived at phone size or smaller | Not recorded. |
 | Most files in one message | 10 (test 5), and all arrived. |
+| Where attachments land | `/mnt/user-data/uploads/` in the sandbox (test 7) |
 
 ## How long each step took
 
 | Step | Test | Time |
 | --- | --- | --- |
 | `doctor` | 4 | about 1 s |
-| `join --shape tall` | 4 (one 3-minute 1080p clip) | about 467 s (7.8 min) |
+| `join --shape tall` | 4 (3 minutes, full size 1080×1920) | about 467 s (7.8 min) |
+| `join --shape wide` | 7 (3 min 25 s, fitted to 960×540) | 142.27 s |
 
-The clone, the pip install, the uploads and the other tests' joins were not timed. No time limit was hit, but none was looked for: 467 s is simply the longest step seen.
+The clone, the pip install, the uploads and the other tests' joins were not timed.
+
+**The sandbox stops any single command after 2 minutes** (test 7). It reports exit code 143 and "Command timed out after 2m 0s." A join started in the background with `nohup ... &`, whose log is then read until it finishes, is not stopped (test 7, attempt 3). EDITOR.md now starts every join that way. How test 4's 467-second join finished in a single command was not recorded.
 
 ## What came back
 
 | Measure | Result |
 | --- | --- |
 | Largest tall result sent back | Test 2's reel, from a clip of about 30 s. Its size was not recorded. The smallest result refused was 44.8 MiB (test 3). |
-| Largest wide result sent back | None; test 7 (wide) wasn't run. |
-| Longest wide video that came back | None; test 7 wasn't run. |
+| Largest wide result sent back | 17.2 MiB (18,038,032 bytes, test 7) |
+| Longest wide video that came back | 205.44 s, about 3 min 25 s (test 7) |
 
-Results that were built but refused:
+Test 7's join reported: "The video is 960x540 at an average of 0.7 Mbit/s, and the file is 17.2 MiB, under the 24 MiB limit." Claude described the result as an SDR re-encode, but the join doesn't convert HDR to SDR. The file keeps the source's HDR (HLG) label, as the same join does on the Mac, and it looked great anyway.
+
+Results that were built but refused (all before the fit update):
 
 | Test | Shape | Result size |
 | --- | --- | --- |
@@ -79,17 +85,19 @@ Sending to the Mac has the same cap. Claude reported: "both ways of getting a fi
 2. Test 4: "Delivery failed: the send was refused with this message: “95.9 MiB exceeds the 30 MiB upload limit — send a smaller or compressed copy.”"
 3. Test 5: "The reel is built, but I couldn’t send it. The file is 58.7 MiB and the upload limit is 30 MiB. Per your instructions I’m stopping here."
 4. Files over 400 MB: an upload warning appeared; its text was not recorded.
+5. Test 7, attempt 1: a 2-minute tool timeout; its text was not recorded.
+6. Test 7, attempt 2: "Exit code 143, then “Command timed out after 2m 0s.” The process was killed by SIGTERM at the tool’s time limit and printed no output."
 
-Errors 1 and 3 are Claude's wording. Only error 2 quotes the sandbox's own refusal.
+Errors 1 and 3 are Claude's wording. Errors 2 and 6 quote the sandbox's own messages.
 
 Test 6 was not an error. Claude reported: "Only the .mov is a video, so the join used just that clip. The three photos were not included in the reel."
 
 ## What the numbers mean (estimates)
 
-- A result comes back only if it is at most 30 MiB. Tests 1 and 2 (reels of about 20 and 30 seconds) came back. Tests 3 to 5 (a minute or more) were refused.
-- At today's join settings, results ran 32 to 45 MiB per minute of video. So the cut-off is about 40 seconds, or about 32 seconds within the safety margin below.
-- A wide frame has as many pixels as a tall one, so the same cut-off probably applies to wide videos. Test 7 would confirm it.
-- The sandbox's join took about 2.6 seconds per second of video (test 4, 2 processors). The Mac takes about 1.3 (8 processors).
+- A result comes back only if it is at most 30 MiB. Before the fit update, results ran 32 to 45 MiB per minute of video, so nothing over about 40 seconds came back.
+- The fit update lifts that ceiling: it lowers the bitrate, then the frame size, until the video fits. Test 7's 3 min 25 s of wide came back at 960×540 and 17.2 MiB, and looked great. The longest video the fit will make at the smallest step is 3 min 54 s, in either shape.
+- Any single command is stopped after 2 minutes. At full size, the join needs about 2.6 seconds of work per second of video (test 4), so anything over about 45 seconds would be stopped. That is why the join runs in the background.
+- Frame size sets the speed. At 960×540 the join needed about 0.7 seconds of work per second of video (test 7), nearly four times quicker than at full size (test 4). The Mac needs about 1.3 at full size (8 processors).
 
 ## What the sandbox's doctor report lacks that the Mac's has
 
@@ -111,3 +119,5 @@ Python is 3.13.16 in the sandbox and 3.13.15 on the Mac, which makes no differen
 | `MAX_ATTACHMENT_BYTES` | 320 MB | 80% of the 400 MB upload warning |
 | `MAX_ATTACHMENTS` | 10 | test 5: the most files tried, all of which arrived; no margin, because 10 is a tested success, not a limit that was found |
 | `MAX_RESULT_BYTES` | 24 MiB | 80% of the 30 MiB send limit |
+
+The 2-minute command limit is not a setting. EDITOR.md handles it by starting the join in the background.
