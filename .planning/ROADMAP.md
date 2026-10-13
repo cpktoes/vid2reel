@@ -61,7 +61,17 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A file that is too large or can't be read gets one plain-English sentence and the other files still convert
   4. No original file is ever written to
   5. Tests pass using generated clips, including one stored sideways, one at 60 fps, one with no sound and one tagged HDR
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Tracer: one clip to an upright 30 fps working copy and manifest in both shapes, then the full fact sheet, sideways, 60 fps, uneven-timing and silent clips (wave 1)
+- [ ] 02-02-PLAN.md — Doctor lists every FFmpeg piece normalize needs; Stage 14 decisions recorded; normalize.log ignored (wave 1)
+- [ ] 02-03-PLAN.md — User checks, then installs, Pillow and pillow-heif; requirements.txt and docs/licenses.md (wave 1, checkpoint)
+- [ ] 02-04-PLAN.md — HDR tone-mapped to ordinary colour with a safe fallback; slow-motion sources flagged at real speed (wave 2)
+- [ ] 02-05-PLAN.md — One plain sentence per refused or unreadable file, letters kept, originals proven untouched, doctor check at start-up (wave 3)
+- [ ] 02-06-PLAN.md — Photos (HEIC, JPEG, PNG) become upright full-size copies and 4-second still clips (wave 4)
+- [ ] 02-07-PLAN.md — Mac run over the fixtures, HDR strips, the user's tone-map pick (wave 5, checkpoint)
+- [ ] 02-08-PLAN.md — The user's EDITOR.md lines, pre-push privacy checks, push with permission, phone test with a reel (wave 6, checkpoints)
 
 ### Phase 3: Stage 15 – Seeing the footage
 **Goal**: A Claude that never saw a clip can say what happens in it and pick its best two seconds, from contact sheets and measurements alone.
