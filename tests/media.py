@@ -53,6 +53,12 @@ def make_clip(path, width, height, seconds=2, fps=30, sound=True, rotate=None, p
     return path
 
 
+def make_audio(path, seconds=2):
+    """A sound-only file (the beep, AAC in .m4a): not a video and not a photo."""
+    run(["ffmpeg", "-loglevel", "error", "-nostdin", "-f", "lavfi", "-i", BEEP.format(s=seconds), "-c:a", "aac", str(path)])
+    return path
+
+
 def probe(path):
     """ffprobe's JSON for the facts the tests look at."""
     out = subprocess.run(

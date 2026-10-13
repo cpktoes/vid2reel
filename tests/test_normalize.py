@@ -1,7 +1,8 @@
+import errno
 import json
 
 import pytest
-from media import corner_mean, gray_frame, make_clip, mean_luma, peak_volume, probe, stream
+from media import corner_mean, gray_frame, make_audio, make_clip, mean_luma, peak_volume, probe, stream
 
 import v2r.normalize
 from v2r import settings
@@ -23,12 +24,14 @@ def small_caps(monkeypatch):
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
 def test_tracer_cli_one_clip_to_working_copy_and_manifest(shape, tmp_path, monkeypatch, capsys, small_caps):
-    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path)
-    clip = make_clip(tmp_path / "in.mp4", 640, 360)
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    (tmp_path / "sent").mkdir()
+    clip = make_clip(tmp_path / "sent" / "in.mp4", 640, 360)
 
     assert main(["normalize", "--shape", shape, str(clip)]) == 0
 
-    info = probe(tmp_path / "A.mp4")
+    work = tmp_path / "work"
+    info = probe(work / "A.mp4")
     video, audio = stream(info, "video"), stream(info, "audio")
     assert video["codec_name"] == "h264"
     assert video["pix_fmt"] == "yuv420p"
@@ -41,7 +44,7 @@ def test_tracer_cli_one_clip_to_working_copy_and_manifest(shape, tmp_path, monke
     assert float(video["duration"]) == pytest.approx(2.0, abs=0.1)
     assert float(audio["duration"]) == pytest.approx(2.0, abs=0.1)
 
-    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == 1
     assert manifest["shape"] == shape
     assert manifest["finished"] is True
@@ -406,3 +409,124 @@ def test_slow_motion_60fps_not_flagged(shape, tmp_path, small_caps):
 
     assert entry["original"]["slow_motion"] is False
     assert not any("slow motion" in note for note in entry["notes"])
+
+
+def manifest_of(folder):
+    return json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_refuse_oversized_file_others_convert(shape, tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(settings, "MAX_ATTACHMENT_BYTES", 1_000_000)
+    first = make_clip(tmp_path / "one.mp4", 320, 180)
+    big = tmp_path / "big.mov"
+    with big.open("wb") as handle:
+        handle.truncate(1_000_001)  # sparse: takes no real disk space
+    third = make_clip(tmp_path / "three.mp4", 320, 180)
+
+    manifest = convert([first, big, third], shape, tmp_path / "out")
+
+    assert [(c["letter"], c["status"]) for c in manifest["clips"]] == [("A", "done"), ("B", "skipped"), ("C", "done")]
+    skipped = manifest["clips"][1]
+    assert skipped["sentence"].startswith("The second file, big.mov, is ")
+    assert "over the " in skipped["sentence"]
+    assert "limit, so it was left out" in skipped["sentence"]
+    assert skipped["kind"] is None
+    assert skipped["original"]["name"] == "big.mov"
+    assert skipped["original"]["bytes"] == 1_000_001
+    assert skipped["sentence"] in capsys.readouterr().out
+    assert (tmp_path / "out" / "C.mp4").exists()
+    assert not (tmp_path / "out" / "B.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_unreadable_text_empty_and_audio_only_files(shape, tmp_path, small_caps):
+    clip = make_clip(tmp_path / "ok.mp4", 320, 180)
+    text = tmp_path / "notes.mov"
+    text.write_text("this is not a video", encoding="utf-8")
+    empty = tmp_path / "empty.mp4"
+    empty.write_bytes(b"")
+    beep = make_audio(tmp_path / "beep.m4a")
+
+    manifest = convert([clip, text, empty, beep], shape, tmp_path / "out")
+
+    assert [(c["letter"], c["status"]) for c in manifest["clips"]] == [
+        ("A", "done"), ("B", "skipped"), ("C", "skipped"), ("D", "skipped")]
+    assert [c["sentence"] for c in manifest["clips"][1:]] == [
+        "The second file, notes.mov, could not be read as a video or a photo.",
+        "The third file, empty.mp4, could not be read as a video or a photo.",
+        "The fourth file, beep.m4a, could not be read as a video or a photo.",
+    ]
+    assert all("detail" in c for c in manifest["clips"][1:])
+    assert not [p for p in (tmp_path / "out").iterdir() if p.name[0] in "BCD"]
+
+
+def test_refuse_missing_file(tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+
+    assert main(["normalize", "--shape", "wide", str(tmp_path / "gone.mov")]) == 1
+
+    (entry,) = manifest_of(tmp_path / "work")["clips"]
+    assert entry["sentence"] == "The first file, gone.mov, was not found."
+    assert entry["original"]["bytes"] is None
+    assert "The first file, gone.mov, was not found." in capsys.readouterr().out
+
+
+def test_refuse_no_files_usage_error():
+    with pytest.raises(SystemExit) as stopped:
+        main(["normalize", "--shape", "wide"])
+    assert stopped.value.code == 2
+
+
+def test_manifest_all_skipped_exit_1(tmp_path, monkeypatch):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    one, two = tmp_path / "one.mov", tmp_path / "two.mov"
+    one.write_text("no", encoding="utf-8")
+    two.write_bytes(b"")
+
+    assert main(["normalize", "--shape", "tall", str(one), str(two)]) == 1
+
+    manifest = manifest_of(tmp_path / "work")
+    assert manifest["finished"] is True
+    assert manifest["stopped"] is None
+    assert [c["status"] for c in manifest["clips"]] == ["skipped", "skipped"]
+
+
+def test_manifest_letters_beyond_z():
+    assert [letter(n) for n in (1, 26, 27, 28, 52, 53, 702, 703)] == ["A", "Z", "AA", "AB", "AZ", "BA", "ZZ", "AAA"]
+
+
+def test_refuse_ordinal_wording():
+    words = {1: "first", 2: "second", 10: "tenth", 11: "11th", 12: "12th", 13: "13th",
+             21: "21st", 22: "22nd", 23: "23rd", 101: "101st", 111: "111th"}
+    assert {n: ordinal(n) for n in words} == words
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_manifest_attachment_count_not_enforced(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(settings, "MAX_ATTACHMENTS", 1)
+    clips = [make_clip(tmp_path / "one.mp4", 320, 180), make_clip(tmp_path / "two.mp4", 320, 180)]
+
+    manifest = convert(clips, shape, tmp_path / "out")
+
+    assert [c["status"] for c in manifest["clips"]] == ["done", "done"]
+
+
+def test_refuse_whole_run_out_of_room_sentence(tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    clip = make_clip(tmp_path / "one.mp4", 320, 180)
+
+    def no_room(command, part, final):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(v2r.normalize, "run_ffmpeg", no_room)
+
+    assert main(["normalize", "--shape", "tall", str(clip)]) == 1
+
+    err = capsys.readouterr().err
+    assert "ran out of room" in err
+    assert "fewer clips" in err
+    manifest = manifest_of(tmp_path / "work")
+    assert manifest["finished"] is False
+    assert "ran out of room" in manifest["stopped"]
+    assert not [p for p in (tmp_path / "work").iterdir() if ".part." in p.name]

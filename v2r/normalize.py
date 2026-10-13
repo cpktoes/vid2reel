@@ -9,7 +9,8 @@ Top level: `version` (1), `shape`, `finished` (false until the last file is done
 (null, or the sentence of a run that failed as a whole), `clips` (one entry per file given, in order).
 Each entry: `letter`, `number` (1-based), `status` ("done" or "skipped"), `kind` ("video", "photo"
 or null), `original`. Done entries add `working`, `convert_seconds` and `notes` (sentences);
-skipped entries add `sentence` and `detail`; photo entries add `photo`.
+skipped entries add `sentence` and `detail` (FFmpeg's own error text, cut short, or null) and an `original`
+of just `path`, `name` and `bytes` (null when the file was not found); photo entries add `photo`.
 A video's `original`: `path` (absolute), `name` (as given), `bytes`, `seconds`, `stored_size` [w, h],
 `rotation`, `upright_size`, `fps`, `fps_steady`, `slow_motion`, `hdr` ("hlg", "pq", "bt2020" or null),
 `dolby_vision`, `has_sound`, `shot_at` (string or null).
@@ -18,6 +19,7 @@ A video's `original`: `path` (absolute), `name` (as given), `bytes`, `seconds`, 
 No GPS, device make or device model appears anywhere.
 """
 
+import errno
 import json
 import os
 import re
@@ -26,7 +28,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from v2r import WORK_DIR, settings
+from v2r import WORK_DIR, doctor, settings
 
 PROBE_ENTRIES = (
     "format=duration,size:format_tags=creation_time,com.apple.quicktime.creationdate:"
@@ -38,6 +40,18 @@ PROBE_ENTRIES = (
 
 class NormalizeError(Exception):
     """The whole run can't go on; the message is one plain sentence."""
+
+
+class Refused(Exception):
+    """One file can't be used; `sentence` says so in plain English and the run goes on with the others."""
+
+    def __init__(self, sentence, detail=None):
+        super().__init__(sentence)
+        self.sentence = sentence
+        self.detail = detail
+
+
+OUT_OF_ROOM = "The work folder ran out of room, so the run stopped; please send fewer clips."
 
 
 def letter(n):
@@ -262,10 +276,142 @@ def write_manifest(out_dir, manifest):
     os.replace(temp, out_dir / "manifest.json")
 
 
+def tail(text):
+    """The last settings.ERROR_DETAIL_CHARS characters of an error text; None when there is none."""
+    text = (text or "").strip()
+    return text[-settings.ERROR_DETAIL_CHARS:] if text else None
+
+
+def check_ffmpeg():
+    """Stop with one sentence if this computer's FFmpeg lacks a piece doctor lists (D-06); changes nothing."""
+    missing = doctor.missing_ffmpeg_features()
+    if not missing:
+        return
+    if "FFmpeg" in missing or "ffprobe" in missing:
+        raise NormalizeError("FFmpeg is not installed here, so nothing was converted.")
+    names = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " and " + missing[-1]
+    raise NormalizeError(f"This computer's FFmpeg lacks {names}, so nothing was converted.")
+
+
+def convert_one(path, given, number, letter, shape, out_dir, inputs):
+    """Convert one file into `letter`.mp4 in `out_dir`; returns its "done" manifest entry or raises Refused.
+
+    Checks run before any decode: found, not already in the work folder, not over the size limit, readable.
+    `path` is the resolved path, `given` the path as she sent it, `inputs` every resolved input of the run.
+    """
+    started = time.monotonic()
+    out_dir = Path(out_dir)
+    who = f"The {ordinal(number)} file, {Path(given).name},"
+    if not path.is_file():
+        raise Refused(f"{who} was not found.")
+    if path.is_relative_to(out_dir.resolve()):  # an original is never overwritten or deleted (T-2-08)
+        raise Refused(f"{who} is already in the work folder, so it was left alone.")
+    size_bytes = path.stat().st_size
+    limit = settings.MAX_ATTACHMENT_BYTES
+    if size_bytes > limit:  # by size alone: the file is never opened
+        raise Refused(
+            f"{who} is {size_bytes / 1e6:.0f} MB, over the {limit / 1e6:.0f} MB limit, so it was left out; "
+            "a way to shrink clips comes in a later stage."
+        )
+    try:
+        info = probe(path)
+        video = next(s for s in info["streams"] if s["codec_type"] == "video")
+        audio = next((s for s in info["streams"] if s["codec_type"] == "audio" and s.get("codec_name")), None)
+        original = video_facts(given, info, packet_times(path))
+    except (subprocess.CalledProcessError, json.JSONDecodeError, StopIteration, KeyError, ValueError) as error:
+        raise Refused(
+            f"{who} could not be read as a video or a photo.",
+            tail(getattr(error, "stderr", None)) or tail(repr(error)),
+        ) from error
+    seconds = original["seconds"]
+    size = working_size(shape, *original["upright_size"])
+    final = out_dir / f"{letter}.mp4"
+    part = part_path(final)
+    if final.exists() or part.exists():  # only an original lying in the work folder can still be there
+        raise Refused(f"{who} could not be converted.", f"A file named {final.name} is already in the work folder.")
+    audio_index = audio["index"] if audio else None
+    notes = []
+    if audio is None and any(s["codec_type"] == "audio" for s in info["streams"]):
+        notes.append(f"The sound of the {ordinal(number)} file, {original['name']}, could not be read, so silence was added.")
+    colour_converted = original["hdr"] is not None
+    colour_problem = None
+    try:
+        run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
+    except subprocess.CalledProcessError as error:
+        if not colour_converted:
+            raise Refused(f"{who} could not be converted.", tail(error.stderr)) from error
+        # D-13: keep the clip. Try once more with the ordinary chain; if that fails too, the file is skipped.
+        colour_converted = False
+        colour_problem = (
+            f"The colour of the {ordinal(number)} file, {original['name']}, could not be converted, "
+            "so its colour is unchanged and may look flat."
+        )
+        try:
+            run_ffmpeg(video_command(path, part, video, size, seconds, audio_index, tonemap=False), part, final)
+        except subprocess.CalledProcessError as second:
+            raise Refused(f"{who} could not be converted.", tail(second.stderr)) from second
+    if colour_converted:
+        notes.extend(colour_notes(original["hdr"], original["dolby_vision"]))
+    if colour_problem:
+        notes.append(colour_problem)
+    if original["slow_motion"]:
+        notes.append(
+            f"The {ordinal(number)} file, {original['name']}, was shot as slow motion at "
+            f"{round(original['fps'])} fps; its working copy plays at normal speed."
+        )
+
+    made = probe(final)
+    made_video = next(s for s in made["streams"] if s["codec_type"] == "video")
+    numerator, denominator = made_video["r_frame_rate"].split("/")
+    print(f"{letter} done in {round(time.monotonic() - started)} s", flush=True)
+    if colour_problem:
+        print(colour_problem, flush=True)
+    return {
+        "letter": letter,
+        "number": number,
+        "status": "done",
+        "kind": "video",
+        "original": original,
+        "working": {
+            "file": final.name,
+            "size": [made_video["width"], made_video["height"]],
+            "fps": float(numerator) / float(denominator),
+            "seconds": float(made["format"]["duration"]),
+            "bytes": final.stat().st_size,
+            "sound_added": audio is None,
+            "colour_converted": colour_converted,
+        },
+        "convert_seconds": round(time.monotonic() - started, 1),
+        "notes": notes,
+    }
+
+
+def skipped_entry(letter, number, path, given, sentence, detail):
+    """The manifest entry of a file that was left out; it keeps its letter (D-19)."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = None
+    return {
+        "letter": letter,
+        "number": number,
+        "status": "skipped",
+        "kind": None,
+        "original": {"path": str(path), "name": Path(given).name, "bytes": size},
+        "sentence": sentence,
+        "detail": detail,
+    }
+
+
 def normalize(files, shape, out_dir=None):
-    """Convert `files`, in the order given, into working copies A, B, C... in `out_dir`; returns the manifest."""
+    """Convert `files`, in the order given, into working copies A, B, C... in `out_dir`; returns the manifest.
+
+    A file that can't be used is skipped with one sentence and the others carry on; only a run that can't
+    go on at all (no FFmpeg piece, out of room) raises NormalizeError.
+    """
     if shape not in settings.SHAPES:
         raise NormalizeError("The shape must be tall or wide.")
+    check_ffmpeg()  # before anything in the work folder is touched
     out_dir = Path(WORK_DIR if out_dir is None else out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     inputs = [Path(file).resolve() for file in files]
@@ -274,70 +420,40 @@ def normalize(files, shape, out_dir=None):
     manifest = {"version": 1, "shape": shape, "finished": False, "stopped": None, "clips": []}
     write_manifest(out_dir, manifest)
 
-    for number, (path, as_given) in enumerate(zip(inputs, given), start=1):
-        name = letter(number)
-        started = time.monotonic()
-        info = probe(path)
-        video = next(s for s in info["streams"] if s["codec_type"] == "video")
-        audio = next((s for s in info["streams"] if s["codec_type"] == "audio" and s.get("codec_name")), None)
-        original = video_facts(as_given, info, packet_times(path))
-        seconds = original["seconds"]
-        size = working_size(shape, *original["upright_size"])
-        final = out_dir / f"{name}.mp4"
-        part = part_path(final)
-        audio_index = audio["index"] if audio else None
-        notes = []
-        if audio is None and any(s["codec_type"] == "audio" for s in info["streams"]):
-            notes.append(f"The sound of the {ordinal(number)} file, {original['name']}, could not be read, so silence was added.")
-        colour_converted = original["hdr"] is not None
-        colour_problem = None
+    try:
+        for number, (path, as_given) in enumerate(zip(inputs, given), start=1):
+            name = letter(number)
+            who = f"The {ordinal(number)} file, {as_given.name},"
+            try:
+                entry = convert_one(path, as_given, number, name, shape, out_dir, inputs)
+            except Refused as refused:
+                entry = skipped_entry(name, number, path, as_given, refused.sentence, refused.detail)
+            except subprocess.CalledProcessError as error:
+                entry = skipped_entry(name, number, path, as_given, f"{who} could not be converted.", tail(error.stderr))
+            except OSError as error:
+                if error.errno == errno.ENOSPC:
+                    raise
+                entry = skipped_entry(
+                    name, number, path, as_given, f"{who} could not be read as a video or a photo.", tail(repr(error)))
+            except Exception as error:  # one broad catch at the per-file boundary: nothing may stop the others
+                entry = skipped_entry(
+                    name, number, path, as_given, f"{who} could not be read as a video or a photo.", tail(repr(error)))
+            if entry["status"] == "skipped":
+                leftover = part_path(out_dir / f"{name}.mp4")
+                if leftover.resolve() not in inputs:  # never a half-made copy, and never an original
+                    leftover.unlink(missing_ok=True)
+                print(entry["sentence"], flush=True)
+            manifest["clips"].append(entry)
+            write_manifest(out_dir, manifest)
+    except OSError as error:
+        if error.errno != errno.ENOSPC:
+            raise
+        manifest["stopped"] = OUT_OF_ROOM
         try:
-            run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
-        except subprocess.CalledProcessError:
-            if not colour_converted:
-                raise
-            # D-13: keep the clip. Try once more with the ordinary chain; if that fails too, the error goes on.
-            colour_converted = False
-            colour_problem = (
-                f"The colour of the {ordinal(number)} file, {original['name']}, could not be converted, "
-                "so its colour is unchanged and may look flat."
-            )
-            run_ffmpeg(video_command(path, part, video, size, seconds, audio_index, tonemap=False), part, final)
-        if colour_converted:
-            notes.extend(colour_notes(original["hdr"], original["dolby_vision"]))
-        if colour_problem:
-            notes.append(colour_problem)
-        if original["slow_motion"]:
-            notes.append(
-                f"The {ordinal(number)} file, {original['name']}, was shot as slow motion at "
-                f"{round(original['fps'])} fps; its working copy plays at normal speed."
-            )
-
-        made = probe(final)
-        made_video = next(s for s in made["streams"] if s["codec_type"] == "video")
-        numerator, denominator = made_video["r_frame_rate"].split("/")
-        manifest["clips"].append({
-            "letter": name,
-            "number": number,
-            "status": "done",
-            "kind": "video",
-            "original": original,
-            "working": {
-                "file": final.name,
-                "size": [made_video["width"], made_video["height"]],
-                "fps": float(numerator) / float(denominator),
-                "seconds": float(made["format"]["duration"]),
-                "bytes": final.stat().st_size,
-                "sound_added": audio is None,
-                "colour_converted": colour_converted,
-            },
-            "convert_seconds": round(time.monotonic() - started, 1),
-            "notes": notes,
-        })
-        print(f"{name} done in {round(time.monotonic() - started)} s", flush=True)
-        if colour_problem:
-            print(colour_problem, flush=True)
-        write_manifest(out_dir, manifest)
+            write_manifest(out_dir, manifest)
+        except OSError:
+            pass
+        raise NormalizeError(OUT_OF_ROOM) from error
 
     manifest["finished"] = True
     write_manifest(out_dir, manifest)
