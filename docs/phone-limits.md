@@ -10,6 +10,7 @@ Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from t
 | 2 | One clip of about 30 s | The reel came back and played fine. |
 | 3a | One 1-minute 1080p clip, run first in place of the guide's 30-second 4K clip | It arrived and the reel was built (44.8 MiB), but sending it back was refused: over 30 MiB. |
 | 3b | One 30-second 4K landscape clip (103.3 MB on the phone); a 7.5-second 1080×1920 HDR clip added for the second attempt. Joined wide. | Attempt 1, the 4K clip alone: it arrived, but Claude wouldn't "join" a single file, though the command accepts one. Attempt 2, with the second clip: the join ran in the background and took 142.96 s. The result came back at 1920×1080, 19.4 MiB, and looked fine. |
+| 3c | One 4K HDR clip of 2 min 7 s, 408 MB on the phone. No reel; only checked whether it arrived. | It arrived whole: 408,714,877 bytes, 3840×2160, 30 fps, 126.9 s, still HEVC 10-bit HLG HDR. |
 | 4 | One 3-minute 1080p clip, in place of the guide's 60 to 90 seconds | It arrived and the reel was built (95.9 MiB) in about 467 s, but sending it back was refused: over 30 MiB. |
 | 5 | Ten short clips of about 15 s or less | All ten arrived and the reel was built (58.7 MiB), but sending it back was refused: over 30 MiB. |
 | 6 | Three photos and one short clip | All four arrived. The reel was made from the clip alone. Whether it came back was not recorded. |
@@ -42,9 +43,9 @@ pypi.org can be reached.
 
 | Measure | Result |
 | --- | --- |
-| Largest file that arrived | Test 7's clip, 236.6 MB on the phone. Its size as it arrived was not recorded. Test 3b's 4K clip (103.3 MB on the phone) also arrived; its size as it arrived was not recorded either. |
-| Smallest file that failed | None failed. The app showed an upload warning for files over 400 MB. Which file triggered it, whether such a file then arrives, and the warning's text were not recorded. |
-| Arrived at phone size or smaller | Not yet known. Test 3b's 1080p clip arrived at 8,725,576 bytes, but its size on the phone was not recorded. |
+| Largest file that arrived | 408,714,877 bytes (test 3c), 408 MB on the phone |
+| Smallest file that failed | None failed. The app warns about files over 400 MB, but test 3c's 408.7 MB file arrived anyway. The warning's text was not recorded. |
+| Arrived at phone size or smaller | At phone size, unchanged. Test 3c's clip was 408 MB on the phone and arrived at 408,714,877 bytes, still 4K HEVC HDR. Uploads arrive as the original file, not a shrunk copy. |
 | Most files in one message | 10 (test 5), and all arrived. |
 | Where attachments land | `/mnt/user-data/uploads/` in the sandbox (test 7) |
 
@@ -86,7 +87,7 @@ Sending to the Mac has the same cap. Claude reported: "both ways of getting a fi
 1. Test 3a: "The reel is built, but I couldn’t send it to you. The file is 44.8 MiB and the upload limit is 30 MiB. Vid2Reel has no option to make a smaller export, and I’m not allowed to write my own FFmpeg commands, so I’ve stopped here."
 2. Test 4: "Delivery failed: the send was refused with this message: “95.9 MiB exceeds the 30 MiB upload limit — send a smaller or compressed copy.”"
 3. Test 5: "The reel is built, but I couldn’t send it. The file is 58.7 MiB and the upload limit is 30 MiB. Per your instructions I’m stopping here."
-4. Files over 400 MB: an upload warning appeared; its text was not recorded.
+4. Files over 400 MB: an upload warning appeared; its text was not recorded. Test 3c's file arrived despite it.
 5. Test 7, attempt 1: a 2-minute tool timeout; its text was not recorded.
 6. Test 7, attempt 2: "Exit code 143, then “Command timed out after 2m 0s.” The process was killed by SIGTERM at the tool’s time limit and printed no output."
 7. Test 3b, attempt 1 (one file): "Only one file arrived, so I haven’t joined anything. The upload folder has just IMG_3178.mov. If you meant to attach a second clip, please upload it again and I’ll join the two wide, in the order you attached them. Join: not run. The join step needs at least two clips, and I didn’t want to produce a one-clip “join”."
@@ -101,6 +102,7 @@ Test 6 was not an error. Claude reported: "Only the .mov is a video, so the join
 - The fit update lifts that ceiling: it lowers the bitrate, then the frame size, until the video fits. Test 7's 3 min 25 s of wide came back at 960×540 and 17.2 MiB, and looked great. The longest video the fit will make at the smallest step is 3 min 54 s, in either shape.
 - Any single command is stopped after 2 minutes. At full size, the join needs about 2.6 seconds of work per second of video (test 4), so anything over about 45 seconds would be stopped. That is why the join runs in the background.
 - Frame size sets the speed. At 960×540 the join needed about 0.7 seconds of work per second of video (test 7), nearly four times quicker than at full size (test 4). The Mac needs about 1.3 at full size (8 processors).
+- Uploads arrive as the original file, at full size and quality (test 3c). At 4K that is about 3.2 MB per second of video, so 400 MB is about 2 minutes of 4K. Test 7's 1080p clip came to about 1.15 MB per second, so 400 MB is about 6 minutes of 1080p.
 - 4K is the slowest to read. Test 3b took about 3.8 seconds of work per second of video (30 s of 4K plus 7.5 s of 1080p, at full size). So even a 30-second 4K clip runs past the 2-minute limit and needs the background join.
 
 ## What the sandbox's doctor report lacks that the Mac's has
@@ -120,7 +122,7 @@ Python is 3.13.16 in the sandbox and 3.13.15 on the Mac, which makes no differen
 
 | Setting | Value | From |
 | --- | --- | --- |
-| `MAX_ATTACHMENT_BYTES` | 320 MB | 80% of the 400 MB upload warning |
+| `MAX_ATTACHMENT_BYTES` | 400 MB | the size above which the app warns. A 408.7 MB file still arrived (test 3c), so this line sits just below a tested success. The real ceiling was not found. |
 | `MAX_ATTACHMENTS` | 10 | test 5: the most files tried, all of which arrived; no margin, because 10 is a tested success, not a limit that was found |
 | `MAX_RESULT_BYTES` | 24 MiB | 80% of the 30 MiB send limit |
 
