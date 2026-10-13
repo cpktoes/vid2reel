@@ -1,12 +1,13 @@
 import json
 
 import pytest
-from media import corner_mean, gray_frame, make_clip, peak_volume, probe, stream
+from media import corner_mean, gray_frame, make_clip, mean_luma, peak_volume, probe, stream
 
 import v2r.normalize
 from v2r import settings
 from v2r.__main__ import main
-from v2r.normalize import clear_last_job, frame_facts, hdr_kind, letter, normalize, ordinal, working_size
+from v2r.normalize import (clear_last_job, colour_notes, frame_facts, hdr_kind, letter, normalize, ordinal,
+                           video_chain, working_size)
 
 SMALL_CAPS = {
     "tall": {"portrait": (180, 320), "landscape": (None, 320)},
@@ -302,3 +303,65 @@ def test_letters_and_ordinals():
     assert [ordinal(n) for n in (1, 2, 10)] == ["first", "second", "tenth"]
     assert [ordinal(n) for n in (11, 12, 13, 21, 22, 23, 101, 111)] == [
         "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th"]
+
+
+BT709 = ("bt709", "bt709", "bt709")
+
+
+def colour_tags(path):
+    video = stream(probe(path), "video")
+    return video["color_transfer"], video["color_primaries"], video["color_space"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_hdr_hlg_clip_is_tone_mapped_not_relabelled(shape, tmp_path, small_caps):
+    clip = make_clip(tmp_path / "hlg.mp4", 640, 360, pattern="flat", hdr="hlg")
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "done"
+    assert entry["original"]["hdr"] == "hlg"
+    assert entry["working"]["colour_converted"] is True
+    assert any("tone-mapped" in note for note in entry["notes"])
+    working = tmp_path / "out" / "A.mp4"
+    assert mean_luma(working) < 112  # a merely relabelled copy would stay near 124
+    assert colour_tags(working) == BT709
+    assert stream(probe(working), "video")["pix_fmt"] == "yuv420p"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+@pytest.mark.parametrize("hdr", ["pq", "bt2020"])
+def test_hdr_pq_and_gamut_only_convert(shape, hdr, tmp_path, small_caps):
+    clip = make_clip(tmp_path / f"{hdr}.mp4", 640, 360, hdr=hdr)
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "done"
+    assert entry["original"]["hdr"] == hdr
+    assert entry["working"]["colour_converted"] is True
+    assert colour_tags(tmp_path / "out" / "A.mp4") == BT709
+
+
+def test_hdr_colour_notes():
+    assert colour_notes("hlg", True) == ["HDR (HLG) was tone-mapped to ordinary colour. The Dolby Vision layer was ignored."]
+    assert colour_notes("hlg", False) == ["HDR (HLG) was tone-mapped to ordinary colour."]
+    assert colour_notes("pq", False) == ["HDR (PQ) was tone-mapped to ordinary colour."]
+    assert colour_notes("bt2020", False) == ["Wide-gamut colour (BT.2020) was converted to ordinary colour."]
+    assert "Dolby" not in colour_notes("bt2020", False)[0]
+    assert colour_notes(None, False) == []
+
+
+def test_hdr_chain_reads_settings(monkeypatch):
+    monkeypatch.setattr(settings, "TONEMAP", "mobius")
+    monkeypatch.setattr(settings, "TONEMAP_NPL", 800)
+    hlg = {"color_transfer": "arib-std-b67", "color_primaries": "bt2020", "color_space": "bt2020nc", "color_range": "tv"}
+
+    chain = video_chain(hlg, 1080, 1920)
+
+    for part in ("tonemap=mobius", "npl=800", "tin=arib-std-b67", "pin=bt2020", "min=bt2020nc", "rin=tv", "format=gbrpf32le"):
+        assert part in chain
+    assert chain.startswith("fps=")
+    assert "zscale" not in video_chain(hlg, 1080, 1920, tonemap=False)
+    assert "tonemap" not in video_chain({"color_primaries": "bt2020"}, 640, 360)  # gamut-only: no tone map

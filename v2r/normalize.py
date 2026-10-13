@@ -114,19 +114,36 @@ def frame_facts(times):
     return round(1 / median, 2), steady, 1 / median >= settings.SLOW_MOTION_MIN_FPS
 
 
+def colour_tag(stream, key):
+    """One colour tag of a stream, or None when it is missing, "unknown" or "unspecified"."""
+    value = stream.get(key)
+    return None if value in (None, "unknown", "unspecified") else value
+
+
 def hdr_kind(stream):
     """"hlg", "pq" or "bt2020" when the colour is not ordinary, else None. Missing or "unknown" tags count as missing."""
-    def tag(key):
-        value = stream.get(key)
-        return None if value in (None, "unknown", "unspecified") else value
-
-    if tag("color_transfer") == "arib-std-b67":
+    if colour_tag(stream, "color_transfer") == "arib-std-b67":
         return "hlg"
-    if tag("color_transfer") == "smpte2084":
+    if colour_tag(stream, "color_transfer") == "smpte2084":
         return "pq"
-    if tag("color_primaries") == "bt2020":
+    if colour_tag(stream, "color_primaries") == "bt2020":
         return "bt2020"
     return None
+
+
+COLOUR_NOTES = {
+    "hlg": "HDR (HLG) was tone-mapped to ordinary colour.",
+    "pq": "HDR (PQ) was tone-mapped to ordinary colour.",
+    "bt2020": "Wide-gamut colour (BT.2020) was converted to ordinary colour.",
+}
+
+
+def colour_notes(kind, dolby_vision):
+    """The manifest notes for a clip whose colour was converted; none for an ordinary clip (D-11)."""
+    if kind is None:
+        return []
+    note = COLOUR_NOTES[kind]
+    return [note + " The Dolby Vision layer was ignored." if dolby_vision else note]
 
 
 def fraction(text):
@@ -166,14 +183,28 @@ def video_facts(path, info, times):
     }
 
 
-def video_chain(stream, width, height):
-    """The ordinary-colour filter chain for a clip that is not HDR, at the upright working size."""
+def video_chain(stream, width, height, tonemap=True):
+    """The filter chain for a clip at the upright working size: tone-mapped if the clip is HDR, else ordinary colour."""
     # FFmpeg has already turned upright and sideways clips the right way up (autorotate), so there is no transpose here.
     # Known cost, not a fault: on a clip stored sideways, autorotate's own turn runs ahead of this chain, so
     # every source frame is turned before fps thins it.
+    kind = hdr_kind(stream)
+    if kind is None or not tonemap:
+        return (
+            f"fps={settings.OUTPUT_FPS},scale={width}:{height}:flags=bicubic:out_color_matrix=bt709:out_range=tv,"
+            "format=yuv420p,setsar=1"
+        )
+    # Every colour fact is passed explicitly from ffprobe (D-14); the transfer comes from a fixed map, never the file.
+    transfer = {"hlg": "arib-std-b67", "pq": "smpte2084"}.get(kind, "bt709")
+    peak = settings.TONEMAP_NPL if kind == "hlg" else settings.TONEMAP_NPL_PQ
+    colour_range = "pc" if colour_tag(stream, "color_range") == "pc" else "tv"
+    primaries = colour_tag(stream, "color_primaries") or "bt2020"
+    matrix = colour_tag(stream, "color_space") or "bt2020nc"
+    operator = f"tonemap={settings.TONEMAP}:desat=0," if kind != "bt2020" else ""  # gamut-only: no tone map
     return (
-        f"fps={settings.OUTPUT_FPS},scale={width}:{height}:flags=bicubic:out_color_matrix=bt709:out_range=tv,"
-        "format=yuv420p,setsar=1"
+        f"fps={settings.OUTPUT_FPS},"
+        f"zscale=w={width}:h={height}:tin={transfer}:pin={primaries}:min={matrix}:rin={colour_range}:t=linear:npl={peak},"
+        f"format=gbrpf32le,zscale=p=bt709,{operator}zscale=t=bt709:m=bt709:r=tv,format=yuv420p,setsar=1"
     )
 
 
@@ -187,10 +218,10 @@ def audio_chain(audio_index, seconds):
     )
 
 
-def video_command(src, dst, stream, size, seconds, audio_index):
+def video_command(src, dst, stream, size, seconds, audio_index, tonemap=True):
     """The one FFmpeg command that makes a working copy of a video."""
     width, height = size
-    graph = f"[0:v:0]{video_chain(stream, width, height)}[v];{audio_chain(audio_index, seconds)}"
+    graph = f"[0:v:0]{video_chain(stream, width, height, tonemap)}[v];{audio_chain(audio_index, seconds)}"
     return [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-n",
         "-i", str(src),
@@ -258,7 +289,10 @@ def normalize(files, shape, out_dir=None):
         notes = []
         if audio is None and any(s["codec_type"] == "audio" for s in info["streams"]):
             notes.append(f"The sound of the {ordinal(number)} file, {original['name']}, could not be read, so silence was added.")
+        colour_converted = original["hdr"] is not None
         run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
+        if colour_converted:
+            notes.extend(colour_notes(original["hdr"], original["dolby_vision"]))
 
         made = probe(final)
         made_video = next(s for s in made["streams"] if s["codec_type"] == "video")
@@ -276,7 +310,7 @@ def normalize(files, shape, out_dir=None):
                 "seconds": float(made["format"]["duration"]),
                 "bytes": final.stat().st_size,
                 "sound_added": audio is None,
-                "colour_converted": False,
+                "colour_converted": colour_converted,
             },
             "convert_seconds": round(time.monotonic() - started, 1),
             "notes": notes,
