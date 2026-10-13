@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
+current_phase: 02
 current_phase_name: Stage 14 – Normalize
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-10-13T22:04:00.815Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-10-13T23:12:15.823Z"
 last_activity: 2026-10-13
 last_activity_desc: roadmap created
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 8
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-13)
 
 **Core value:** A reel worth posting, made entirely from her phone.
-**Current focus:** Stage 14 – Normalize
+**Current focus:** Phase 02 — Stage 14 – Normalize
 
 ## Current Position
 
-Phase: 2 of 14 (Stage 14 – Normalize)
-Plan: 0 of TBD in current phase (not yet planned)
+Phase: 02 (Stage 14 – Normalize) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-10-13 — roadmap created
+Last activity: 2026-10-13 — Phase 02 execution started
 
-Progress: [█░░░░░░░░░] 7% (1 of 14 phases complete)
+Progress: [█░░░░░░░░░] 13% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [█░░░░░░░░░] 7% (1 of 14 phases complete)
 - Trend: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02 P01 | 25min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -67,6 +72,7 @@ Settled decisions that shape later phases:
 - [Phase 11 / Stage 23]: Long videos are edited on a Mac from start to finish; a phone chat cannot hand back a file that size
 - [Process]: GSD phases are named by guide stage, one per stage, never merged, split or reordered
 - [Phase 2 / Stage 14]: HDR tone-mapping starts at hable with a peak of 203 nits (chosen 2026-10-13 from the research measurement, replacing D-12's mobius start); the user still confirms by eye from the four-panel strips in plan 02-07
+- [Phase ?]: Stage 14 plan 01: normalize manifest field names are frozen as documented in v2r/normalize.py (D-03)
 
 ### Pending Todos
 
@@ -86,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-13T20:44:01.464Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-stage-14-normalize/02-CONTEXT.md
+Last session: 2026-10-13T23:12:15.808Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
