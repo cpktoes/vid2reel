@@ -71,6 +71,8 @@ Results that were built but refused:
 | 5 | not recorded (EDITOR.md's default is tall) | 58.7 MiB |
 | 4 | tall | 95.9 MiB (100,539,471 bytes, `join-tall-20261012-143223.mp4`) |
 
+Sending to the Mac has the same cap. Claude reported: "both ways of getting a file to you are capped at 30 MiB per file: the chat download and the transfer to your Mac. The Mac is linked, but no folder on it is connected yet, so I’d need you to approve access to one before anything could be sent." This is Claude's report; the transfer itself wasn't tried.
+
 ## Errors, exact text
 
 1. Test 3: "The reel is built, but I couldn’t send it to you. The file is 44.8 MiB and the upload limit is 30 MiB. Vid2Reel has no option to make a smaller export, and I’m not allowed to write my own FFmpeg commands, so I’ve stopped here."

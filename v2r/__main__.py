@@ -28,10 +28,15 @@ def main(argv=None):
         doctor.run()
     elif args.command == "join":
         try:
-            print(join.join(args.videos, args.shape))
+            output, summary = join.join(args.videos, args.shape)
+        except join.JoinError as error:
+            print(f"v2r join: {error}", file=sys.stderr)
+            return 1
         except subprocess.CalledProcessError:
             print("v2r join: FFmpeg failed; its error is shown above.", file=sys.stderr)
             return 1
+        print(summary)
+        print(output)
     elif args.command == "build-skill":
         print(build_skill.build())
     else:

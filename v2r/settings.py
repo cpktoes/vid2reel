@@ -12,6 +12,17 @@ SHAPES = {
 }
 OUTPUT_FPS = 30  # frames per second
 
+# join: fitting the result under MAX_RESULT_BYTES (below, with the phone limits)
+AUDIO_BITRATE = 128_000  # bits per second of AAC sound
+FIT_HEADROOM = 0.03  # share of MAX_RESULT_BYTES held back for the MP4 file's own overhead
+# Frame sizes to try, largest first: a scale of the shape's full size, and the lowest
+# video bitrate (bits per second) worth watching at that size.
+FIT_STEPS = [
+    (1, 2_500_000),  # 1080x1920 tall, 1920x1080 wide
+    (2 / 3, 1_200_000),  # 720x1280 tall, 1280x720 wide
+    (1 / 2, 700_000),  # 540x960 tall, 960x540 wide
+]
+
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
 
