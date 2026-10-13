@@ -20,9 +20,9 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 - [x] **NORM-02**: Each clip gets a working copy in work/ in one format: upright; sized for the job's shape (tall: portrait at most 1080×1920 and landscape at most 1920 high; wide: landscape at most 1920×1080 and portrait at most 1920 wide; never scaled up); constant 30 fps; ordinary colour with HDR tone-mapped so it looks natural; H.264; AAC stereo at 48 kHz, with silence added where a clip has none
 - [ ] **NORM-03**: A photo becomes a still clip of a length set in settings.py, and the manifest records the full-resolution photo alongside
 - [x] **NORM-04**: A clip shot at 120 or 240 fps is flagged as slow-motion source material and converted at normal speed
-- [ ] **NORM-05**: Clips are named A, B, C in the order given, and work/manifest.json lists each clip's original facts, its working copy and how long the conversion took
-- [ ] **NORM-06**: A file over the limits in settings.py, or one that can't be read, gets one plain-English sentence and does not stop the others
-- [ ] **NORM-07**: No original file is ever written to
+- [x] **NORM-05**: Clips are named A, B, C in the order given, and work/manifest.json lists each clip's original facts, its working copy and how long the conversion took
+- [x] **NORM-06**: A file over the limits in settings.py, or one that can't be read, gets one plain-English sentence and does not stop the others
+- [x] **NORM-07**: No original file is ever written to
 - [x] **NORM-08**: Only FFmpeg features the sandbox's doctor report shows are used, and tests use generated clips including one stored sideways, one at 60 fps, one with no sound and one tagged HDR
 
 ### Seeing the footage (Stage 15)
