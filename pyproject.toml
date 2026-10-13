@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Command-line video toolbox."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "pillow>=12.3.0",
+    "pillow-heif>=1.8,<1.9",
+]
 
 [project.scripts]
 v2r = "v2r.__main__:main"
