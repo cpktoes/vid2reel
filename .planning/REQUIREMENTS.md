@@ -23,7 +23,7 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 - [ ] **NORM-05**: Clips are named A, B, C in the order given, and work/manifest.json lists each clip's original facts, its working copy and how long the conversion took
 - [ ] **NORM-06**: A file over the limits in settings.py, or one that can't be read, gets one plain-English sentence and does not stop the others
 - [ ] **NORM-07**: No original file is ever written to
-- [ ] **NORM-08**: Only FFmpeg features the sandbox's doctor report shows are used, and tests use generated clips including one stored sideways, one at 60 fps, one with no sound and one tagged HDR
+- [x] **NORM-08**: Only FFmpeg features the sandbox's doctor report shows are used, and tests use generated clips including one stored sideways, one at 60 fps, one with no sound and one tagged HDR
 
 ### Seeing the footage (Stage 15)
 
@@ -181,6 +181,7 @@ Each category maps to one phase, in guide order. Phase 1 is complete.
 | LAUN-01 to LAUN-06 | Phase 14 – Stage 26 – Launch | Pending |
 
 **Coverage:**
+
 - v1 requirements: 89 total (4 complete)
 - Mapped to phases: 89
 - Unmapped: 0 ✓
