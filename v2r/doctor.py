@@ -13,7 +13,11 @@ from pathlib import Path
 from v2r import ROOT, settings
 
 ENCODERS = {"libx264": "H.264 video encoder", "aac": "AAC audio encoder"}
-FILTERS = ["scale", "crop", "zscale", "tonemap", "loudnorm", "drawtext"]
+FILTERS = [
+    "scale", "crop", "zscale", "tonemap", "loudnorm", "drawtext",
+    "format", "fps", "setsar", "setpts", "loop", "transpose", "hflip", "vflip", "aresample", "apad", "anullsrc",
+]
+DECODERS = ["hevc", "h264", "aac", "mjpeg", "png"]
 HOSTS = ["github.com", "pypi.org"]
 GB = 1e9
 
@@ -32,8 +36,11 @@ def run():
         filters = ffmpeg_names("-filters")
         for name in FILTERS:
             print(f"The {name} filter is {'available' if name in filters else 'MISSING'}.")
+        decoders = ffmpeg_names("-decoders")
+        for name in DECODERS:
+            print(f"The {name} decoder is {'available' if name in decoders else 'MISSING'}.")
     else:
-        print("Encoders and filters can't be checked without FFmpeg.")
+        print("Encoders, filters and decoders can't be checked without FFmpeg.")
 
     print(f"Python is version {platform.python_version()}.")
     cpus = os.process_cpu_count()
@@ -57,9 +64,27 @@ def tool_version(tool):
 
 
 def ffmpeg_names(option):
-    """The names in FFmpeg's `-encoders` or `-filters` list."""
+    """The names in FFmpeg's `-encoders`, `-decoders` or `-filters` list."""
     out = subprocess.run(["ffmpeg", "-hide_banner", option], capture_output=True, text=True).stdout
     return {line.split()[1] for line in out.splitlines() if len(line.split()) > 1}
+
+
+def missing_ffmpeg_features():
+    """Plain phrases for every FFmpeg piece v2r needs that this computer lacks; empty if none.
+
+    Reads ENCODERS, FILTERS and DECODERS at call time. Three local FFmpeg calls, no network.
+    """
+    if shutil.which("ffmpeg") is None:
+        return ["FFmpeg"]
+    if shutil.which("ffprobe") is None:
+        return ["ffprobe"]
+    encoders = ffmpeg_names("-encoders")
+    filters = ffmpeg_names("-filters")
+    decoders = ffmpeg_names("-decoders")
+    missing = [f"the {what} ({name})" for name, what in ENCODERS.items() if name not in encoders]
+    missing += [f"the {name} filter" for name in FILTERS if name not in filters]
+    missing += [f"the {name} decoder" for name in DECODERS if name not in decoders]
+    return missing
 
 
 def free_memory():
