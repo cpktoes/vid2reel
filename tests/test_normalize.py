@@ -365,3 +365,44 @@ def test_hdr_chain_reads_settings(monkeypatch):
     assert chain.startswith("fps=")
     assert "zscale" not in video_chain(hlg, 1080, 1920, tonemap=False)
     assert "tonemap" not in video_chain({"color_primaries": "bt2020"}, 640, 360)  # gamut-only: no tone map
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_fallback_colour_when_tonemap_fails(shape, tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(settings, "TONEMAP", "nosuchoperator")
+    clip = make_clip(tmp_path / "hlg.mp4", 640, 360, pattern="flat", hdr="hlg")
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    sentence = "The colour of the first file, hlg.mp4, could not be converted, so its colour is unchanged and may look flat."
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "done"
+    assert entry["working"]["colour_converted"] is False
+    assert sentence in entry["notes"]
+    assert sentence in capsys.readouterr().out
+    assert mean_luma(tmp_path / "out" / "A.mp4") >= 112  # the plain path, colour unchanged
+    assert not [p for p in (tmp_path / "out").iterdir() if ".part." in p.name]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_slow_motion_120fps_flagged_and_real_time(shape, tmp_path, small_caps):
+    clip = make_clip(tmp_path / "slow.mp4", 640, 360, seconds=2, fps=120)
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["original"]["slow_motion"] is True
+    assert entry["original"]["fps"] == pytest.approx(120, abs=1)
+    assert entry["working"]["fps"] == 30
+    assert entry["working"]["seconds"] == pytest.approx(2.0, abs=0.1)
+    assert any("was shot as slow motion at 120 fps" in note for note in entry["notes"])
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_slow_motion_60fps_not_flagged(shape, tmp_path, small_caps):
+    clip = make_clip(tmp_path / "fast.mp4", 640, 360, seconds=2, fps=60)
+
+    (entry,) = convert([clip], shape, tmp_path / "out")["clips"]
+
+    assert entry["original"]["slow_motion"] is False
+    assert not any("slow motion" in note for note in entry["notes"])

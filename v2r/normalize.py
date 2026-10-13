@@ -290,9 +290,28 @@ def normalize(files, shape, out_dir=None):
         if audio is None and any(s["codec_type"] == "audio" for s in info["streams"]):
             notes.append(f"The sound of the {ordinal(number)} file, {original['name']}, could not be read, so silence was added.")
         colour_converted = original["hdr"] is not None
-        run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
+        colour_problem = None
+        try:
+            run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
+        except subprocess.CalledProcessError:
+            if not colour_converted:
+                raise
+            # D-13: keep the clip. Try once more with the ordinary chain; if that fails too, the error goes on.
+            colour_converted = False
+            colour_problem = (
+                f"The colour of the {ordinal(number)} file, {original['name']}, could not be converted, "
+                "so its colour is unchanged and may look flat."
+            )
+            run_ffmpeg(video_command(path, part, video, size, seconds, audio_index, tonemap=False), part, final)
         if colour_converted:
             notes.extend(colour_notes(original["hdr"], original["dolby_vision"]))
+        if colour_problem:
+            notes.append(colour_problem)
+        if original["slow_motion"]:
+            notes.append(
+                f"The {ordinal(number)} file, {original['name']}, was shot as slow motion at "
+                f"{round(original['fps'])} fps; its working copy plays at normal speed."
+            )
 
         made = probe(final)
         made_video = next(s for s in made["streams"] if s["codec_type"] == "video")
@@ -316,6 +335,8 @@ def normalize(files, shape, out_dir=None):
             "notes": notes,
         })
         print(f"{name} done in {round(time.monotonic() - started)} s", flush=True)
+        if colour_problem:
+            print(colour_problem, flush=True)
         write_manifest(out_dir, manifest)
 
     manifest["finished"] = True
