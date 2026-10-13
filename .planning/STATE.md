@@ -66,6 +66,7 @@ Settled decisions that shape later phases:
 - [Phase 7 / Stage 19]: The chat asks a brief of three to five questions before editing; a good reel outranks a short conversation
 - [Phase 11 / Stage 23]: Long videos are edited on a Mac from start to finish; a phone chat cannot hand back a file that size
 - [Process]: GSD phases are named by guide stage, one per stage, never merged, split or reordered
+- [Phase 2 / Stage 14]: HDR tone-mapping starts at hable with a peak of 203 nits (chosen 2026-10-13 from the research measurement, replacing D-12's mobius start); the user still confirms by eye from the four-panel strips in plan 02-07
 
 ### Pending Todos
 
