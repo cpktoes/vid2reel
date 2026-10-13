@@ -574,18 +574,22 @@ This copies the join's existing line (`nohup sh -c '...; echo "join finished wit
 | A7 | Pillow's project age ("since 2010") | Package Legitimacy Audit | None; cosmetic |
 | A8 | Sandbox speed is roughly 5 s of wall time per second of 4K HDR video on 2 processors (extrapolated from CPU seconds measured on the 8-core Mac); D-17 measured 3.3 on a pinned Mac | Pitfall 12 | Only affects how long the background run takes, not correctness |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Which tone-map starting pair: D-12's `mobius`, or `hable` with `TONEMAP_NPL = 203`?**
    - What we know: with the CONTEXT's `npl=1000` the picture is darker than Apple's QuickLook rendering (mobius@1000: 131/80/87/39 against 146/94/102/49, i.e. 10 to 15 levels; hable@1000 is 23 to 59 levels darker) and `npl=203` with mobius is too bright (196/132/138/70). `hable@203` came within 6 on all four clips; `mobius@800` is 4 to 8 levels darker. D-12 names `mobius` only as "to start", and the user decides by eye with the strip.
    - What's unclear: whether `hable`'s extra contrast looks right to her on a face (skin) — nobody has looked at faces yet.
    - Recommendation: add `TONEMAP_NPL` as a second setting (needed whatever is chosen), start with `hable`/203 (closest to Apple), tell the user plainly that this differs from D-12's `mobius` start and why, and have the strip compare hable@203, mobius@800, reinhard@800. If the user insists on `mobius` as the start, use `npl=800`, never 1000.
+   - RESOLVED: plan 02-01 starts at D-12's `mobius` with `TONEMAP_NPL = 800` (never 1000, the user's decision kept), and plan 02-07 has the user pick hable@203, mobius@800 or reinhard@800 by eye from the four-panel strips and writes the pick into settings.py and docs/decisions.md.
 2. **Where does the HDR comparison command live?**
    - What we know: it is a one-off for the Do-this step, not part of the phone route.
    - Recommendation: give it to the user as a copy-paste command from the chat (Code Example 5 inlined); do not add a sub-command or put it in EDITOR.md.
+   - RESOLVED: plan 02-07 (Task 1 step 5 and Task 2) gives the strip command to the user in the chat as a one-liner; no sub-command, nothing in EDITOR.md.
 3. **What does the manifest do with a clip whose colour fell back (D-13)?**
    - Recommendation: `status: "done"` with a note in `notes` (and printed); not `skipped`.
+   - RESOLVED: plan 02-04 Task 2 makes it status "done" with `colour_converted` false and the D-13 sentence in `notes` and in the log.
 4. **Exit code.** Recommendation: 0 when at least one file converted (even if others were skipped), 1 when none did or the whole run failed (e.g. out of disk space, which should print "ran out of room; send fewer clips" per D-21).
+   - RESOLVED: plan 02-01 Task 1 makes the CLI return 0 when at least one clip is done and 1 otherwise; plan 02-05 Task 1 adds the out-of-room stop (one sentence asking for fewer clips, exit 1).
 
 ## Environment Availability
 
