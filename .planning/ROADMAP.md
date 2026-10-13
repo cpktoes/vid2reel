@@ -68,7 +68,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. No original file is ever written to
   5. Tests pass using generated clips, including one stored sideways, one at 60 fps, one with no sound and one tagged HDR
 
-**Plans**: 4/8 plans executed
+**Plans**: 5/8 plans executed
 
 Plans:
 **Wave 1**
@@ -86,7 +86,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-03-PLAN.md — User checks, then installs, Pillow and pillow-heif; requirements.txt and docs/licenses.md (wave 4, alone, checkpoint)
+- [x] 02-03-PLAN.md — User checks, then installs, Pillow and pillow-heif; requirements.txt and docs/licenses.md (wave 4, alone, checkpoint)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -285,7 +285,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. Skeleton | M1: A reel from a phone | done by hand | Complete | 2026-10-12 |
-| 2. Stage 14 – Normalize | M2: It can see | 4/8 | In Progress|  |
+| 2. Stage 14 – Normalize | M2: It can see | 5/8 | In Progress|  |
 | 3. Stage 15 – Seeing the footage | M2: It can see | 0/TBD | Not started | - |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 0/TBD | Not started | - |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 0/TBD | Not started | - |
