@@ -130,3 +130,54 @@ def filter_names(graph):
         if name:
             names.append(name)
     return names
+
+
+def make_photo(path, width, height, orientation=None, fmt=None, mode="RGB", colour=(200, 80, 40), box=True,
+               date=None, icc=False, exif_extra=None):
+    """A test photo made by Pillow: a flat colour with a 60x60 white box in the stored top-left corner.
+
+    `fmt` is "JPEG", "PNG" or "HEIF" (default: from the file name). `mode` "RGBA" makes the picture half see-through.
+    `orientation` is the photo's turn note (EXIF 0x0112, such as 6); `date` is the date taken as "2026:10:10 18:03:24"
+    (EXIF DateTimeOriginal); `exif_extra` maps other EXIF tags to values (such as 0x010F make); `icc` embeds an sRGB profile.
+    """
+    from PIL import Image, ImageCms, ImageDraw  # Pillow is imported here only, as in the program itself
+
+    suffix = path.suffix.lower()
+    fmt = fmt or {".png": "PNG", ".heic": "HEIF", ".heif": "HEIF"}.get(suffix, "JPEG")
+    if fmt == "HEIF":
+        import pillow_heif
+
+        pillow_heif.register_heif_opener()
+    image = Image.new("RGB", (width, height), colour)
+    if box:
+        ImageDraw.Draw(image).rectangle((0, 0, 59, 59), fill=(255, 255, 255))
+    if mode == "RGBA":
+        image = image.convert("RGBA")
+        image.putalpha(128)
+    exif = Image.Exif()
+    if orientation:
+        exif[0x0112] = orientation
+    if date:
+        exif.get_ifd(0x8769)[0x9003] = date
+    for tag, value in (exif_extra or {}).items():
+        exif[tag] = value
+    options = {}
+    if orientation or date or exif_extra:
+        options["exif"] = exif
+    if icc:
+        options["icc_profile"] = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    image.save(path, fmt, **options)
+    return path
+
+
+def corner_mean_image(path, corner, size=20):
+    """Average brightness (0-255) of a `size` x `size` square in one corner of a picture file, read by Pillow."""
+    from PIL import Image, ImageStat
+
+    with Image.open(path) as image:
+        grey = image.convert("L")
+    width, height = grey.size
+    top, side = corner.split("-")
+    left = 0 if side == "left" else width - size
+    upper = 0 if top == "top" else height - size
+    return ImageStat.Stat(grey.crop((left, upper, left + size, upper + size))).mean[0]

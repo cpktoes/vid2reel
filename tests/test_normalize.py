@@ -2,9 +2,12 @@ import errno
 import json
 import os
 import stat
+import subprocess
+import sys
 
 import pytest
-from media import corner_mean, gray_frame, filter_names, make_audio, make_clip, mean_luma, peak_volume, probe, sha256, stream
+from media import (corner_mean, corner_mean_image, filter_names, gray_frame, make_audio, make_clip, make_photo, mean_luma,
+                   peak_volume, probe, sha256, stream)
 
 import v2r.normalize
 from v2r import doctor, settings
@@ -693,3 +696,66 @@ def test_original_no_location_or_device_tags(shape, tmp_path, small_caps):
     manifest_text = (tmp_path / "out" / "manifest.json").read_text(encoding="utf-8")
     assert "TestMaker" not in manifest_text
     assert "37.7749" not in manifest_text
+
+
+PHOTO_DATE = "2026:10:10 18:03:24"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_jpeg_orientation_upright_copy_and_still_clip(shape, tmp_path, small_caps):
+    from PIL import Image
+
+    photo = make_photo(tmp_path / "turned.jpg", 400, 300, orientation=6, date=PHOTO_DATE)
+
+    manifest = convert([photo], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert (entry["letter"], entry["status"], entry["kind"]) == ("A", "done", "photo")
+    original = entry["original"]
+    assert original["stored_size"] == [400, 300]
+    assert original["upright_size"] == [300, 400]
+    assert original["orientation"] == 6
+    assert original["shot_at"] == "2026-10-10T18:03:24"
+    assert entry["photo"] == {"file": "A-photo.jpg", "size": [300, 400]}
+    copy = tmp_path / "out" / "A-photo.jpg"
+    with Image.open(copy) as image:
+        assert image.size == (300, 400)
+        assert image.mode == "RGB"
+    # the white box, stored top-left, sits top-right once the photo is upright, exactly once
+    assert corner_mean_image(copy, "top-right") > 200
+    assert corner_mean_image(copy, "top-left") < 200
+
+    info = probe(tmp_path / "out" / "A.mp4")
+    video, audio = stream(info, "video"), stream(info, "audio")
+    frames = settings.PHOTO_SECONDS * 30
+    assert video["codec_name"] == "h264"
+    assert video["r_frame_rate"] == "30/1"
+    assert int(video["nb_frames"]) == frames
+    assert float(info["format"]["duration"]) == pytest.approx(settings.PHOTO_SECONDS, abs=0.2)
+    assert (video["width"], video["height"]) == working_size(shape, 300, 400)
+    assert entry["working"]["size"] == list(working_size(shape, 300, 400))
+    assert audio["codec_name"] == "aac"
+    assert audio["channels"] == 2
+    assert int(audio["sample_rate"]) == 48000
+    assert entry["working"]["sound_added"] is True
+    assert entry["working"]["colour_converted"] is False
+    assert corner_mean(*gray_frame(tmp_path / "out" / "A.mp4", 1.0), "top-right", size=10) > 150  # the box in the clip too
+
+
+def test_photo_still_is_fast(tmp_path):
+    photo = make_photo(tmp_path / "big.jpg", 4000, 3000)
+
+    manifest = convert([photo], "tall", tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "done"
+    assert entry["convert_seconds"] < 15
+    assert entry["working"]["size"] == [2560, 1920]  # the tall job's landscape cap: height 1920
+
+
+def test_photo_libraries_imported_lazily():
+    result = subprocess.run(
+        [sys.executable, "-c", "import sys, v2r.normalize; print('PIL' in sys.modules)"],
+        capture_output=True, text=True, check=True, timeout=60,
+    )
+    assert result.stdout.strip() == "False"
