@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: Stage 14 – Normalize
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-10-13T23:54:44.650Z"
+stopped_at: Completed 02-06-PLAN.md
+last_updated: "2026-10-14T00:02:27.511Z"
 last_activity: 2026-10-13
 last_activity_desc: roadmap created
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 02 (Stage 14 – Normalize) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-10-13 — Phase 02 execution started
 
-Progress: [██████░░░░] 63% (1 of 14 phases complete)
+Progress: [████████░░] 75% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [██████░░░░] 63% (1 of 14 phases complete)
 | Phase 02 P04 | 15min | 2 tasks | 3 files |
 | Phase 02 P05 | 25min | 2 tasks | 3 files |
 | Phase 02 P03 | 5min | 2 tasks | 4 files |
+| Phase 02 P06 | 25min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,7 @@ Settled decisions that shape later phases:
 - [Phase ?]: Stage 14 plan 01: normalize manifest field names are frozen as documented in v2r/normalize.py (D-03)
 - [Phase ?]: Stage 14 plan 05: a file whose working name is taken by an original in the work folder is skipped, never overwritten
 - [Phase ?]: 02-03: pillow and pillow-heif approved by the user 2026-10-13; pillow-heif held on the 1.8 line (below 1.9)
+- [Phase ?]: 02-06: Pillow reads every file before ffprobe; FFmpeg only reads the upright JPEG copy of a photo, never the HEIC
 
 ### Pending Todos
 
@@ -98,6 +100,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-13T23:54:44.636Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-10-14T00:02:27.497Z
+Stopped at: Completed 02-06-PLAN.md
 Resume file: None
