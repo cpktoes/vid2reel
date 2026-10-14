@@ -11,6 +11,9 @@ Each entry: `letter`, `number` (1-based), `status` ("done" or "skipped"), `kind`
 or null), `original`. Done entries add `working`, `convert_seconds` and `notes` (sentences);
 skipped entries add `sentence` and `detail` (FFmpeg's own error text, cut short, or null) and an `original`
 of just `path`, `name` and `bytes` (null when the file was not found); photo entries add `photo`.
+A photo's `original`: `path` (absolute), `name` (as given), `bytes`, `stored_size` [w, h] (as stored, before it
+is turned upright), `upright_size`, `orientation` (the photo's own turn note, 1 when it has none), `shot_at`
+(string or null). Its `photo`: `file` (the full-size upright JPEG copy, such as "C-photo.jpg") and `size`.
 A video's `original`: `path` (absolute), `name` (as given), `bytes`, `seconds`, `stored_size` [w, h],
 `rotation`, `upright_size`, `fps`, `fps_steady`, `slow_motion`, `hdr` ("hlg", "pq", "bt2020" or null),
 `dolby_vision`, `has_sound`, `shot_at` (string or null).
@@ -19,7 +22,9 @@ A video's `original`: `path` (absolute), `name` (as given), `bytes`, `seconds`, 
 No GPS, device make or device model appears anywhere.
 """
 
+import datetime
 import errno
+import io
 import json
 import os
 import re
@@ -51,6 +56,7 @@ class Refused(Exception):
         self.detail = detail
 
 
+PHOTO_SUFFIXES = {".heic", ".heif", ".jpg", ".jpeg", ".png"}  # compared in lower case
 OUT_OF_ROOM = "The work folder ran out of room, so the run stopped; please send fewer clips."
 
 
@@ -232,6 +238,18 @@ def audio_chain(audio_index, seconds):
     )
 
 
+def encoder_options():
+    """The encoder settings every working copy shares, a clip's and a photo's still alike."""
+    return [
+        "-c:v", "libx264", "-preset", settings.X264_PRESET, "-crf", str(settings.X264_CRF),
+        "-pix_fmt", "yuv420p",  # 8-bit 4:2:0 so every player can show it
+        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
+        "-c:a", "aac", "-b:a", str(settings.WORKING_AUDIO_BITRATE), "-ac", "2", "-ar", str(settings.AUDIO_RATE),
+        "-map_metadata", "-1", "-map_chapters", "-1",  # no location or device tags in a working copy
+        "-movflags", "+faststart",  # index at the front, so playback starts immediately
+    ]
+
+
 def video_command(src, dst, stream, size, seconds, audio_index, tonemap=True):
     """The one FFmpeg command that makes a working copy of a video."""
     width, height = size
@@ -242,12 +260,7 @@ def video_command(src, dst, stream, size, seconds, audio_index, tonemap=True):
         "-filter_complex", graph,
         "-map", "[v]", "-map", "[a]",
         "-fps_mode", "cfr", "-r", str(settings.OUTPUT_FPS), "-t", f"{seconds:.3f}",
-        "-c:v", "libx264", "-preset", settings.X264_PRESET, "-crf", str(settings.X264_CRF),
-        "-pix_fmt", "yuv420p",  # 8-bit 4:2:0 so every player can show it
-        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
-        "-c:a", "aac", "-b:a", str(settings.WORKING_AUDIO_BITRATE), "-ac", "2", "-ar", str(settings.AUDIO_RATE),
-        "-map_metadata", "-1", "-map_chapters", "-1",  # no location or device tags in a working copy
-        "-movflags", "+faststart",  # index at the front, so playback starts immediately
+        *encoder_options(),
         str(dst),
     ]
 
@@ -293,6 +306,144 @@ def check_ffmpeg():
     raise NormalizeError(f"This computer's FFmpeg lacks {names}, so nothing was converted.")
 
 
+def photo_libraries():
+    """Pillow's modules (Image, ImageCms, ImageOps), with HEIC reading switched on; imported only now, so video
+    and doctor keep working on a computer where these packages failed to install. ImportError means they are missing."""
+    from PIL import Image, ImageCms, ImageOps
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    return Image, ImageCms, ImageOps
+
+
+def date_taken(exif):
+    """The date a photo was taken as "2026-10-10T18:03:24" (plus the clock offset when it has one), else None."""
+    text = exif.get_ifd(0x8769).get(0x9003) or exif.get(0x0132)  # DateTimeOriginal, else DateTime
+    try:
+        moment = datetime.datetime.strptime(str(text).strip(), "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
+    offset = str(exif.get_ifd(0x8769).get(0x9011) or "").strip()  # OffsetTimeOriginal, such as "+02:00"
+    return moment.isoformat() + (offset if re.fullmatch(r"[+-]\d\d:\d\d", offset) else "")
+
+
+def read_photo(path, copy_final, label=None):
+    """Open a photo with Pillow, turn it upright once, and save the full-size copy as `copy_final` (a JPEG).
+
+    Returns (original, photo, notes): the manifest's `original` and `photo` blocks and any sentences (`label` names
+    the file in them, such as "first file, IMG_1.HEIC,"). Returns None when Pillow says the file is not a picture.
+    The copy is made from pixels only: it carries no EXIF, no location, no device make or model and no
+    colour-profile data, because working copies end up in reels she posts publicly.
+    """
+    Image, ImageCms, ImageOps = photo_libraries()
+    path = Path(path)
+    notes = []
+    try:
+        picture = Image.open(path)  # Pillow's decompression-bomb guard stays at its default
+    except Image.UnidentifiedImageError:
+        return None
+    with picture:
+        picture.load()
+        stored = list(picture.size)
+        exif = picture.getexif()
+        orientation = exif.get(0x0112, 1)
+        shot_at = date_taken(exif)
+        icc = picture.info.get("icc_profile")
+        image = ImageOps.exif_transpose(picture)  # once; a HEIC from pillow-heif is already upright
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+    if icc:
+        try:
+            image = ImageCms.profileToProfile(
+                image, ImageCms.ImageCmsProfile(io.BytesIO(icc)), ImageCms.createProfile("sRGB"), outputMode="RGB")
+        except Exception:  # a profile Pillow can't use: keep the colours as they are, and say so
+            notes.append(
+                f"The colour profile of the {label or 'photo'} could not be read, so its colours were used as they are.")
+    part = part_path(copy_final)
+    image.save(part, "JPEG", quality=settings.PHOTO_JPEG_QUALITY, subsampling=0)  # no exif, no icc_profile
+    os.replace(part, copy_final)
+    upright = list(image.size)
+    original = {
+        "path": str(path.resolve()),
+        "name": path.name,
+        "bytes": path.stat().st_size,
+        "stored_size": stored,
+        "upright_size": upright,
+        "orientation": orientation,
+        "shot_at": shot_at,
+    }
+    return original, {"file": Path(copy_final).name, "size": upright}, notes
+
+
+def photo_graph(size):
+    """The filter graph of a photo's still clip: decode and scale the big picture once, then repeat the frame."""
+    width, height = size
+    frames = settings.PHOTO_SECONDS * settings.OUTPUT_FPS
+    # The loop filter repeats the one scaled frame. The image reader's own repeat option would decode and scale
+    # the full-size photo again for every frame, about fifty times slower.
+    return (
+        f"[0:v:0]scale={width}:{height}:flags=bicubic:out_color_matrix=bt709:out_range=tv,format=yuv420p,setsar=1,"
+        f"loop=loop={frames - 1}:size=1:start=0,setpts=N/({settings.OUTPUT_FPS}*TB)[v];"
+        f"anullsrc=r={settings.AUDIO_RATE}:cl=stereo:d={settings.PHOTO_SECONDS}[a]"
+    )
+
+
+def photo_command(jpeg, dst, size):
+    """The one FFmpeg command that makes a photo's still clip. It only ever reads the upright JPEG copy."""
+    return [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-n",
+        "-i", str(jpeg),
+        "-filter_complex", photo_graph(size),
+        "-map", "[v]", "-map", "[a]",
+        "-frames:v", str(settings.PHOTO_SECONDS * settings.OUTPUT_FPS),
+        "-r", str(settings.OUTPUT_FPS), "-t", str(settings.PHOTO_SECONDS),
+        *encoder_options(),
+        str(dst),
+    ]
+
+
+def convert_photo(read, who, number, letter, shape, out_dir, started):
+    """Make the still clip of a photo whose upright copy read_photo has saved; returns its "done" entry."""
+    original, photo, notes = read
+    copy = out_dir / photo["file"]
+    final = out_dir / f"{letter}.mp4"
+    part = part_path(final)
+    if final.exists() or part.exists():  # only an original lying in the work folder can still be there
+        copy.unlink(missing_ok=True)
+        raise Refused(f"{who} could not be converted.", f"A file named {final.name} is already in the work folder.")
+    size = working_size(shape, *original["upright_size"])
+    try:
+        run_ffmpeg(photo_command(copy, part, size), part, final)
+    except subprocess.CalledProcessError as error:
+        copy.unlink(missing_ok=True)
+        raise Refused(f"{who} could not be converted.", tail(error.stderr)) from error
+    made = probe(final)
+    made_video = next(s for s in made["streams"] if s["codec_type"] == "video")
+    numerator, denominator = made_video["r_frame_rate"].split("/")
+    print(f"{letter} done in {round(time.monotonic() - started)} s", flush=True)
+    for note in notes:
+        print(note, flush=True)
+    return {
+        "letter": letter,
+        "number": number,
+        "status": "done",
+        "kind": "photo",
+        "original": original,
+        "photo": photo,
+        "working": {
+            "file": final.name,
+            "size": [made_video["width"], made_video["height"]],
+            "fps": float(numerator) / float(denominator),
+            "seconds": float(made["format"]["duration"]),
+            "bytes": final.stat().st_size,
+            "sound_added": True,
+            "colour_converted": False,
+        },
+        "convert_seconds": round(time.monotonic() - started, 1),
+        "notes": notes,
+    }
+
+
 def convert_one(path, given, number, letter, shape, out_dir, inputs):
     """Convert one file into `letter`.mp4 in `out_dir`; returns its "done" manifest entry or raises Refused.
 
@@ -313,6 +464,23 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
             f"{who} is {size_bytes / 1e6:.0f} MB, over the {limit / 1e6:.0f} MB limit, so it was left out; "
             "a way to shrink clips comes in a later stage."
         )
+    try:
+        photo_libraries()
+    except ImportError:
+        if path.suffix.lower() in PHOTO_SUFFIXES:
+            raise Refused(f"{who} looks like a photo, but photos could not be read because the picture library is not installed.")
+    else:
+        copy = out_dir / f"{letter}-photo.jpg"
+        try:
+            read = read_photo(path, copy, f"{ordinal(number)} file, {Path(given).name},")
+        except Exception as error:  # Pillow's own refusals (a corrupt file, a decompression bomb, an odd format)
+            copy.unlink(missing_ok=True)
+            part_path(copy).unlink(missing_ok=True)
+            if isinstance(error, OSError) and error.errno == errno.ENOSPC:
+                raise
+            raise Refused(f"{who} could not be read as a video or a photo.", tail(repr(error))) from error
+        if read is not None:
+            return convert_photo(read, who, number, letter, shape, out_dir, started)
     try:
         info = probe(path)
         video = next(s for s in info["streams"] if s["codec_type"] == "video")
