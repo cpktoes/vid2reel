@@ -759,3 +759,150 @@ def test_photo_libraries_imported_lazily():
         capture_output=True, text=True, check=True, timeout=60,
     )
     assert result.stdout.strip() == "False"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_heic_opens(shape, tmp_path, small_caps):
+    photo = make_photo(tmp_path / "iphone.heic", 400, 300, date=PHOTO_DATE)
+
+    manifest = convert([photo], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert (entry["status"], entry["kind"]) == ("done", "photo")
+    assert entry["photo"]["file"] == "A-photo.jpg"
+    assert entry["original"]["upright_size"] == [400, 300]
+    assert entry["original"]["shot_at"] == "2026-10-10T18:03:24"
+    assert (tmp_path / "out" / "A-photo.jpg").is_file()
+    assert stream(probe(tmp_path / "out" / "A.mp4"), "video")["codec_name"] == "h264"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_png_with_transparency(shape, tmp_path, small_caps):
+    from PIL import Image
+
+    photo = make_photo(tmp_path / "see-through.png", 200, 100, mode="RGBA")
+    with Image.open(photo) as source:
+        assert source.mode == "RGBA"
+
+    manifest = convert([photo], shape, tmp_path / "out")
+
+    assert manifest["clips"][0]["status"] == "done"
+    with Image.open(tmp_path / "out" / "A-photo.jpg") as copy:
+        assert copy.mode == "RGB"
+        assert copy.size == (200, 100)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_icc_profile_converted(shape, tmp_path, small_caps):
+    from PIL import Image
+
+    photo = make_photo(tmp_path / "profiled.jpg", 400, 300, icc=True, box=False)
+    with Image.open(photo) as source:
+        assert source.info.get("icc_profile")
+
+    manifest = convert([photo], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "done"
+    assert entry["notes"] == []
+    with Image.open(tmp_path / "out" / "A-photo.jpg") as copy:
+        centre = copy.getpixel((200, 150))
+        assert "icc_profile" not in copy.info
+    assert all(abs(got - want) <= 4 for got, want in zip(centre, (200, 80, 40)))
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_library_missing_sentence(shape, tmp_path, monkeypatch, small_caps):
+    def missing():
+        raise ImportError("No module named 'PIL'")
+
+    monkeypatch.setattr(v2r.normalize, "photo_libraries", missing)
+    photo = make_photo(tmp_path / "snap.jpg", 400, 300)
+    clip = make_clip(tmp_path / "ok.mp4", 320, 180)
+
+    manifest = convert([photo, clip], shape, tmp_path / "out")
+
+    first, second = manifest["clips"]
+    assert (first["status"], first["kind"]) == ("skipped", None)
+    assert first["sentence"] == (
+        "The first file, snap.jpg, looks like a photo, but photos could not be read because the picture library is not installed.")
+    assert (second["letter"], second["status"], second["kind"]) == ("B", "done", "video")
+    assert not (tmp_path / "out" / "A-photo.jpg").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_copy_has_no_exif_location(shape, tmp_path, small_caps):
+    from PIL import Image
+
+    photo = make_photo(
+        tmp_path / "tagged.jpg", 400, 300, orientation=6, date=PHOTO_DATE, icc=True,
+        exif_extra={0x010F: "TestMaker", 0x0110: "TestModel"})
+    with Image.open(photo) as source:
+        assert source.getexif().get(0x010F) == "TestMaker"  # the source really carries the device tags
+
+    convert([photo], shape, tmp_path / "out")
+
+    copy = tmp_path / "out" / "A-photo.jpg"
+    with Image.open(copy) as image:
+        assert len(image.getexif()) == 0
+        assert "exif" not in image.info
+    raw = copy.read_bytes()
+    assert b"TestMaker" not in raw and b"TestModel" not in raw and b"Exif" not in raw
+    manifest_text = (tmp_path / "out" / "manifest.json").read_text(encoding="utf-8")
+    assert "TestMaker" not in manifest_text and "TestModel" not in manifest_text
+    made_tags = probe(tmp_path / "out" / "A.mp4")["format"].get("tags", {})
+    assert not {"make", "model", "location"} & {key.lower() for key in made_tags}
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_mixed_with_clips_keeps_order(shape, tmp_path, small_caps):
+    first = make_clip(tmp_path / "one.mp4", 320, 180)
+    photo = make_photo(tmp_path / "two.jpg", 400, 300)
+    last = make_clip(tmp_path / "three.mp4", 320, 180)
+
+    manifest = convert([first, photo, last], shape, tmp_path / "out")
+
+    assert [(c["letter"], c["status"], c["kind"]) for c in manifest["clips"]] == [
+        ("A", "done", "video"), ("B", "done", "photo"), ("C", "done", "video")]
+    assert manifest["clips"][1]["photo"]["file"] == "B-photo.jpg"
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == [
+        "A.mp4", "B-photo.jpg", "B.mp4", "C.mp4", "manifest.json"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_empty_file_unreadable(shape, tmp_path, small_caps):
+    empty = tmp_path / "empty.jpg"
+    empty.write_bytes(b"")
+
+    manifest = convert([empty], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["status"] == "skipped"
+    assert entry["sentence"] == "The first file, empty.jpg, could not be read as a video or a photo."
+    assert not [p for p in (tmp_path / "out").iterdir() if p.name[0] == "A"]
+
+
+@pytest.mark.parametrize(
+    ("shape", "source", "still"),
+    [
+        ("tall", (1080, 1920), (1080, 1920)),  # exactly at the cap keeps its size
+        ("wide", (1920, 1080), (1920, 1080)),
+        ("tall", (301, 401), (300, 400)),  # an odd size floors to even; nothing is scaled up
+        ("wide", (301, 401), (300, 400)),
+    ],
+)
+def test_photo_sizes_never_enlarged(shape, source, still, tmp_path):
+    photo = make_photo(tmp_path / "size.jpg", *source, box=False)
+
+    manifest = convert([photo], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    video = stream(probe(tmp_path / "out" / "A.mp4"), "video")
+    assert (video["width"], video["height"]) == still
+    assert entry["photo"]["size"] == list(source)  # the full-size copy is never scaled
+
+
+def test_doctor_photo_graph_filters_listed():
+    names = set(filter_names(v2r.normalize.photo_graph((300, 400))))
+    assert {"scale", "format", "setsar", "loop", "setpts", "anullsrc"} <= names
+    assert names <= set(doctor.FILTERS)
