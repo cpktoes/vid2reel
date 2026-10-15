@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: 3 — Stage 15 – Seeing the footage
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-10-14 — Phase 2 complete, transitioned to Phase 3
+Last activity: 2026-10-14 - Completed quick task 261014-rvv: Stage 14 review follow-ups: safe handbook recipe, proportional FFmpeg timeout, IN-01 and IN-05
 
 Progress: [██████████] 100% (1 of 14 phases complete)
 
@@ -95,6 +95,12 @@ None yet.
 ### Blockers/Concerns
 
 None.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261014-rvv | Stage 14 review follow-ups: safe handbook recipe, proportional FFmpeg timeout, IN-01 and IN-05 | 2026-10-14 | 0d3f8e2 | [261014-rvv-stage-14-review-follow-ups-safe-handbook](./quick/261014-rvv-stage-14-review-follow-ups-safe-handbook/) |
 
 ## Deferred Items
 
