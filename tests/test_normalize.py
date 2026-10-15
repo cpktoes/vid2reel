@@ -13,8 +13,8 @@ from media import (corner_mean, corner_mean_image, filter_names, gray_frame, mak
 import v2r.normalize
 from v2r import doctor, settings
 from v2r.__main__ import main
-from v2r.normalize import (NormalizeError, clear_last_job, colour_notes, frame_facts, hdr_kind, letter, normalize, ordinal,
-                           video_chain, video_command, working_size)
+from v2r.normalize import (NormalizeError, clear_last_job, colour_notes, ffmpeg_timeout, frame_facts, hdr_kind, letter,
+                           normalize, ordinal, video_chain, video_command, working_size)
 
 SMALL_CAPS = {
     "tall": {"portrait": (180, 320), "landscape": (None, 320)},
@@ -518,17 +518,18 @@ def test_manifest_attachment_count_not_enforced(shape, tmp_path, monkeypatch, sm
     assert [c["status"] for c in manifest["clips"]] == ["done", "done"]
 
 
-def test_refuse_whole_run_out_of_room_sentence(tmp_path, monkeypatch, capsys, small_caps):
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_refuse_whole_run_out_of_room_sentence(shape, tmp_path, monkeypatch, capsys, small_caps):
     """A Python-level out-of-room error (such as a failed manifest or photo write) stops the run."""
     monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
     clip = make_clip(tmp_path / "one.mp4", 320, 180)
 
-    def no_room(command, part, final):
+    def no_room(command, part, final, timeout):
         raise OSError(errno.ENOSPC, "No space left on device")
 
     monkeypatch.setattr(v2r.normalize, "run_ffmpeg", no_room)
 
-    assert main(["normalize", "--shape", "tall", str(clip)]) == 1
+    assert main(["normalize", "--shape", shape, str(clip)]) == 1
 
     err = capsys.readouterr().err
     assert "ran out of room" in err
@@ -1089,7 +1090,8 @@ def hang_tool(monkeypatch, tool, seen=None):
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
 def test_timeout_ffmpeg_hang_skips_only_that_file(shape, tmp_path, monkeypatch, capsys, small_caps):
-    monkeypatch.setattr(settings, "FFMPEG_TIMEOUT", 7)
+    monkeypatch.setattr(settings, "FFMPEG_TIMEOUT_FLOOR", 7)
+    monkeypatch.setattr(settings, "FFMPEG_SECONDS_PER_SECOND", 10)
     clip = make_clip(tmp_path / "one.mp4", 320, 180)
     photo = make_photo(tmp_path / "snap.jpg", 400, 300)
     seen = []
@@ -1101,9 +1103,36 @@ def test_timeout_ffmpeg_hang_skips_only_that_file(shape, tmp_path, monkeypatch, 
     assert [c["status"] for c in manifest["clips"]] == ["skipped", "skipped"]
     assert manifest["clips"][0]["sentence"] == "The first file, one.mp4, took too long to process, so it was left out."
     assert manifest["clips"][1]["sentence"] == "The second file, snap.jpg, took too long to process, so it was left out."
-    assert seen == [7, 7]  # the limit from settings reached FFmpeg
+    assert seen[0] == pytest.approx(7 + 10 * 2, abs=1)  # the clip's allowance from settings reached FFmpeg
+    assert seen[1] == 7 + 10 * settings.PHOTO_SECONDS  # a photo's still is allowed the same way
     assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["manifest.json"]
     assert "took too long" in capsys.readouterr().out
+
+
+def test_timeout_allowance_from_settings(monkeypatch):
+    assert ffmpeg_timeout(5) == 170
+    assert ffmpeg_timeout(127) == 1390
+    assert ffmpeg_timeout(0) == settings.FFMPEG_TIMEOUT_FLOOR
+    monkeypatch.setattr(settings, "FFMPEG_TIMEOUT_FLOOR", 7)
+    monkeypatch.setattr(settings, "FFMPEG_SECONDS_PER_SECOND", 2)
+    assert ffmpeg_timeout(3) == 13  # read from settings when called, not when imported
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_timeout_clip_allowance_grows_with_length(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(settings, "FFMPEG_TIMEOUT_FLOOR", 7)
+    monkeypatch.setattr(settings, "FFMPEG_SECONDS_PER_SECOND", 10)
+    short = make_clip(tmp_path / "short.mp4", 320, 180, seconds=1)
+    long = make_clip(tmp_path / "long.mp4", 320, 180, seconds=3)
+    seen = []
+    hang_tool(monkeypatch, "ffmpeg", seen)
+
+    manifest = convert([short, long], shape, tmp_path / "out")
+
+    assert all("took too long" in clip["sentence"] for clip in manifest["clips"])
+    assert seen[0] == pytest.approx(17, abs=1)
+    assert seen[1] == pytest.approx(37, abs=1)
+    assert seen[1] > seen[0]
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])

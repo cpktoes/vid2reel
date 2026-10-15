@@ -320,10 +320,15 @@ def part_path(final):
     return final.with_name(f"{final.stem}.part{final.suffix}")
 
 
-def run_ffmpeg(command, part, final):
-    """Run `command`, which writes `part`; only a finished file is moved onto its final name."""
+def ffmpeg_timeout(seconds):
+    """Seconds FFmpeg may take to convert `seconds` of video before that file is left out."""
+    return settings.FFMPEG_TIMEOUT_FLOOR + settings.FFMPEG_SECONDS_PER_SECOND * seconds
+
+
+def run_ffmpeg(command, part, final, timeout):
+    """Run `command`, which writes `part`, within `timeout` seconds; only a finished file is moved onto its final name."""
     try:
-        subprocess.run(command, capture_output=True, text=True, check=True, timeout=settings.FFMPEG_TIMEOUT)
+        subprocess.run(command, capture_output=True, text=True, check=True, timeout=timeout)
     except subprocess.TimeoutExpired:  # a hung conversion: no half-made file stays, and the caller leaves this file out
         Path(part).unlink(missing_ok=True)
         raise
@@ -474,7 +479,7 @@ def convert_photo(read, who, number, letter, shape, out_dir, started):
         raise Refused(f"{who} could not be converted.", f"A file named {final.name} is already in the work folder.")
     size = working_size(shape, *original["upright_size"])
     try:
-        run_ffmpeg(photo_command(copy, part, size), part, final)
+        run_ffmpeg(photo_command(copy, part, size), part, final, ffmpeg_timeout(settings.PHOTO_SECONDS))
     except subprocess.CalledProcessError as error:
         copy.unlink(missing_ok=True)
         raise Refused(f"{who} could not be converted.", tail(error.stderr)) from error
@@ -508,15 +513,15 @@ def convert_photo(read, who, number, letter, shape, out_dir, started):
     }
 
 
-def convert_one(path, given, number, letter, shape, out_dir, inputs):
+def convert_one(path, given, number, letter, shape, out_dir, who):
     """Convert one file into `letter`.mp4 in `out_dir`; returns its "done" manifest entry or raises Refused.
 
     Checks run before any decode: found, not already in the work folder, not over the size limit, readable.
-    `path` is the resolved path, `given` the path as she sent it, `inputs` every resolved input of the run.
+    `path` is the resolved path, `given` the path as she sent it, `who` the opening of every sentence about this
+    file, such as "The first file, NAME,", built once by normalize().
     """
     started = time.monotonic()
     out_dir = Path(out_dir)
-    who = f"The {ordinal(number)} file, {display_name(given)},"
     if not path.is_file():
         raise Refused(f"{who} was not found.")
     if path.is_relative_to(out_dir.resolve()):  # an original is never overwritten or deleted (T-2-08)
@@ -563,6 +568,7 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
             f"{who} is {width} by {height} pixels, over the {settings.MAX_VIDEO_SIDE} pixel limit on either side, "
             "so it was left out.")
     seconds = original["seconds"]
+    allowance = ffmpeg_timeout(seconds)
     size = working_size(shape, *original["upright_size"])
     final = out_dir / f"{letter}.mp4"
     part = part_path(final)
@@ -575,7 +581,7 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
     colour_converted = original["hdr"] is not None
     colour_problem = None
     try:
-        run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final)
+        run_ffmpeg(video_command(path, part, video, size, seconds, audio_index), part, final, allowance)
     except subprocess.CalledProcessError as error:
         if not colour_converted:
             raise Refused(f"{who} could not be converted.", tail(error.stderr)) from error
@@ -586,7 +592,8 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
             "so its colour is unchanged and may look flat."
         )
         try:
-            run_ffmpeg(video_command(path, part, video, size, seconds, audio_index, tonemap=False), part, final)
+            run_ffmpeg(
+                video_command(path, part, video, size, seconds, audio_index, tonemap=False), part, final, allowance)
         except subprocess.CalledProcessError as second:
             raise Refused(f"{who} could not be converted.", tail(second.stderr)) from second
     if colour_converted:
@@ -664,7 +671,7 @@ def normalize(files, shape, out_dir=None):
             name = letter(number)
             who = f"The {ordinal(number)} file, {display_name(as_given)},"
             try:
-                entry = convert_one(path, as_given, number, name, shape, out_dir, inputs)
+                entry = convert_one(path, as_given, number, name, shape, out_dir, who)
                 json.dumps(entry)  # a value that can't be written to the manifest turns this one file into a skipped one
             except Refused as refused:
                 entry = skipped_entry(name, number, path, as_given, refused.sentence, refused.detail)

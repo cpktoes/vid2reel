@@ -50,7 +50,11 @@ TONEMAP_NPL_PQ = 100  # nits: nominal peak for PQ sources
 SLOW_MOTION_MIN_FPS = 100  # frames per second: a median frame rate at or above this marks slow-motion source
 STEADY_TOLERANCE = 0.25  # share of the median frame gap that a frame gap may differ by and still count as steady
 FFPROBE_TIMEOUT = 30  # seconds ffprobe may take to read one file's facts before that file is left out
-FFMPEG_TIMEOUT = 600  # seconds FFmpeg may take to convert one file before that file is left out (a hang guard, not a speed goal)
+FFMPEG_TIMEOUT_FLOOR = 120  # seconds added to every conversion's time allowance: FFmpeg's start-up and a photo's short still
+# seconds of conversion allowed per second of video before that file is left out (a hang guard, not a speed goal);
+# the sandbox measured about 3.8 for 4K on its 2 processors (docs/phone-limits.md) and HDR tone-mapping is slower,
+# so 10 leaves margin
+FFMPEG_SECONDS_PER_SECOND = 10
 ERROR_DETAIL_CHARS = 400  # characters of FFmpeg's own error text kept in a skipped entry
 FILE_TEXT_CHARS = 200  # characters kept of any other text that came from inside a file or its name (a file name, a date)
 
