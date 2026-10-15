@@ -9,11 +9,13 @@ from v2r import __version__, build_skill, doctor, join, normalize, settings
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="v2r", description="Command-line video toolbox.")
+    # allow_abbrev=False everywhere: a file name such as "--sh=wide" must never be read as a shortened option.
+    # Put "--" before file names (python3 -m v2r normalize --shape tall -- FILE ...) and argparse treats all that follows as files.
+    parser = argparse.ArgumentParser(prog="v2r", description="Command-line video toolbox.", allow_abbrev=False)
     parser.add_argument("--version", action="version", version=f"v2r {__version__}")
     commands = parser.add_subparsers(dest="command")
-    commands.add_parser("doctor", help="report on the computer v2r is running on")
-    join_parser = commands.add_parser("join", help="join videos into one MP4 in work/")
+    commands.add_parser("doctor", help="report on the computer v2r is running on", allow_abbrev=False)
+    join_parser = commands.add_parser("join", help="join videos into one MP4 in work/", allow_abbrev=False)
     join_parser.add_argument(
         "--shape",
         required=True,
@@ -21,7 +23,8 @@ def main(argv=None):
         help=" or ".join(f"{name} ({w}x{h})" for name, (w, h) in settings.SHAPES.items()) + "; there is no default",
     )
     join_parser.add_argument("videos", nargs="+", type=Path, help="video files, in the order to join them")
-    normalize_parser = commands.add_parser("normalize", help="convert clips to one working format in work/")
+    normalize_parser = commands.add_parser(
+        "normalize", help="convert clips to one working format in work/", allow_abbrev=False)
     normalize_parser.add_argument(
         "--shape",
         required=True,
@@ -32,7 +35,7 @@ def main(argv=None):
         "files", nargs="+", type=Path,
         help="files, in the order they were attached; they get the letters A, B, C...",
     )
-    commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude")
+    commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
 
     if args.command == "doctor":

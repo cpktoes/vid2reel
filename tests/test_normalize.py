@@ -967,3 +967,31 @@ def test_manifest_entry_that_cannot_be_written_skips_only_that_file(shape, tmp_p
 
     assert manifest["finished"] is True
     assert [c["status"] for c in manifest["clips"]] == ["skipped", "done"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_cli_file_names_after_double_dash_are_never_options(shape, tmp_path, monkeypatch):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    monkeypatch.chdir(tmp_path)
+    shape_like = make_clip(tmp_path / "made.mp4", 320, 180).rename(tmp_path / "--shape=wide")
+    dash_x = make_clip(tmp_path / "-x.mov", 320, 180)
+
+    assert main(["normalize", "--shape", shape, "--", shape_like.name, dash_x.name]) == 0
+
+    manifest = manifest_of(tmp_path / "work")
+    assert manifest["shape"] == shape
+    assert [(c["status"], c["original"]["name"]) for c in manifest["clips"]] == [
+        ("done", "--shape=wide"), ("done", "-x.mov")]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_cli_shortened_option_is_refused(shape, tmp_path, monkeypatch):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+    with pytest.raises(SystemExit) as stopped:
+        main(["normalize", "--shape", shape, "--sh=" + shape, str(clip)])
+    assert stopped.value.code == 2
+    with pytest.raises(SystemExit) as stopped:
+        main(["normalize", "--sh", shape, str(clip)])
+    assert stopped.value.code == 2
+    assert not (tmp_path / "work").exists()
