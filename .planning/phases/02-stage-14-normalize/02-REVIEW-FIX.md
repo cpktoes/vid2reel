@@ -119,6 +119,15 @@ The review's IN-02 still stands: the phone test should include a sideways clip, 
 - **The pixel limits (80 million for photos, 8192 for video frames).** Chosen to sit well above what an iPhone makes. Adjust in `v2r/settings.py` if she ever sends something bigger.
 - **Info findings (IN-01 to IN-05)** were out of scope. The new tests for CR-01, CR-02, WR-01 and WR-02 close part of IN-03 (the doctor list-equality tests were also relaxed). IN-04 (handbook "send fewer clips" advice) and IN-05 (CLAUDE.md missing the tone-map decision) are still open and are both text changes in files you write.
 
+## Decisions taken (2026-10-14)
+
+- **No clip-length cap.** The 400 MB attachment limit already bounds length (about 2 minutes of 4K or about 6 minutes of 1080p, docs/phone-limits.md), and long videos are Mac work (Stage 23).
+- **Pixel limits and probe time kept.** The pixel limits (`MAX_PHOTO_PIXELS` 80 million, `MAX_VIDEO_SIDE` 8192) and the 30-second `FFPROBE_TIMEOUT` stay as set.
+- **The flat 10-minute conversion limit (the old `FFMPEG_TIMEOUT` from WR-06) is replaced** by an allowance in proportion to the clip's length (commit ebad8bc): `FFMPEG_TIMEOUT_FLOOR` (120 s) plus `FFMPEG_SECONDS_PER_SECOND` (10) times the clip's length. A photo's still uses `PHOTO_SECONDS`, so it gets 160 s. Examples: a 5-second clip gets 170 s, a 127-second clip 1390 s, a 2-minute 4K clip (about the most 400 MB holds) 1320 s. Reasoning: the sandbox measured about 3.8 seconds of work per second of 4K on its 2 processors and HDR tone-mapping is slower, so 10 leaves margin. It is a hang guard, not a speed goal.
+- **Handbook text applied** (commit 18f833d): the safe shell recipe for CR-03 and the handbook half of CR-02, and the IN-04 sentence, went into EDITOR.md steps 3 and 4 with the user's approval. CR-03 is therefore no longer skipped.
+- **IN-01 done** (`convert_one` takes `who` in place of the unused `inputs` list) and **IN-05 done** (CLAUDE.md names hable at 203 nits for HLG, 100 for PQ).
+- **IN-02 remains the phone test plan:** a sideways clip, an HDR (HLG) clip and a photo, plus a 1 to 2 minute 4K clip that must convert without "took too long".
+
 ---
 
 _Fixed: 2026-10-14_
