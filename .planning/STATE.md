@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 02
 current_phase_name: Stage 14 – Normalize
-status: executing
-stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-10-14T00:34:22.026Z"
+status: verifying
+stopped_at: Completed 02-08-PLAN.md
+last_updated: "2026-10-15T00:48:37.629Z"
 last_activity: 2026-10-13
 last_activity_desc: roadmap created
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 
 Phase: 02 (Stage 14 – Normalize) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-13 — Phase 02 execution started
 
-Progress: [█████████░] 88% (1 of 14 phases complete)
+Progress: [██████████] 100% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [█████████░] 88% (1 of 14 phases complete)
 | Phase 02 P03 | 5min | 2 tasks | 4 files |
 | Phase 02 P06 | 25min | 2 tasks | 3 files |
 | Phase 02 P07 | 40min | 3 tasks | 2 files |
+| Phase 02 P08 | phone test | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: 02-03: pillow and pillow-heif approved by the user 2026-10-13; pillow-heif held on the 1.8 line (below 1.9)
 - [Phase ?]: 02-06: Pillow reads every file before ffprobe; FFmpeg only reads the upright JPEG copy of a photo, never the HEIC
 - [Phase ?]: Stage 14: HDR clips are tone-mapped with hable at a peak of 203 nits, picked by eye from four-panel strips
+- [Phase ?]: Phone attachments of slow-motion clips arrive pre-rendered at a steady 30 fps; the 120/240 fps flag does not fire from a phone
+- [Phase ?]: Handbook join step uses the working copies in letter order, leaving out skipped letters
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-14T00:34:22.012Z
-Stopped at: Completed 02-07-PLAN.md
+Last session: 2026-10-15T00:48:37.554Z
+Stopped at: Completed 02-08-PLAN.md
 Resume file: None
