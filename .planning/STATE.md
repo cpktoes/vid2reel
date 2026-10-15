@@ -79,13 +79,13 @@ Settled decisions that shape later phases:
 - [Phase 11 / Stage 23]: Long videos are edited on a Mac from start to finish; a phone chat cannot hand back a file that size
 - [Process]: GSD phases are named by guide stage, one per stage, never merged, split or reordered
 - [Phase 2 / Stage 14]: HDR tone-mapping starts at hable with a peak of 203 nits (chosen 2026-10-13 from the research measurement, replacing D-12's mobius start); the user still confirms by eye from the four-panel strips in plan 02-07
-- [Phase ?]: Stage 14 plan 01: normalize manifest field names are frozen as documented in v2r/normalize.py (D-03)
-- [Phase ?]: Stage 14 plan 05: a file whose working name is taken by an original in the work folder is skipped, never overwritten
-- [Phase ?]: 02-03: pillow and pillow-heif approved by the user 2026-10-13; pillow-heif held on the 1.8 line (below 1.9)
-- [Phase ?]: 02-06: Pillow reads every file before ffprobe; FFmpeg only reads the upright JPEG copy of a photo, never the HEIC
-- [Phase ?]: Stage 14: HDR clips are tone-mapped with hable at a peak of 203 nits, picked by eye from four-panel strips
-- [Phase ?]: Phone attachments of slow-motion clips arrive pre-rendered at a steady 30 fps; the 120/240 fps flag does not fire from a phone
-- [Phase ?]: Handbook join step uses the working copies in letter order, leaving out skipped letters
+- [Phase 2 / Stage 14]: Stage 14 plan 01: normalize manifest field names are frozen as documented in v2r/normalize.py (D-03)
+- [Phase 2 / Stage 14]: Stage 14 plan 05: a file whose working name is taken by an original in the work folder is skipped, never overwritten
+- [Phase 2 / Stage 14]: 02-03: pillow and pillow-heif approved by the user 2026-10-13; pillow-heif held on the 1.8 line (below 1.9)
+- [Phase 2 / Stage 14]: 02-06: Pillow reads every file before ffprobe; FFmpeg only reads the upright JPEG copy of a photo, never the HEIC
+- [Phase 2 / Stage 14]: Stage 14: HDR clips are tone-mapped with hable at a peak of 203 nits, picked by eye from four-panel strips
+- [Phase 2 / Stage 14]: Phone attachments of slow-motion clips arrive pre-rendered at a steady 30 fps; the 120/240 fps flag does not fire from a phone
+- [Phase 2 / Stage 14]: Handbook join step uses the working copies in letter order, leaving out skipped letters
 
 ### Pending Todos
 
