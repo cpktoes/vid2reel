@@ -393,6 +393,10 @@ def read_photo(path, copy_final, label=None):
     except Image.UnidentifiedImageError:
         return None
     with picture:
+        if picture.size[0] * picture.size[1] > settings.MAX_PHOTO_PIXELS:  # from the header alone: nothing is decoded yet
+            raise Refused(
+                f"The {label or 'photo'} is {picture.size[0]} by {picture.size[1]} pixels, over the "
+                f"{settings.MAX_PHOTO_PIXELS:,} pixel limit, so it was left out.")
         picture.load()
         stored = list(picture.size)
         exif = picture.getexif()
@@ -531,6 +535,8 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
         except Exception as error:  # Pillow's own refusals (a corrupt file, a decompression bomb, an odd format)
             copy.unlink(missing_ok=True)
             part_path(copy).unlink(missing_ok=True)
+            if isinstance(error, Refused):  # already a plain sentence (such as a photo that is too big)
+                raise
             if isinstance(error, OSError) and error.errno == errno.ENOSPC:
                 raise
             raise Refused(f"{who} could not be read as a video or a photo.", tail(repr(error))) from error
@@ -546,6 +552,11 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
             f"{who} could not be read as a video or a photo.",
             tail(getattr(error, "stderr", None)) or tail(repr(error)),
         ) from error
+    if max(original["stored_size"]) > settings.MAX_VIDEO_SIDE:  # decided from the facts alone, before any conversion
+        width, height = original["stored_size"]
+        raise Refused(
+            f"{who} is {width} by {height} pixels, over the {settings.MAX_VIDEO_SIDE} pixel limit on either side, "
+            "so it was left out.")
     seconds = original["seconds"]
     size = working_size(shape, *original["upright_size"])
     final = out_dir / f"{letter}.mp4"

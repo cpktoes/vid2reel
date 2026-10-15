@@ -33,6 +33,8 @@ WORKING_SIZE = {
 # Pillow format names a photo may have; any other picture type is not opened as a photo.
 # (The iPhone's JPEG variant, MPO, is opened by the JPEG reader, so it needs no entry of its own.)
 PHOTO_FORMATS = ["JPEG", "PNG", "HEIF"]
+MAX_PHOTO_PIXELS = 80_000_000  # pixels (width times height) of the largest photo that is opened; a 48 MP iPhone photo is well inside
+MAX_VIDEO_SIDE = 8192  # pixels: a video frame wider or taller than this is left out (an iPhone's 4K is 3840 by 2160)
 PHOTO_SECONDS = 4  # seconds a photo's still clip lasts
 PHOTO_JPEG_QUALITY = 92  # 1-100, quality of the upright full-size copy of a photo
 X264_PRESET = "veryfast"  # working copies: fast encode (the renderer re-encodes them later)

@@ -1240,3 +1240,50 @@ def test_photo_iphone_jpeg_variant_mpo_still_opens(shape, tmp_path, small_caps):
 
     assert (entry["status"], entry["kind"]) == ("done", "photo")
     assert entry["original"]["upright_size"] == [400, 300]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_size_cap_photo_over_the_pixel_limit_is_refused_before_decoding(shape, tmp_path, monkeypatch, small_caps):
+    from PIL import ImageFile
+
+    def decoded(self, *args, **kwargs):
+        raise RuntimeError("the photo was decoded")
+
+    monkeypatch.setattr(ImageFile.ImageFile, "load", decoded)
+    monkeypatch.setattr(settings, "MAX_PHOTO_PIXELS", 400 * 300 - 1)
+    big = make_photo(tmp_path / "big.jpg", 400, 300)
+    clip = make_clip(tmp_path / "ok.mp4", 320, 180)
+
+    manifest = convert([big, clip], shape, tmp_path / "out")
+
+    first, second = manifest["clips"]
+    assert first["status"] == "skipped"
+    assert first["sentence"] == (
+        "The first file, big.jpg, is 400 by 300 pixels, over the 119,999 pixel limit, so it was left out.")
+    assert second["status"] == "done"
+    assert not [p for p in (tmp_path / "out").iterdir() if p.name.startswith("A")]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_size_cap_photo_at_the_limit_converts(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(settings, "MAX_PHOTO_PIXELS", 400 * 300)
+    photo = make_photo(tmp_path / "exact.jpg", 400, 300)
+
+    assert convert([photo], shape, tmp_path / "out")["clips"][0]["status"] == "done"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_size_cap_video_frame_over_the_limit_is_refused(shape, tmp_path, monkeypatch, small_caps):
+    flat = make_clip(tmp_path / "flat.mp4", 320, 180)
+    sideways = make_clip(tmp_path / "side.mp4", 320, 180, rotate=90)  # stored 320 by 180, whichever way it is shown
+
+    monkeypatch.setattr(settings, "MAX_VIDEO_SIDE", 320)  # exactly at the limit is allowed
+    manifest = convert([flat, sideways], shape, tmp_path / "out")
+    assert [c["status"] for c in manifest["clips"]] == ["done", "done"]
+
+    monkeypatch.setattr(settings, "MAX_VIDEO_SIDE", 319)
+    manifest = convert([flat, sideways], shape, tmp_path / "out2")
+    assert [c["status"] for c in manifest["clips"]] == ["skipped", "skipped"]
+    assert manifest["clips"][0]["sentence"] == (
+        "The first file, flat.mp4, is 320 by 180 pixels, over the 319 pixel limit on either side, so it was left out.")
+    assert not list((tmp_path / "out2").glob("*.mp4"))
