@@ -31,6 +31,7 @@ import re
 import statistics
 import subprocess
 import time
+import unicodedata
 from pathlib import Path
 
 from v2r import WORK_DIR, doctor, settings
@@ -59,6 +60,30 @@ class Refused(Exception):
 PHOTO_SUFFIXES = {".heic", ".heif", ".jpg", ".jpeg", ".png"}  # compared in lower case
 NO_ROOM_TEXT = "No space left on device"  # what FFmpeg's error text says when the disk is full
 OUT_OF_ROOM = "The work folder ran out of room, so the run stopped; please send fewer clips."
+
+
+def clean_text(value, limit=None, keep_end=False):
+    """Text that came from a file (its name, a date tag, an error message) made safe to print and store.
+
+    Line breaks and other control characters can't be used to fake a line in the log or to hide in the list, so they
+    are turned into spaces or dropped; the text is cut to `limit` characters (settings.FILE_TEXT_CHARS when not given),
+    keeping its end when `keep_end` is true. Returns a string, "" for None.
+    """
+    limit = settings.FILE_TEXT_CHARS if limit is None else limit
+    kept = []
+    for char in str(value if value is not None else ""):
+        category = unicodedata.category(char)
+        if category in ("Cc", "Zl", "Zp"):  # control characters and line or paragraph separators
+            kept.append(" ")
+        elif not category.startswith("C"):  # drops the invisible ones too (format, private-use, unassigned)
+            kept.append(char)
+    text = "".join(kept).strip()
+    return text[-limit:] if keep_end else text[:limit]
+
+
+def display_name(path):
+    """The file's own name, cleaned for sentences, the log and the manifest."""
+    return clean_text(Path(path).name)
 
 
 def letter(n):
@@ -178,6 +203,22 @@ def fraction(text):
         return None
 
 
+VIDEO_DATE = re.compile(r"(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(\.\d{1,9})?(Z|[+-]\d\d(:?\d\d)?)?")
+
+
+def video_date(text):
+    """A video's date tag when it is an ISO date and time such as "2026-10-12T11:49:03-0700", else None."""
+    text = clean_text(text)
+    match = VIDEO_DATE.fullmatch(text)
+    if not match:
+        return None
+    try:
+        datetime.datetime(*(int(part) for part in match.groups()[:6]))
+    except ValueError:  # such as month 13
+        return None
+    return text
+
+
 def video_facts(path, info, times):
     """The `original` block of a video's manifest entry: every fact about the file as it was given."""
     path = Path(path)
@@ -190,7 +231,7 @@ def video_facts(path, info, times):
     tags = {key.lower(): value for key, value in info.get("format", {}).get("tags", {}).items()}
     return {
         "path": str(path.resolve()),
-        "name": path.name,
+        "name": display_name(path),
         "bytes": path.stat().st_size,
         "seconds": float(video.get("duration") or info["format"]["duration"]),
         "stored_size": stored,
@@ -202,7 +243,7 @@ def video_facts(path, info, times):
         "hdr": hdr_kind(video),
         "dolby_vision": any(item.get("side_data_type") == "DOVI configuration record" for item in side_data),
         "has_sound": any(s["codec_type"] == "audio" and s.get("codec_name") for s in info["streams"]),
-        "shot_at": tags.get("com.apple.quicktime.creationdate") or tags.get("creation_time"),
+        "shot_at": video_date(tags.get("com.apple.quicktime.creationdate") or tags.get("creation_time")),
     }
 
 
@@ -299,8 +340,8 @@ def write_manifest(out_dir, manifest):
 
 def tail(text):
     """The last settings.ERROR_DETAIL_CHARS characters of an error text; None when there is none."""
-    text = (text or "").strip()
-    return text[-settings.ERROR_DETAIL_CHARS:] if text else None
+    text = clean_text(text, settings.ERROR_DETAIL_CHARS, keep_end=True)
+    return text or None
 
 
 def check_ffmpeg():
@@ -375,12 +416,12 @@ def read_photo(path, copy_final, label=None):
     upright = list(image.size)
     original = {
         "path": str(path.resolve()),
-        "name": path.name,
+        "name": display_name(path),
         "bytes": path.stat().st_size,
         "stored_size": stored,
         "upright_size": upright,
         "orientation": orientation,
-        "shot_at": shot_at,
+        "shot_at": clean_text(shot_at) if shot_at else None,
     }
     return original, {"file": Path(copy_final).name, "size": upright}, notes
 
@@ -465,7 +506,7 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
     """
     started = time.monotonic()
     out_dir = Path(out_dir)
-    who = f"The {ordinal(number)} file, {Path(given).name},"
+    who = f"The {ordinal(number)} file, {display_name(given)},"
     if not path.is_file():
         raise Refused(f"{who} was not found.")
     if path.is_relative_to(out_dir.resolve()):  # an original is never overwritten or deleted (T-2-08)
@@ -485,7 +526,7 @@ def convert_one(path, given, number, letter, shape, out_dir, inputs):
     else:
         copy = out_dir / f"{letter}-photo.jpg"
         try:
-            read = read_photo(path, copy, f"{ordinal(number)} file, {Path(given).name},")
+            read = read_photo(path, copy, f"{ordinal(number)} file, {display_name(given)},")
         except Exception as error:  # Pillow's own refusals (a corrupt file, a decompression bomb, an odd format)
             copy.unlink(missing_ok=True)
             part_path(copy).unlink(missing_ok=True)
@@ -578,9 +619,9 @@ def skipped_entry(letter, number, path, given, sentence, detail):
         "number": number,
         "status": "skipped",
         "kind": None,
-        "original": {"path": str(path), "name": Path(given).name, "bytes": size},
+        "original": {"path": str(path), "name": display_name(given), "bytes": size},
         "sentence": sentence,
-        "detail": detail,
+        "detail": tail(detail),
     }
 
 
@@ -604,7 +645,7 @@ def normalize(files, shape, out_dir=None):
     try:
         for number, (path, as_given) in enumerate(zip(inputs, given), start=1):
             name = letter(number)
-            who = f"The {ordinal(number)} file, {as_given.name},"
+            who = f"The {ordinal(number)} file, {display_name(as_given)},"
             try:
                 entry = convert_one(path, as_given, number, name, shape, out_dir, inputs)
                 json.dumps(entry)  # a value that can't be written to the manifest turns this one file into a skipped one

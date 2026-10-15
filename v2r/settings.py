@@ -47,6 +47,7 @@ STEADY_TOLERANCE = 0.25  # share of the median frame gap that a frame gap may di
 FFPROBE_TIMEOUT = 30  # seconds ffprobe may take to read one file's facts before that file is left out
 FFMPEG_TIMEOUT = 600  # seconds FFmpeg may take to convert one file before that file is left out (a hang guard, not a speed goal)
 ERROR_DETAIL_CHARS = 400  # characters of FFmpeg's own error text kept in a skipped entry
+FILE_TEXT_CHARS = 200  # characters kept of any other text that came from inside a file or its name (a file name, a date)
 
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
