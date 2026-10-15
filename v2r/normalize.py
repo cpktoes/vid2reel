@@ -681,9 +681,12 @@ def normalize(files, shape, out_dir=None):
                 entry = skipped_entry(
                     name, number, path, as_given, f"{who} could not be read as a video or a photo.", tail(repr(error)))
             if entry["status"] == "skipped":
-                leftover = part_path(out_dir / f"{name}.mp4")
-                if leftover.resolve() not in inputs:  # never a half-made copy, and never an original
-                    leftover.unlink(missing_ok=True)
+                # A skipped file leaves nothing behind that its entry does not describe: no half-made copy, no finished
+                # working copy (the failure may have come after it was made), no upright photo copy. Never an original.
+                for stale in (f"{name}.mp4", f"{name}-photo.jpg"):
+                    for leftover in (out_dir / stale, part_path(out_dir / stale)):
+                        if leftover.resolve() not in inputs:
+                            leftover.unlink(missing_ok=True)
                 print(entry["sentence"], flush=True)
             manifest["clips"].append(entry)
             write_manifest(out_dir, manifest)

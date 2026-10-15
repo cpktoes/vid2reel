@@ -1306,3 +1306,41 @@ def test_doctor_piece_normalize_never_uses_does_not_stop_the_run(shape, tmp_path
     clip = make_clip(tmp_path / "in.mp4", 320, 180)
 
     assert convert([clip], shape, tmp_path / "out")["clips"][0]["status"] == "done"
+
+
+def probe_fails_for_working_copies(monkeypatch):
+    """ffprobe fails on the finished working copy (A.mp4, B.mp4...), after the conversion itself has worked."""
+    real = v2r.normalize.probe
+
+    def probe_made(path):
+        if Path(path).name[:1] in "AB" and Path(path).suffix == ".mp4" and Path(path).parent.name.startswith("out"):
+            raise subprocess.CalledProcessError(1, ["ffprobe"], stderr="moov atom not found")
+        return real(path)
+
+    monkeypatch.setattr(v2r.normalize, "probe", probe_made)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_skipped_file_leaves_no_finished_copy_behind(shape, tmp_path, monkeypatch, small_caps):
+    clip = make_clip(tmp_path / "one.mp4", 320, 180)
+    photo = make_photo(tmp_path / "snap.jpg", 400, 300)
+    probe_fails_for_working_copies(monkeypatch)
+
+    manifest = convert([clip, photo], shape, tmp_path / "out")
+
+    assert [c["status"] for c in manifest["clips"]] == ["skipped", "skipped"]
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["manifest.json"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_skipped_file_cleanup_never_deletes_an_original(shape, tmp_path, small_caps):
+    out = tmp_path / "out"
+    out.mkdir()
+    other = make_clip(tmp_path / "other.mp4", 320, 180)
+    photo_inside = make_photo(out / "A-photo.jpg", 400, 300)  # a photo she sent that sits in the work folder
+    before = fingerprint(photo_inside)
+
+    manifest = convert([photo_inside, other], shape, out)
+
+    assert manifest["clips"][0]["status"] == "skipped"
+    assert fingerprint(photo_inside) == before
