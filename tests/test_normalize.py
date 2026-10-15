@@ -906,3 +906,64 @@ def test_doctor_photo_graph_filters_listed():
     names = set(filter_names(v2r.normalize.photo_graph((300, 400))))
     assert {"scale", "format", "setsar", "loop", "setpts", "anullsrc"} <= names
     assert names <= set(doctor.FILTERS)
+
+
+# --- Review fixes (phase 02 code review) ---
+
+
+def set_orientation_entry(path, kind, count, raw):
+    """Rewrite the turn note (EXIF 0x0112) of a JPEG written by make_photo(orientation=6) so it has another type.
+
+    `kind` is the TIFF type number (2 text, 3 short, 7 undefined, 8 signed short), `raw` the four bytes of the value.
+    """
+    data = bytearray(path.read_bytes())
+    start = data.index(b"Exif\x00\x00") + 6
+    order = "big" if data[start:start + 2] == b"MM" else "little"
+    entry = (0x0112).to_bytes(2, order) + (3).to_bytes(2, order) + (1).to_bytes(4, order) + (6).to_bytes(2, order) + b"\x00\x00"
+    at = data.index(entry, start)
+    data[at:at + 12] = (0x0112).to_bytes(2, order) + kind.to_bytes(2, order) + count.to_bytes(4, order) + raw
+    path.write_bytes(bytes(data))
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+@pytest.mark.parametrize(
+    ("kind", "count", "raw"),
+    [
+        (7, 1, b"\x06\x00\x00\x00"),  # undefined: Pillow hands back bytes
+        (2, 4, b"abc\x00"),  # text
+        (3, 1, b"\x00\x63\x00\x00"),  # a number, but not 1 to 8
+        (3, 1, b"\x00\x00\x00\x00"),
+        (8, 1, b"\xff\xfd\x00\x00"),  # negative
+    ],
+    ids=["bytes", "text", "too-big", "zero", "negative"],
+)
+def test_photo_junk_orientation_becomes_one(shape, kind, count, raw, tmp_path, small_caps):
+    photo = make_photo(tmp_path / "junk.jpg", 400, 300, orientation=6)
+    set_orientation_entry(photo, kind, count, raw)
+    after = make_clip(tmp_path / "after.mp4", 320, 180)
+
+    manifest = convert([photo, after], shape, tmp_path / "out")
+
+    assert manifest["finished"] is True
+    assert [c["status"] for c in manifest["clips"]] == ["done", "done"]
+    assert manifest["clips"][0]["original"]["orientation"] == 1
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_manifest_entry_that_cannot_be_written_skips_only_that_file(shape, tmp_path, monkeypatch, small_caps):
+    real = v2r.normalize.convert_one
+
+    def convert_one(path, given, number, name, *rest):
+        entry = real(path, given, number, name, *rest)
+        if number == 1:
+            entry["original"]["odd"] = b"not json"
+        return entry
+
+    monkeypatch.setattr(v2r.normalize, "convert_one", convert_one)
+    first = make_clip(tmp_path / "one.mp4", 320, 180)
+    second = make_clip(tmp_path / "two.mp4", 320, 180)
+
+    manifest = convert([first, second], shape, tmp_path / "out")
+
+    assert manifest["finished"] is True
+    assert [c["status"] for c in manifest["clips"]] == ["skipped", "done"]

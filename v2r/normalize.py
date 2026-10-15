@@ -347,6 +347,8 @@ def read_photo(path, copy_final, label=None):
         stored = list(picture.size)
         exif = picture.getexif()
         orientation = exif.get(0x0112, 1)
+        if not (isinstance(orientation, int) and 1 <= orientation <= 8):  # a note of any other kind is junk: none
+            orientation = 1
         shot_at = date_taken(exif)
         icc = picture.info.get("icc_profile")
         image = ImageOps.exif_transpose(picture)  # once; a HEIC from pillow-heif is already upright
@@ -594,6 +596,7 @@ def normalize(files, shape, out_dir=None):
             who = f"The {ordinal(number)} file, {as_given.name},"
             try:
                 entry = convert_one(path, as_given, number, name, shape, out_dir, inputs)
+                json.dumps(entry)  # a value that can't be written to the manifest turns this one file into a skipped one
             except Refused as refused:
                 entry = skipped_entry(name, number, path, as_given, refused.sentence, refused.detail)
             except subprocess.CalledProcessError as error:
