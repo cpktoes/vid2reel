@@ -15,6 +15,9 @@ Measured on 2026-10-12 by running the seven tests of the guide's Stage 11 from t
 | 5 | Ten short clips of about 15 s or less | All ten arrived and the reel was built (58.7 MiB), but sending it back was refused: over 30 MiB. |
 | 6 | Three photos and one short clip | All four arrived. The reel was made from the clip alone. Whether it came back was not recorded. |
 | 7 | One sideways clip of someone talking: 1920×1080 HDR (HLG), about 3 min 25 s, 236.6 MB on the phone. Joined wide. | Attempts 1 and 2 were stopped by the sandbox's 2-minute command limit. Attempt 3 ran the join in the background and finished in 142 s. The result came back: 960×540, 17.2 MiB. It looked great on a computer screen and on the phone. |
+| 8 | Stage 14 (2026-10-14): six HDR (HLG + Dolby Vision) clips of 14 to 86 MB plus the 408.7 MB clip from test 3c; normalize, then join tall. | All six were tried. The 408.7 MB clip was left out by `MAX_ATTACHMENT_BYTES` with one plain sentence. The first join was refused: 4 min 9 s is over the 3 min 54 s the smallest step can hold. With the longest clip left out, 2 min 10 s came back at 720×1280, 20.6 MB, and looked right. |
+| 9 | Stage 14: two HDR clips (about 42 s and 8 s) and five pictures picked from the camera roll (two camera photos, three screenshots); a fresh copy of the branch. Tall. | All seven converted. The pictures arrived as JPEG and PNG named `image.jpg` and `image.png`, not HEIC. Each became a 4-second still. The reel came back at 1080×1920, 17.5 MB, about 70 s, and looked right. |
+| 10 | Stage 14: test 9's files plus two HEIC photos of 5712×3213 attached from the Files app. Tall. | All nine converted; the HEICs kept their names and format and became stills. The reel, about 78 s, came back at 720×1280, 15.5 MB, and looked right. The size step is explained below. |
 
 ## The sandbox's doctor report
 
@@ -48,6 +51,8 @@ pypi.org can be reached.
 | Arrived at phone size or smaller | At phone size, unchanged. Test 3c's clip was 408 MB on the phone and arrived at 408,714,877 bytes, still 4K HEVC HDR. Test 3b's 7.5-second clip arrived at 8,725,576 bytes, byte for byte the size of the original sent to the Mac by AirDrop. Uploads arrive as the original file, not a shrunk copy. |
 | Most files in one message | 10 (test 5), and all arrived. |
 | Where attachments land | `/mnt/user-data/uploads/` in the sandbox (test 7) |
+| Pictures picked from the camera roll | Arrive as JPEG (camera photos) or PNG (screenshots) named `image.jpg` or `image.png`; the HEIC original is not preserved (test 9). |
+| Pictures attached from the Files app | Arrive as the original HEIC with their own name (test 10, two of 5712×3213). |
 
 ## How long each step took
 
@@ -57,6 +62,7 @@ pypi.org can be reached.
 | `join --shape tall` | 4 (3 minutes, full size 1080×1920) | about 467 s (7.8 min) |
 | `join --shape wide` | 7 (3 min 25 s, fitted to 960×540) | 142.27 s |
 | `join --shape wide` | 3b (30 s of 4K plus 7.5 s of 1080p, full size 1920×1080) | 142.96 s |
+| `normalize --shape tall` | 8, 9, 10 (1080p HDR clips) | about 2 seconds of work per second of video: a 42 s clip took 80 s, an 8 s clip 24 s, a 47 s clip 103.5 s (lengths estimated from the reel totals). A picture takes 1 to 3 s. |
 
 The clone, the pip install, the uploads and the other tests' joins were not timed.
 
@@ -69,6 +75,8 @@ The clone, the pip install, the uploads and the other tests' joins were not time
 | Largest tall result sent back | Test 2's reel, from a clip of about 30 s. Its size was not recorded. The smallest result refused was 44.8 MiB (test 3). |
 | Largest wide result sent back | 19.4 MiB (test 3b) |
 | Longest wide video that came back | 205.44 s, about 3 min 25 s (test 7) |
+| Longest tall video that came back | 2 min 10 s at 720×1280, 20.6 MB (test 8) |
+| Longest tall video at full size | about 70 s at 1080×1920, 17.5 MB (test 9); 78 s stepped down to 720×1280 (test 10) |
 
 Test 7's join reported: "The video is 960x540 at an average of 0.7 Mbit/s, and the file is 17.2 MiB, under the 24 MiB limit." Test 3b's reported: "The video is 1920x1080 at an average of 4.2 Mbit/s, and the file is 19.4 MiB, under the 24 MiB limit." Claude described the result as an SDR re-encode, but the join doesn't convert HDR to SDR. The file keeps the source's HDR (HLG) label, as the same join does on the Mac, and it looked great anyway.
 
@@ -106,6 +114,9 @@ Test 6 was not an error. Claude reported: "Only the .mov is a video, so the join
 - Claude's own description of a clip can get its shape wrong. It reported test 3b's second clip as "1080 × 1920 (portrait)", reading the stored size and ignoring the rotation flag. v2r's join applied the flag and showed the clip whole in the wide video.
 - 4K is the slowest to read. Test 3b took about 3.8 seconds of work per second of video (30 s of 4K plus 7.5 s of 1080p, at full size). So even a 30-second 4K clip runs past the 2-minute limit and needs the background join.
 
+- Converting is quicker than joining: normalize needs about 2 seconds of work per second of 1080p HDR video (tests 8 to 10), against 2.6 for a full-size join. `FFMPEG_SECONDS_PER_SECOND` = 10 therefore leaves a margin of four to five times, even allowing for 4K being slower.
+- The join picks the frame size from the reel's length alone, before encoding: 1080×1920 up to about 73 s, 720×1280 to about 2 min 26 s, 540×960 to 3 min 54 s, refused beyond that. Tests 9 and 10 sit either side of the first line: 70 s came back at full size, 78 s at 720×1280. Still pictures need far fewer bits than the join assumes, so a reel with stills can come back well under the limit at a smaller size than it needed; encoding first and measuring belongs to the stage that builds the final video.
+
 ## What the sandbox's doctor report lacks that the Mac's has
 
 Every check passes in both: the same encoders and filters are available, and both can reach github.com and pypi.org. The sandbox has less of four things:
@@ -126,5 +137,10 @@ Python is 3.13.16 in the sandbox and 3.13.15 on the Mac, which makes no differen
 | `MAX_ATTACHMENT_BYTES` | 400 MB | the size above which the app warns. A 408.7 MB file still arrived (test 3c), so this line sits just below a tested success. The real ceiling was not found. |
 | `MAX_ATTACHMENTS` | 10 | test 5: the most files tried, all of which arrived; no margin, because 10 is a tested success, not a limit that was found |
 | `MAX_RESULT_BYTES` | 24 MiB | 80% of the 30 MiB send limit |
+| `FFPROBE_TIMEOUT` | 30 s | a hang guard for reading one file's facts; reading does not decode, so a few seconds is normal |
+| `FFMPEG_TIMEOUT_FLOOR` | 120 s | a hang guard: start-up plus a picture's 4-second still, added to every conversion's allowance |
+| `FFMPEG_SECONDS_PER_SECOND` | 10 | a hang guard, not a speed goal: tests 8 to 10 measured about 2 for 1080p HDR and test 3b 3.8 for a 4K join |
+| `MAX_PHOTO_PIXELS` | 80 million | not a measured limit: a 48 MP iPhone photo is 48 million and a panorama about 63 million, so this refuses only absurd files |
+| `MAX_VIDEO_SIDE` | 8192 pixels | not a measured limit: an iPhone's 4K frame is 3840 wide, so this refuses only absurd files |
 
 The 2-minute command limit is not a setting. EDITOR.md handles it by starting the join in the background.
