@@ -4,6 +4,7 @@ import os
 import stat
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from media import (corner_mean, corner_mean_image, filter_names, gray_frame, make_audio, make_clip, make_photo, mean_luma,
@@ -518,6 +519,7 @@ def test_manifest_attachment_count_not_enforced(shape, tmp_path, monkeypatch, sm
 
 
 def test_refuse_whole_run_out_of_room_sentence(tmp_path, monkeypatch, capsys, small_caps):
+    """A Python-level out-of-room error (such as a failed manifest or photo write) stops the run."""
     monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
     clip = make_clip(tmp_path / "one.mp4", 320, 180)
 
@@ -535,6 +537,59 @@ def test_refuse_whole_run_out_of_room_sentence(tmp_path, monkeypatch, capsys, sm
     assert manifest["finished"] is False
     assert "ran out of room" in manifest["stopped"]
     assert not [p for p in (tmp_path / "work").iterdir() if ".part." in p.name]
+
+
+def ffmpeg_reports_full_disk(monkeypatch, stderr="Error writing trailer: No space left on device\n"):
+    """Make every FFmpeg conversion fail the way a full disk does: exit status 1 and the text on stderr."""
+    real = subprocess.run
+
+    def run(command, *args, **kwargs):
+        if command[0] == "ffmpeg" and "-nostdin" in command:
+            Path(command[-1]).write_bytes(b"half a file")  # what FFmpeg leaves behind
+            raise subprocess.CalledProcessError(1, command, output="", stderr=stderr)
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_refuse_whole_run_when_ffmpeg_reports_full_disk(shape, tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    clips = [make_clip(tmp_path / "one.mp4", 320, 180), make_clip(tmp_path / "two.mp4", 320, 180)]
+    ffmpeg_reports_full_disk(monkeypatch)
+
+    assert main(["normalize", "--shape", shape, *map(str, clips)]) == 1
+
+    err = capsys.readouterr().err
+    assert "ran out of room" in err
+    manifest = manifest_of(tmp_path / "work")
+    assert manifest["finished"] is False
+    assert "ran out of room" in manifest["stopped"]
+    assert manifest["clips"] == []  # the second file was never tried
+    assert not [p for p in (tmp_path / "work").iterdir() if ".part." in p.name]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_refuse_whole_run_when_ffmpeg_reports_full_disk_on_a_photo(shape, tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "work")
+    photo = make_photo(tmp_path / "snap.jpg", 400, 300)
+    ffmpeg_reports_full_disk(monkeypatch)
+
+    assert main(["normalize", "--shape", shape, str(photo)]) == 1
+
+    assert "ran out of room" in capsys.readouterr().err
+    assert sorted(p.name for p in (tmp_path / "work").iterdir()) == ["manifest.json"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_other_ffmpeg_failure_only_skips_that_file(shape, tmp_path, monkeypatch, small_caps):
+    clip = make_clip(tmp_path / "one.mp4", 320, 180)
+    ffmpeg_reports_full_disk(monkeypatch, stderr="Invalid data found when processing input\n")
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    assert manifest["finished"] is True
+    assert manifest["clips"][0]["status"] == "skipped"
 
 
 def fingerprint(path):

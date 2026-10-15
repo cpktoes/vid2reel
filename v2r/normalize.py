@@ -57,6 +57,7 @@ class Refused(Exception):
 
 
 PHOTO_SUFFIXES = {".heic", ".heif", ".jpg", ".jpeg", ".png"}  # compared in lower case
+NO_ROOM_TEXT = "No space left on device"  # what FFmpeg's error text says when the disk is full
 OUT_OF_ROOM = "The work folder ran out of room, so the run stopped; please send fewer clips."
 
 
@@ -277,8 +278,10 @@ def run_ffmpeg(command, part, final):
     """Run `command`, which writes `part`; only a finished file is moved onto its final name."""
     try:
         subprocess.run(command, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as error:
         Path(part).unlink(missing_ok=True)
+        if NO_ROOM_TEXT in (error.stderr or ""):  # FFmpeg itself ran out of disk: the whole run stops, not just this file
+            raise OSError(errno.ENOSPC, NO_ROOM_TEXT) from error
         raise
     os.replace(part, final)
 
@@ -421,6 +424,9 @@ def convert_photo(read, who, number, letter, shape, out_dir, started):
     except subprocess.CalledProcessError as error:
         copy.unlink(missing_ok=True)
         raise Refused(f"{who} could not be converted.", tail(error.stderr)) from error
+    except OSError:  # out of room: the run stops, and no upright copy is left behind
+        copy.unlink(missing_ok=True)
+        raise
     made = probe(final)
     made_video = next(s for s in made["streams"] if s["codec_type"] == "video")
     numerator, denominator = made_video["r_frame_rate"].split("/")
