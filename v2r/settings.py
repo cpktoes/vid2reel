@@ -30,6 +30,9 @@ WORKING_SIZE = {
     "tall": {"portrait": (1080, 1920), "landscape": (None, 1920)},
     "wide": {"landscape": (1920, 1080), "portrait": (1920, None)},
 }
+# Pillow format names a photo may have; any other picture type is not opened as a photo.
+# (The iPhone's JPEG variant, MPO, is opened by the JPEG reader, so it needs no entry of its own.)
+PHOTO_FORMATS = ["JPEG", "PNG", "HEIF"]
 PHOTO_SECONDS = 4  # seconds a photo's still clip lasts
 PHOTO_JPEG_QUALITY = 92  # 1-100, quality of the upright full-size copy of a photo
 X264_PRESET = "veryfast"  # working copies: fast encode (the renderer re-encodes them later)

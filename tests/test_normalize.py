@@ -1198,3 +1198,45 @@ def test_long_file_name_is_cut_short(shape, tmp_path, monkeypatch, small_caps):
     assert [c["status"] for c in manifest["clips"]] == ["done", "done", "skipped"]
     assert [len(c["original"]["name"]) for c in manifest["clips"]] == [30, 30, 30]
     assert len(manifest["clips"][2]["sentence"]) < 100
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+@pytest.mark.parametrize("fmt", ["EPS", "TIFF", "BMP"])
+def test_photo_only_allowed_formats_are_opened_as_photos(shape, fmt, tmp_path, small_caps):
+    other = make_photo(tmp_path / f"other.{fmt.lower()}", 200, 100, fmt=fmt)
+
+    manifest = convert([other], shape, tmp_path / "out")
+
+    (entry,) = manifest["clips"]
+    assert entry["kind"] != "photo"
+    assert not (tmp_path / "out" / "A-photo.jpg").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_allowed_format_list_comes_from_settings(shape, tmp_path, monkeypatch, small_caps):
+    photo = make_photo(tmp_path / "snap.jpg", 400, 300)
+    monkeypatch.setattr(settings, "PHOTO_FORMATS", ["PNG"])  # a JPEG is no longer a photo
+
+    entry = convert([photo], shape, tmp_path / "out")["clips"][0]
+
+    assert entry["kind"] != "photo"
+
+
+def test_photo_allowed_formats_cover_what_phones_send():
+    assert {"JPEG", "PNG", "HEIF"} <= set(settings.PHOTO_FORMATS)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_iphone_jpeg_variant_mpo_still_opens(shape, tmp_path, small_caps):
+    from PIL import Image
+
+    first = Image.new("RGB", (400, 300), (200, 80, 40))
+    path = tmp_path / "burst.jpg"
+    first.save(path, "MPO", save_all=True, append_images=[Image.new("RGB", (400, 300), (10, 10, 10))])
+    with Image.open(path) as opened:
+        assert opened.format == "MPO"
+
+    entry = convert([path], shape, tmp_path / "out")["clips"][0]
+
+    assert (entry["status"], entry["kind"]) == ("done", "photo")
+    assert entry["original"]["upright_size"] == [400, 300]

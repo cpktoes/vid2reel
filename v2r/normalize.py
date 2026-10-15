@@ -388,7 +388,8 @@ def read_photo(path, copy_final, label=None):
     path = Path(path)
     notes = []
     try:
-        picture = Image.open(path)  # Pillow's decompression-bomb guard stays at its default
+        # Only the formats she can really send are tried; anything else falls through to the video path.
+        picture = Image.open(path, formats=settings.PHOTO_FORMATS)  # Pillow's decompression-bomb guard stays at its default
     except Image.UnidentifiedImageError:
         return None
     with picture:
