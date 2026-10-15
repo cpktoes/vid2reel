@@ -166,7 +166,7 @@ Each category maps to one phase, in guide order. Phase 1 is complete.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SKEL-01 to SKEL-04 | Phase 1 – Skeleton | Complete |
-| NORM-01 to NORM-08 | Phase 2 – Stage 14 – Normalize | Pending |
+| NORM-01 to NORM-08 | Phase 2 – Stage 14 – Normalize | Complete |
 | LOOK-01 to LOOK-07 | Phase 3 – Stage 15 – Seeing the footage | Pending |
 | CUT-01 to CUT-09 | Phase 4 – Stage 16 – Cut list and renderer | Pending |
 | HAND-01 to HAND-05 | Phase 5 – Stage 17 – Editor's handbook | Pending |

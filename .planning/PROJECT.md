@@ -16,10 +16,10 @@ A reel worth posting, made entirely from her phone. Everything else can fail; th
 - ✓ `python -m v2r join --shape tall|wide` joins clips in order, upright, cropped to fill from the centre, 30 fps H.264/AAC fast-start MP4, and fits the result under `MAX_RESULT_BYTES` by stepping the frame size down — Phase 1 (Stages 09, 11)
 - ✓ The vid2reel skill clones `main` (or a named branch), installs requirements, reads EDITOR.md and follows it; reels have been made from both phones — Phase 1 (Stage 11)
 - ✓ The phone route's real limits are measured and recorded in docs/phone-limits.md — Phase 1 (Stage 11)
+- ✓ `python -m v2r normalize --shape tall|wide` turns every clip or photo into one working format: upright, sized for the shape, steady 30 fps, HDR tone-mapped to ordinary colour, sound on every clip, photos as 4-second stills, letters A, B, C and work/manifest.json; bad files get one plain sentence and originals are never written to; verified from a phone on FFmpeg 6.1 with a tall and a wide reel — Phase 2 (Stage 14)
 
 ### Active
 
-- [ ] Any clip or photo she shoots becomes one working format, upright, 30 fps, ordinary colour, with a manifest naming every clip (Stage 14)
 - [ ] Contact sheets and measurements good enough that a Claude which never saw the clip can say what happens and pick the best two seconds (Stage 15)
 - [ ] A cut list, checked against a schema, renders to exactly that video in either shape, with a mild touch-up, gentle movement and a proof sheet (Stage 16)
 - [ ] EDITOR.md is the complete handbook; one taste profile per social account lives in that account's Claude Project (Stage 17)
@@ -73,6 +73,10 @@ A reel worth posting, made entirely from her phone. Everything else can fail; th
 | Python 3.13 minimum, matching the sandbox | The sandbox is the only runtime | ✓ Good |
 | The join runs in the background and reads a log until it finishes | The sandbox's 2-minute command limit | ✓ Good — test 7 finished in 142 s |
 | GSD phases named by guide stage, one per stage, never merged, split or reordered | The guide's stage is what both of us refer to; GSD's own numbers mean nothing | — Pending |
+| HDR is tone-mapped on the processor with zscale and tonemap, hable at a peak of 203 nits, picked by eye from four-panel strips (Stage 14) | libplacebo needs a graphics driver the sandbox lacks; research measured hable at 203 closest to Apple's rendering | ✓ Good — natural colour confirmed from the phone |
+| Photos, HEIC included, are read with Pillow and pillow-heif, lazily imported (Stage 14) | The sandbox's FFmpeg cannot open HEIC; video keeps working if pip fails | ✓ Good — a HEIC became a still from the phone |
+| The handbook joins the working copies in letter order, not the originals (Stage 14) | Only the working copies share one format and all have sound; the join failed on a photo otherwise | ✓ Good — reels made in both shapes |
+| A slow-motion clip attached from the phone arrives pre-rendered at a steady 30 fps (Stage 14) | Measured on the phone; the 120/240 fps flag stays correct but does not fire from a phone | ✓ Noted |
 
 ## Evolution
 
@@ -92,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-13 after initialization*
+*Last updated: 2026-10-14 after Phase 2 (Stage 14 – Normalize) completed*
