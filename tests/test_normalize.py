@@ -995,3 +995,20 @@ def test_cli_shortened_option_is_refused(shape, tmp_path, monkeypatch):
         main(["normalize", "--sh", shape, str(clip)])
     assert stopped.value.code == 2
     assert not (tmp_path / "work").exists()
+
+
+def test_facts_duplicate_timestamps_give_unknown_rate():
+    assert frame_facts([0, 0, 0, 0.03]) == (None, False, False)
+    assert frame_facts([1.0, 1.0, 1.0]) == (None, False, False)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_facts_duplicate_timestamps_clip_still_converts(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(v2r.normalize, "packet_times", lambda path: [0, 0, 0, 0.03])
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+
+    entry = convert([clip], shape, tmp_path / "out")["clips"][0]
+
+    assert entry["status"] == "done"
+    assert entry["original"]["fps"] == pytest.approx(30, abs=0.1)  # from avg_frame_rate
+    assert entry["original"]["slow_motion"] is False

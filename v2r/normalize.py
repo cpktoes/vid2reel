@@ -130,6 +130,8 @@ def frame_facts(times):
         return None, True, False
     gaps = [b - a for a, b in zip(times, times[1:])]
     median = statistics.median(gaps)
+    if median <= 0:  # duplicate or stuck timestamps: the rate is unknown, so the caller falls back to avg_frame_rate
+        return None, False, False
     steady = all(abs(gap - median) <= settings.STEADY_TOLERANCE * median for gap in gaps)
     return round(1 / median, 2), steady, 1 / median >= settings.SLOW_MOTION_MIN_FPS
 
