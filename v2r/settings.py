@@ -44,6 +44,8 @@ TONEMAP_NPL = 203  # nits: nominal peak for HLG sources; 203 is BT.2408's HLG re
 TONEMAP_NPL_PQ = 100  # nits: nominal peak for PQ sources
 SLOW_MOTION_MIN_FPS = 100  # frames per second: a median frame rate at or above this marks slow-motion source
 STEADY_TOLERANCE = 0.25  # share of the median frame gap that a frame gap may differ by and still count as steady
+FFPROBE_TIMEOUT = 30  # seconds ffprobe may take to read one file's facts before that file is left out
+FFMPEG_TIMEOUT = 600  # seconds FFmpeg may take to convert one file before that file is left out (a hang guard, not a speed goal)
 ERROR_DETAIL_CHARS = 400  # characters of FFmpeg's own error text kept in a skipped entry
 
 # doctor

@@ -1067,3 +1067,53 @@ def test_facts_duplicate_timestamps_clip_still_converts(shape, tmp_path, monkeyp
     assert entry["status"] == "done"
     assert entry["original"]["fps"] == pytest.approx(30, abs=0.1)  # from avg_frame_rate
     assert entry["original"]["slow_motion"] is False
+
+
+def hang_tool(monkeypatch, tool, seen=None):
+    """Make one tool ("ffmpeg" conversions or "ffprobe") run past its time limit; record every timeout it was given."""
+    real = subprocess.run
+
+    def run(command, *args, **kwargs):
+        if command[0] == tool and (tool == "ffprobe" or "-nostdin" in command):
+            if seen is not None:
+                seen.append(kwargs.get("timeout"))
+            if tool == "ffmpeg":
+                Path(command[-1]).write_bytes(b"half a file")
+            raise subprocess.TimeoutExpired(command, kwargs.get("timeout"))
+        return real(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_timeout_ffmpeg_hang_skips_only_that_file(shape, tmp_path, monkeypatch, capsys, small_caps):
+    monkeypatch.setattr(settings, "FFMPEG_TIMEOUT", 7)
+    clip = make_clip(tmp_path / "one.mp4", 320, 180)
+    photo = make_photo(tmp_path / "snap.jpg", 400, 300)
+    seen = []
+    hang_tool(monkeypatch, "ffmpeg", seen)
+
+    manifest = convert([clip, photo], shape, tmp_path / "out")
+
+    assert manifest["finished"] is True
+    assert [c["status"] for c in manifest["clips"]] == ["skipped", "skipped"]
+    assert manifest["clips"][0]["sentence"] == "The first file, one.mp4, took too long to process, so it was left out."
+    assert manifest["clips"][1]["sentence"] == "The second file, snap.jpg, took too long to process, so it was left out."
+    assert seen == [7, 7]  # the limit from settings reached FFmpeg
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["manifest.json"]
+    assert "took too long" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_timeout_ffprobe_hang_skips_only_that_file(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(settings, "FFPROBE_TIMEOUT", 3)
+    clip = make_clip(tmp_path / "one.mp4", 320, 180)
+    seen = []
+    hang_tool(monkeypatch, "ffprobe", seen)
+
+    manifest = convert([clip], shape, tmp_path / "out")
+
+    assert manifest["finished"] is True
+    assert manifest["clips"][0]["status"] == "skipped"
+    assert "took too long" in manifest["clips"][0]["sentence"]
+    assert seen == [3]

@@ -110,7 +110,7 @@ def probe(path):
     """ffprobe's facts about a file, as parsed JSON."""
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", PROBE_ENTRIES, "-of", "json", str(path)],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, timeout=settings.FFPROBE_TIMEOUT,
     ).stdout
     return json.loads(out)
 
@@ -120,7 +120,7 @@ def packet_times(path):
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time",
          "-of", "csv=p=0", str(path)],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, timeout=settings.FFPROBE_TIMEOUT,
     ).stdout
     return sorted(float(t) for t in out.split() if t != "N/A")
 
@@ -277,7 +277,10 @@ def part_path(final):
 def run_ffmpeg(command, part, final):
     """Run `command`, which writes `part`; only a finished file is moved onto its final name."""
     try:
-        subprocess.run(command, capture_output=True, text=True, check=True)
+        subprocess.run(command, capture_output=True, text=True, check=True, timeout=settings.FFMPEG_TIMEOUT)
+    except subprocess.TimeoutExpired:  # a hung conversion: no half-made file stays, and the caller leaves this file out
+        Path(part).unlink(missing_ok=True)
+        raise
     except subprocess.CalledProcessError as error:
         Path(part).unlink(missing_ok=True)
         if NO_ROOM_TEXT in (error.stderr or ""):  # FFmpeg itself ran out of disk: the whole run stops, not just this file
@@ -424,7 +427,7 @@ def convert_photo(read, who, number, letter, shape, out_dir, started):
     except subprocess.CalledProcessError as error:
         copy.unlink(missing_ok=True)
         raise Refused(f"{who} could not be converted.", tail(error.stderr)) from error
-    except OSError:  # out of room: the run stops, and no upright copy is left behind
+    except (OSError, subprocess.TimeoutExpired):  # out of room or too slow: no upright copy is left behind
         copy.unlink(missing_ok=True)
         raise
     made = probe(final)
@@ -609,6 +612,8 @@ def normalize(files, shape, out_dir=None):
                 entry = skipped_entry(name, number, path, as_given, refused.sentence, refused.detail)
             except subprocess.CalledProcessError as error:
                 entry = skipped_entry(name, number, path, as_given, f"{who} could not be converted.", tail(error.stderr))
+            except subprocess.TimeoutExpired:  # FFmpeg or ffprobe took longer than the settings allow
+                entry = skipped_entry(name, number, path, as_given, f"{who} took too long to process, so it was left out.", None)
             except OSError as error:
                 if error.errno == errno.ENOSPC:
                     raise
