@@ -697,7 +697,7 @@ def test_original_failed_conversion_leaves_no_partial_file(shape, tmp_path, monk
 
 
 def test_doctor_missing_feature_stops_run(tmp_path, monkeypatch, small_caps):
-    monkeypatch.setattr(doctor, "FILTERS", [*doctor.FILTERS, "nosuchfilter"])
+    monkeypatch.setattr(v2r.normalize, "NEEDED_FILTERS", [*v2r.normalize.NEEDED_FILTERS, "nosuchfilter"])
     clip = make_clip(tmp_path / "in.mp4", 320, 180)
     out = tmp_path / "out"
     out.mkdir()
@@ -710,10 +710,10 @@ def test_doctor_missing_feature_stops_run(tmp_path, monkeypatch, small_caps):
 
 
 def test_doctor_missing_ffmpeg_and_several_names(tmp_path, monkeypatch):
-    monkeypatch.setattr(doctor, "missing_ffmpeg_features", lambda: ["FFmpeg"])
+    monkeypatch.setattr(doctor, "missing_ffmpeg_features", lambda *names: ["FFmpeg"])
     with pytest.raises(NormalizeError, match="FFmpeg is not installed here, so nothing was converted."):
         normalize([tmp_path / "x.mov"], "wide", out_dir=tmp_path / "out")
-    monkeypatch.setattr(doctor, "missing_ffmpeg_features", lambda: ["the a filter", "the b filter", "the c decoder"])
+    monkeypatch.setattr(doctor, "missing_ffmpeg_features", lambda *names: ["the a filter", "the b filter", "the c decoder"])
     with pytest.raises(NormalizeError, match="lacks the a filter, the b filter and the c decoder, so nothing"):
         normalize([tmp_path / "x.mov"], "wide", out_dir=tmp_path / "out")
     assert not (tmp_path / "out").exists()
@@ -734,6 +734,7 @@ def test_doctor_graph_filters_all_listed():
                 seen.update(filter_names(command[command.index("-filter_complex") + 1]))
     assert {"fps", "scale", "zscale", "tonemap", "format", "setsar", "aresample", "apad", "anullsrc"} <= seen
     assert seen <= set(doctor.FILTERS)
+    assert seen <= set(v2r.normalize.NEEDED_FILTERS)
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
@@ -961,6 +962,7 @@ def test_doctor_photo_graph_filters_listed():
     names = set(filter_names(v2r.normalize.photo_graph((300, 400))))
     assert {"scale", "format", "setsar", "loop", "setpts", "anullsrc"} <= names
     assert names <= set(doctor.FILTERS)
+    assert names <= set(v2r.normalize.NEEDED_FILTERS)
 
 
 # --- Review fixes (phase 02 code review) ---
@@ -1287,3 +1289,20 @@ def test_size_cap_video_frame_over_the_limit_is_refused(shape, tmp_path, monkeyp
     assert manifest["clips"][0]["sentence"] == (
         "The first file, flat.mp4, is 320 by 180 pixels, over the 319 pixel limit on either side, so it was left out.")
     assert not list((tmp_path / "out2").glob("*.mp4"))
+
+
+def test_doctor_needed_pieces_are_all_in_doctors_lists():
+    assert set(v2r.normalize.NEEDED_ENCODERS) <= set(doctor.ENCODERS)
+    assert set(v2r.normalize.NEEDED_FILTERS) <= set(doctor.FILTERS)
+    assert set(v2r.normalize.NEEDED_DECODERS) <= set(doctor.DECODERS)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_doctor_piece_normalize_never_uses_does_not_stop_the_run(shape, tmp_path, monkeypatch, small_caps):
+    """A missing drawtext, loudnorm or png decoder only shows in doctor's report; it must not block a conversion."""
+    monkeypatch.setattr(doctor, "FILTERS", [*doctor.FILTERS, "nosuchfilter"])
+    monkeypatch.setattr(doctor, "DECODERS", [*doctor.DECODERS, "nosuchdecoder"])
+    monkeypatch.setattr(doctor, "ENCODERS", {**doctor.ENCODERS, "nosuchencoder": "made-up encoder"})
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+
+    assert convert([clip], shape, tmp_path / "out")["clips"][0]["status"] == "done"

@@ -7,10 +7,10 @@ NEW_FILTERS = ["format", "fps", "setsar", "setpts", "loop", "transpose", "hflip"
 
 
 def test_doctor_lists_every_normalize_piece():
-    assert doctor.FILTERS[:6] == OLD_FILTERS
-    for name in NEW_FILTERS:
+    for name in OLD_FILTERS + NEW_FILTERS:
         assert name in doctor.FILTERS
-    assert doctor.DECODERS == ["hevc", "h264", "aac", "mjpeg", "png"]
+    for name in ["hevc", "h264", "aac", "mjpeg", "png"]:
+        assert name in doctor.DECODERS
 
 
 def test_doctor_reports_decoders(capsys, monkeypatch):
@@ -31,3 +31,12 @@ def test_doctor_missing_features_names_what_is_missing(monkeypatch):
     monkeypatch.setattr(doctor, "FILTERS", doctor.FILTERS + ["nosuchfilter"])
     monkeypatch.setattr(doctor, "DECODERS", doctor.DECODERS + ["nosuchdecoder"])
     assert doctor.missing_ffmpeg_features() == ["the nosuchfilter filter", "the nosuchdecoder decoder"]
+
+
+def test_doctor_missing_features_only_checks_the_names_it_is_given(monkeypatch):
+    monkeypatch.setattr(doctor, "FILTERS", doctor.FILTERS + ["nosuchfilter"])
+    assert doctor.missing_ffmpeg_features(["libx264"], ["scale"], ["h264"]) == []
+    assert doctor.missing_ffmpeg_features([], ["scale", "nosuchfilter"], []) == ["the nosuchfilter filter"]
+    assert doctor.missing_ffmpeg_features(["nosuchencoder"], [], ["nosuchdecoder"]) == [
+        "the nosuchencoder encoder", "the nosuchdecoder decoder"]
+    assert doctor.missing_ffmpeg_features([], [], []) == []

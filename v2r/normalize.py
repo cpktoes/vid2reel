@@ -57,6 +57,11 @@ class Refused(Exception):
         self.detail = detail
 
 
+# The FFmpeg pieces normalize's own commands use (doctor lists more, for its report); a missing piece stops the run.
+# Photos reach FFmpeg as JPEG (mjpeg) and the sound of a clip is decoded as it comes (aac), so no png decoder is needed.
+NEEDED_ENCODERS = ["libx264", "aac"]
+NEEDED_FILTERS = ["fps", "scale", "zscale", "tonemap", "format", "setsar", "setpts", "loop", "aresample", "apad", "anullsrc"]
+NEEDED_DECODERS = ["hevc", "h264", "aac", "mjpeg"]
 PHOTO_SUFFIXES = {".heic", ".heif", ".jpg", ".jpeg", ".png"}  # compared in lower case
 NO_ROOM_TEXT = "No space left on device"  # what FFmpeg's error text says when the disk is full
 OUT_OF_ROOM = "The work folder ran out of room, so the run stopped; please send fewer clips."
@@ -345,8 +350,8 @@ def tail(text):
 
 
 def check_ffmpeg():
-    """Stop with one sentence if this computer's FFmpeg lacks a piece doctor lists (D-06); changes nothing."""
-    missing = doctor.missing_ffmpeg_features()
+    """Stop with one sentence if this computer's FFmpeg lacks a piece normalize uses (D-06); changes nothing."""
+    missing = doctor.missing_ffmpeg_features(NEEDED_ENCODERS, NEEDED_FILTERS, NEEDED_DECODERS)
     if not missing:
         return
     if "FFmpeg" in missing or "ffprobe" in missing:

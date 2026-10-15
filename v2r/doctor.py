@@ -69,21 +69,29 @@ def ffmpeg_names(option):
     return {line.split()[1] for line in out.splitlines() if len(line.split()) > 1}
 
 
-def missing_ffmpeg_features():
-    """Plain phrases for every FFmpeg piece v2r needs that this computer lacks; empty if none.
+def missing_ffmpeg_features(encoders=None, filters=None, decoders=None):
+    """Plain phrases for every FFmpeg piece named that this computer lacks; empty if none.
 
-    Reads ENCODERS, FILTERS and DECODERS at call time. Three local FFmpeg calls, no network.
+    Each argument is a list of names to check. A list left out (None) means all of doctor's own: ENCODERS, FILTERS and
+    DECODERS, read at call time. A caller that only uses some pieces (normalize) passes just those.
+    Three local FFmpeg calls, no network.
     """
     if shutil.which("ffmpeg") is None:
         return ["FFmpeg"]
     if shutil.which("ffprobe") is None:
         return ["ffprobe"]
-    encoders = ffmpeg_names("-encoders")
-    filters = ffmpeg_names("-filters")
-    decoders = ffmpeg_names("-decoders")
-    missing = [f"the {what} ({name})" for name, what in ENCODERS.items() if name not in encoders]
-    missing += [f"the {name} filter" for name in FILTERS if name not in filters]
-    missing += [f"the {name} decoder" for name in DECODERS if name not in decoders]
+    encoders = list(ENCODERS) if encoders is None else encoders
+    filters = FILTERS if filters is None else filters
+    decoders = DECODERS if decoders is None else decoders
+    have_encoders = ffmpeg_names("-encoders")
+    have_filters = ffmpeg_names("-filters")
+    have_decoders = ffmpeg_names("-decoders")
+    missing = [
+        f"the {ENCODERS[name]} ({name})" if name in ENCODERS else f"the {name} encoder"
+        for name in encoders if name not in have_encoders
+    ]
+    missing += [f"the {name} filter" for name in filters if name not in have_filters]
+    missing += [f"the {name} decoder" for name in decoders if name not in have_decoders]
     return missing
 
 
