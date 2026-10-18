@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Stage 15 – Seeing the footage
 status: executing
-stopped_at: Completed 03-06-PLAN.md
-last_updated: "2026-10-18T06:45:12.278Z"
+stopped_at: Completed 03-07-PLAN.md
+last_updated: "2026-10-18T07:03:17.304Z"
 last_activity: 2026-10-17
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 17
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 3 (Stage 15 – Seeing the footage) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-10-17 — Phase 3 execution started
 
-Progress: [████████░░] 82% (1 of 14 phases complete)
+Progress: [█████████░] 88% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -73,6 +73,7 @@ Progress: [████████░░] 82% (1 of 14 phases complete)
 | Phase 03 P05 | 25 min | 3 tasks | 4 files |
 | Phase 3 P03 | one checkpoint round trip | 3 tasks | 0 files |
 | Phase 03 P06 | 35 min | 2 tasks | 4 files |
+| Phase 03 P07 | 30 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,7 @@ Settled decisions that shape later phases:
 - [Phase ?]: Plan 03-05: once the sheet cap is reached no later still is placed on a sheet, keeping letter order unbroken; thinning is skipped when no sheets can be made
 - [Phase ?]: [Phase 3] Plan 03: user allowed the push; stage-15-look pushed at 22b6ceb, main unchanged; phone FFmpeg 6.1.1-3ubuntu5 has all eight look filters
 - [Phase ?]: [Phase 3] Plan 06: a flat-topped peak counts once, and a movement still sits half an analysed frame before the frames' times; short clips under 3 s get no extras
+- [Phase ?]: [03-07] Candidates are facts in a stated order; a still exactly at a stretch's end counts as inside it; unmeasured parts are named as not measured
 
 ### Pending Todos
 
@@ -129,6 +131,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-18T06:45:12.251Z
-Stopped at: Completed 03-06-PLAN.md
+Last session: 2026-10-18T07:03:17.271Z
+Stopped at: Completed 03-07-PLAN.md
 Resume file: None
