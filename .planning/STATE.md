@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Stage 15 – Seeing the footage
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-10-18T06:11:23.992Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-10-18T06:30:35.634Z"
 last_activity: 2026-10-17
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 17
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 3 (Stage 15 – Seeing the footage) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-10-17 — Phase 3 execution started
 
-Progress: [███████░░░] 71% (1 of 14 phases complete)
+Progress: [████████░░] 76% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Progress: [███████░░░] 71% (1 of 14 phases complete)
 | Phase 03 P02 | 6min | 2 tasks | 7 files |
 | Phase 03 P04 | 40min | 3 tasks | 3 files |
 | Phase 03 P05 | 25 min | 3 tasks | 4 files |
+| Phase 3 P03 | one checkpoint round trip | 3 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,7 @@ Settled decisions that shape later phases:
 - [Phase ?]: 03-04: subject movement is judged only where the camera is still; null while panning, shaky or unmeasured
 - [Phase ?]: 03-04: sharp is judged against the clip's own half seconds (median plus BLUR_SPREADS spreads), never a fixed number
 - [Phase ?]: Plan 03-05: once the sheet cap is reached no later still is placed on a sheet, keeping letter order unbroken; thinning is skipped when no sheets can be made
+- [Phase ?]: [Phase 3] Plan 03: user allowed the push; stage-15-look pushed at 22b6ceb, main unchanged; phone FFmpeg 6.1.1-3ubuntu5 has all eight look filters
 
 ### Pending Todos
 
@@ -125,6 +127,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-18T06:11:23.976Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-10-18T06:30:35.604Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
