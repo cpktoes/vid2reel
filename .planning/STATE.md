@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Stage 15 – Seeing the footage
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-10-18T05:28:14.534Z"
-last_activity: 2026-10-14
-last_activity_desc: Phase 2 complete, transitioned to Phase 3
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-10-18T05:39:12.691Z"
+last_activity: 2026-10-17
+last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 17
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-13)
 
 **Core value:** A reel worth posting, made entirely from her phone.
-**Current focus:** Phase 02 — Stage 14 – Normalize
+**Current focus:** Phase 3 — Stage 15 – Seeing the footage
 
 ## Current Position
 
-Phase: 3 — Stage 15 – Seeing the footage
-Plan: Not started
+Phase: 3 (Stage 15 – Seeing the footage) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-10-14 - Completed quick task 261014-rvv: Stage 14 review follow-ups: safe handbook recipe, proportional FFmpeg timeout, IN-01 and IN-05
+Last activity: 2026-10-17 — Phase 3 execution started
 
-Progress: [██████████] 100% (1 of 14 phases complete)
+Progress: [█████░░░░░] 53% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [██████████] 100% (1 of 14 phases complete)
 | Phase 02 P06 | 25min | 2 tasks | 3 files |
 | Phase 02 P07 | 40min | 3 tasks | 2 files |
 | Phase 02 P08 | phone test | 3 tasks | 1 files |
+| Phase 03 P01 | 7min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Settled decisions that shape later phases:
 - [Phase 2 / Stage 14]: Stage 14: HDR clips are tone-mapped with hable at a peak of 203 nits, picked by eye from four-panel strips
 - [Phase 2 / Stage 14]: Phone attachments of slow-motion clips arrive pre-rendered at a steady 30 fps; the 120/240 fps flag does not fire from a phone
 - [Phase 2 / Stage 14]: Handbook join step uses the working copies in letter order, leaving out skipped letters
+- [Phase ?]: Phase 03-01: a still's orientation follows its working copy and a still of another orientation starts a new sheet; its label time is the working copy's own frame time
+- [Phase ?]: Phase 03-01: if Pillow or a scalable font is missing, look still measures; stills get null sheet/cell/box and the sentence goes in look.json missing
 
 ### Pending Todos
 
@@ -115,6 +118,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-18T03:54:08.831Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-stage-15-seeing-the-footage/03-CONTEXT.md
+Last session: 2026-10-18T05:39:12.675Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None

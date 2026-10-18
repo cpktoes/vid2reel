@@ -113,12 +113,12 @@ Plans:
   4. Tests using generated clips with a known answer prove a still lands on the moment that matters
   5. In the blind test, from the sheets and look.json alone, Claude picks the moment she would have picked in at least four clips out of five
 
-**Plans**: 9 plans
+**Plans**: 1/9 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Tracer: one clip to a labelled contact sheet and look.json in both shapes, then several clips, skipped entries, photos, bad clips and clearing the last run, then every look setting with its unit and the whole look.json layout (wave 1)
+- [x] 03-01-PLAN.md — Tracer: one clip to a labelled contact sheet and look.json in both shapes, then several clips, skipped entries, photos, bad clips and clearing the last run, then every look setting with its unit and the whole look.json layout (wave 1)
 - [ ] 03-02-PLAN.md — Doctor lists every look filter; Stage 15 decisions, the PySceneDetect licence note, the look command and look.log recorded (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -317,7 +317,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|-----------|----------------|--------|-----------|
 | 1. Skeleton | M1: A reel from a phone | done by hand | Complete | 2026-10-12 |
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
-| 3. Stage 15 – Seeing the footage | M2: It can see | 0/9 | Planned | - |
+| 3. Stage 15 – Seeing the footage | M2: It can see | 1/9 | In Progress|  |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 0/TBD | Not started | - |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 0/TBD | Not started | - |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
