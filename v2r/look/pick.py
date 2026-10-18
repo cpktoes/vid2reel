@@ -166,6 +166,26 @@ def sound_time(index, sound):
     return min(inside, key=lambda reading: (-reading["loudness"], reading["t"]))["t"]
 
 
+def sound_peaks(measured):
+    """[(score, time)] of the loud moments of a clip, strongest first (equal ones to the earlier half second).
+
+    A loud moment is a peak in the halves' loudness (a half with no reading counts as SILENCE_LUFS); its time is that of
+    the loudest reading inside the half. Empty when the clip has no sound readings. This one rule serves both the
+    sound extras of `extra_times` and the sound peaks named in a candidate's reason, so the two always agree.
+    """
+    halves = measured.get("halves") or []
+    sound = measured.get("sound") or []
+    if not halves or not sound:
+        return []
+    loudness = [settings.SILENCE_LUFS if half.get("loudness") is None else half["loudness"] for half in halves]
+    return [(score, sound_time(index, sound)) for index, score in peaks(loudness, settings.LOUDNESS_SPREAD_FLOOR)]
+
+
+def sound_peak_times(measured):
+    """The times, in seconds, of a clip's loud moments, strongest first; see `sound_peaks`."""
+    return [time for _, time in sound_peaks(measured)]
+
+
 def extra_times(measured, base, seconds, fps):
     """The extra stills of a video clip as [{"t", "why"}] in time order: shot changes, movement and sound (D-01, D-17).
 
@@ -191,11 +211,8 @@ def extra_times(measured, base, seconds, fps):
             middle = statistics.median(known)
             for index, score in peaks(movement, settings.MOVEMENT_SPREAD_FLOOR):
                 scored.append((score, movement_time(index, measured.get("frames") or [], middle), "movement"))
-        sound = measured.get("sound") or []
-        if sound:
-            loudness = [settings.SILENCE_LUFS if half.get("loudness") is None else half["loudness"] for half in halves]
-            for index, score in peaks(loudness, settings.LOUDNESS_SPREAD_FLOOR):
-                scored.append((score, sound_time(index, sound), "sound"))
+        for score, time in sound_peaks(measured):
+            scored.append((score, time, "sound"))
     scored.sort(key=lambda item: (-item[0], item[1]))
     candidates += [(time, why) for _, time, why in scored]
 
@@ -211,3 +228,146 @@ def extra_times(measured, base, seconds, fps):
             extras.append({"t": number / fps, "why": why})
     extras.sort(key=lambda extra: extra["t"])
     return extras
+
+
+def windows(seconds, fps):
+    """[(start, end)] of the candidate windows of a clip: CANDIDATE_SECONDS long, a new one every CANDIDATE_STEP.
+
+    A window is kept only when its end does not pass the clip's end, compared in whole frames. A clip shorter than
+    one window is judged as a single window from 0 to its end.
+    """
+    last = round(seconds * fps)
+    found = []
+    step = 0
+    while True:
+        start = round(step * settings.CANDIDATE_STEP, 3)
+        end = round(start + settings.CANDIDATE_SECONDS, 3)
+        if round(end * fps) > last:
+            break
+        found.append((start, end))
+        step += 1
+    return found or [(0.0, seconds)]
+
+
+def stretch_facts(halves, start, end):
+    """The half-second entries that lie in [start, end)."""
+    return [half for half in halves if start - 1e-6 <= half["t"] < end - 1e-6]
+
+
+def window_tier(inside):
+    """1 when the camera was still throughout, 2 when it panned in places and never shook, 3 when not measured somewhere."""
+    states = [half.get("camera_state") for half in inside]
+    if states and all(state == "still" for state in states):
+        return 1
+    if states and all(state in ("still", "panning") for state in states):
+        return 2
+    return 3
+
+
+def window_movement(inside):
+    """The mean of the known movement of the halves in a window; 0 when none was measured."""
+    known = [half["movement"] for half in inside if half.get("movement") is not None]
+    return sum(known) / len(known) if known else 0.0
+
+
+def clock(t):
+    """A time as a label writes it, such as 04.5."""
+    return f"{t:04.1f}"
+
+
+def candidate_reason(inside, tier, start, end, sound_peaks_in, labels, nearest):
+    """The facts about a stretch in words, joined with commas, then its stills: never a verdict (D-04)."""
+    parts = [{1: "steady camera", 2: "camera panning", 3: "camera not measured"}[tier]]
+    sharp = [half.get("sharp") for half in inside]
+    if all(value is None for value in sharp):
+        parts.append("sharpness not measured")
+    elif all(value is True for value in sharp):
+        parts.append("sharp")
+    else:
+        parts.append("sharp where measured")
+    if tier == 1:
+        subject = [half.get("subject") for half in inside]
+        if any(value is True for value in subject):
+            parts.append("subject moving")
+        elif any(value is False for value in subject):
+            parts.append("nothing moving")
+        else:
+            parts.append("movement not measured")
+    elif tier == 3:
+        if all(half.get("movement") is None for half in inside):
+            parts.append("movement not measured")
+        elif window_movement(inside) >= settings.SUBJECT_MOVEMENT_MIN:
+            parts.append("some movement")
+        else:
+            parts.append("little movement")
+    for time in sound_peaks_in:
+        parts.append(f"sound peak at {clock(time)}")
+    text = ", ".join(parts)
+    if labels:
+        return f"{text}; stills {', '.join(labels)}"
+    if nearest:
+        return f"{text}; no still inside, nearest {nearest}"
+    return f"{text}; no still inside"
+
+
+def candidates(halves, shot_changes, stills, sound_peaks_at, seconds, fps):
+    """The candidate moments of one video clip (D-18): up to MAX_CANDIDATES stretches, as a list of dictionaries.
+
+    Windows (see `windows`) with a shaky half second, a half that is not sharp, or a shot change strictly inside them
+    (one exactly at an edge is allowed) are left out; a value that was not measured never leaves a window out. The rest
+    are put in a stated order: the camera still throughout, then panning, then not measured; then more movement
+    first; then the earlier start. Windows of the same tier that overlap or touch and whose movement is alike are
+    merged into one stretch of at most CANDIDATE_MAX_SECONDS, and stretches never overlap. Each has `rank` (1 upward),
+    `start`, `end`, `reason` (facts only) and `stills` (the labels of the stills inside it, from `stills`'s
+    "label" and "t"). The order is not a choice: choosing is the chat's Claude's job (D-04).
+    """
+    halves = halves or []
+    cuts = [round(change * fps) for change in (shot_changes or [])]
+    ok = []  # (tier, movement, start, end)
+    for start, end in windows(seconds, fps):
+        inside = stretch_facts(halves, start, end)
+        if any(half.get("camera_state") == "shaky" or half.get("sharp") is False for half in inside):
+            continue
+        if any(round(start * fps) < cut < round(end * fps) for cut in cuts):
+            continue
+        ok.append((window_tier(inside), window_movement(inside), start, end))
+    ok.sort(key=lambda window: (window[0], -window[1], window[2]))
+    remaining = list(ok)
+    taken = []  # (tier, start, end)
+    while remaining and len(taken) < settings.MAX_CANDIDATES:
+        tier, movement, start, end = remaining.pop(0)
+        grown = True
+        while grown:
+            grown = False
+            for window in sorted(remaining, key=lambda item: item[2]):
+                other_tier, other_movement, other_start, other_end = window
+                alike = abs(other_movement - movement) <= max(
+                    settings.CANDIDATE_ALIKE_SHARE * max(other_movement, movement), settings.MOVEMENT_SPREAD_FLOOR)
+                touching = other_start <= end + 1e-9 and other_end >= start - 1e-9
+                within = max(end, other_end) - min(start, other_start) <= settings.CANDIDATE_MAX_SECONDS + 1e-9
+                if other_tier == tier and alike and touching and within:
+                    start, end = min(start, other_start), max(end, other_end)
+                    remaining.remove(window)
+                    grown = True
+        remaining = [
+            window for window in remaining if not (window[2] < end - 1e-9 and window[3] > start + 1e-9)]
+        taken.append((tier, start, end))
+
+    result = []
+    by_time = sorted(stills, key=lambda still: still["t"])
+    for rank, (tier, start, end) in enumerate(taken, start=1):
+        inside = stretch_facts(halves, start, end)
+        within = [still for still in by_time if start - 1e-6 <= still["t"] <= end + 1e-6]
+        nearest = None
+        if not within and by_time:
+            nearest = min(by_time, key=lambda still: (min(abs(still["t"] - start), abs(still["t"] - end)), still["t"]))["label"]
+        peaks_in = sorted(time for time in (sound_peaks_at or []) if start - 1e-6 <= time <= end + 1e-6)
+        labels = [still["label"] for still in within]
+        result.append({
+            "rank": rank,
+            "start": round(start, settings.LOOK_DECIMALS),
+            "end": round(end, settings.LOOK_DECIMALS),
+            "reason": candidate_reason(inside, tier, start, end, peaks_in, labels, nearest),
+            "stills": labels,
+        })
+    return result
