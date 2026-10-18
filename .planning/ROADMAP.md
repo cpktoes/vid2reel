@@ -113,7 +113,35 @@ Plans:
   4. Tests using generated clips with a known answer prove a still lands on the moment that matters
   5. In the blind test, from the sheets and look.json alone, Claude picks the moment she would have picked in at least four clips out of five
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Tracer: one clip to a labelled contact sheet and look.json in both shapes, then several clips, skipped entries, photos, bad clips and clearing the last run (wave 1)
+- [ ] 03-02-PLAN.md — Doctor lists every look filter; Stage 15 decisions, the PySceneDetect licence note, the look command and look.log recorded (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-03-PLAN.md — Push with permission and run doctor from the phone (wave 2, checkpoints)
+- [ ] 03-04-PLAN.md — Every measurement: camera, shake and subject, sharpness, shot changes, brightness, colour, loudness; a missing filter gives null (wave 2)
+- [ ] 03-05-PLAN.md — Sheets across a run: letter order, one orientation per sheet, the 20-sheet cap with up-front thinning, graceful fallbacks (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-06-PLAN.md — Extra stills at shot changes, movement while the camera is still and loud moments; known-answer still tests (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-07-PLAN.md — Ranked candidate moments with facts-only reasons citing the stills (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 03-08-PLAN.md — Mac demo and timing, then the user's Finder check and blind test on five clips (wave 5, checkpoint)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 03-09-PLAN.md — The user's EDITOR.md look step, pre-push checks, push with permission, phone sheet test and a reel (wave 6, checkpoints)
 
 ### Phase 4: Stage 16 – Cut list and renderer
 
@@ -286,7 +314,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|-----------|----------------|--------|-----------|
 | 1. Skeleton | M1: A reel from a phone | done by hand | Complete | 2026-10-12 |
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
-| 3. Stage 15 – Seeing the footage | M2: It can see | 0/TBD | Not started | - |
+| 3. Stage 15 – Seeing the footage | M2: It can see | 0/9 | Planned | - |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 0/TBD | Not started | - |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 0/TBD | Not started | - |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
