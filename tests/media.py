@@ -54,6 +54,81 @@ def make_clip(path, width, height, seconds=2, fps=30, sound=True, rotate=None, p
     return path
 
 
+LOOK_FPS = 30  # frames a second of a look test clip, as in a working copy
+# Detail in both directions for the clips that need the camera to be measurable: bars plus two grids.
+# k is the clip's width over 360, so a wide clip, which look shrinks more, keeps lines as thick as a narrow one's.
+DETAIL = ("smptehdbars=size={w}x{h}:rate=30:duration={s},drawgrid=w={g1}:h={g1}:t={t1}:c=white,"
+          "drawgrid=w={g2}:h={g3}:t={t2}:c=black")
+
+
+def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, end=None, level=None, beep=None, speed=None):
+    """A clip shaped like a working copy (H.264, 30 fps, stereo AAC at 48 kHz) with a known answer for look to find.
+
+    `pattern`: "plain" (colour bars); "square" (bars with a white square a fifth of the width wide that crosses the
+    picture left to right between `start` and `end` seconds); "cut" (bars, then at `start` the same bars negated and
+    turned in hue); "jitter" (the whole picture shaken by random offsets of up to 12 pixels each way every frame);
+    "pan" (a steady sideways drift of the camera, 40 pixels a second for a 360-wide clip, faster in proportion for a
+    wider one); "blur" (bars blurred between `start` and `end`); "grey" (one flat grey at `level`, such as "0x303030");
+    "cast" (bars with a red-and-yellow cast). `beep` is (from, to) seconds of a 1 kHz tone; otherwise the sound is
+    digital silence, so every clip has a sound track as working copies do.
+    """
+    size = f"size={width}x{height}:rate={LOOK_FPS}:duration={seconds}"
+    bars = BARS.format(w=width, h=height, fps=LOOK_FPS, s=seconds)
+    command = ["ffmpeg", "-loglevel", "error", "-nostdin", "-y"]
+    complex_graph = None
+    video_filter = None  # an output option, so it is added after the last input
+    if pattern == "plain":
+        command += ["-f", "lavfi", "-i", bars]
+    elif pattern == "square":
+        side = width // 5
+        x = f"if(between(t,{start},{end}),(t-{start})/({end}-{start})*({width}-{side}),-{side})"
+        command += ["-f", "lavfi", "-i", bars, "-f", "lavfi", "-i", f"color=white:size={side}x{side}:rate={LOOK_FPS}:duration={seconds}"]
+        complex_graph = f"[0][1]overlay=x='{x}':y={(height - side) // 2}:eval=frame[v]"
+    elif pattern == "cut":
+        first = BARS.format(w=width, h=height, fps=LOOK_FPS, s=start)
+        second = BARS.format(w=width, h=height, fps=LOOK_FPS, s=round(seconds - start, 3))
+        command += ["-f", "lavfi", "-i", first, "-f", "lavfi", "-i", second]
+        complex_graph = "[1]negate,hue=h=90[b];[0][b]concat=n=2:v=1:a=0[v]"
+    elif pattern in ("jitter", "pan"):
+        speed = speed or 40 * width / 360  # pixels a second of the pan; the picture is wide enough for the whole drift
+        k = width / 360
+        source = DETAIL.format(
+            w=width + 400 + int(speed * seconds), h=height + 400, s=seconds,
+            g1=round(40 * k), t1=round(2 * k), g2=round(130 * k), g3=round(90 * k), t2=round(3 * k))
+        if pattern == "jitter":
+            crop = f"crop={width}:{height}:x='200+(random(0)-0.5)*24':y='200+(random(1)-0.5)*24'"
+        else:
+            crop = f"crop={width}:{height}:x='20+t*{speed}':y=100"
+        command += ["-f", "lavfi", "-i", source]
+        video_filter = crop
+    elif pattern == "blur":
+        command += ["-f", "lavfi", "-i", bars]
+        video_filter = f"gblur=sigma=10:enable='between(t,{start},{end})'"
+    elif pattern == "grey":
+        command += ["-f", "lavfi", "-i", f"color=c={level}:{size}"]
+    elif pattern == "cast":
+        command += ["-f", "lavfi", "-i", bars]
+        video_filter = "colorbalance=rm=0.5:bm=-0.5:rs=0.4:bs=-0.4"
+    else:
+        raise ValueError(pattern)
+    if beep:
+        tone = f"aevalsrc='0.5*sin(2*PI*1000*t)*between(t,{beep[0]},{beep[1]})':s=48000:d={seconds}"
+    else:
+        tone = "anullsrc=channel_layout=stereo:sample_rate=48000"
+    command += ["-f", "lavfi", "-i", tone]
+    inputs = command.count("-i")
+    if complex_graph:
+        command += ["-filter_complex", complex_graph, "-map", "[v]"]
+    else:
+        command += ["-map", "0:v"]
+        if video_filter:
+            command += ["-filter:v:0", video_filter]
+    command += ["-map", f"{inputs - 1}:a", "-t", str(seconds)]
+    command += ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-ar", "48000"]
+    run([*command, str(path)])
+    return path
+
+
 def make_audio(path, seconds=2):
     """A sound-only file (the beep, AAC in .m4a): not a video and not a photo."""
     run(["ffmpeg", "-loglevel", "error", "-nostdin", "-f", "lavfi", "-i", BEEP.format(s=seconds), "-c:a", "aac", str(path)])
