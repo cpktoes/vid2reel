@@ -92,6 +92,7 @@ class SheetBook:
         self.folder = Path(work_dir) / "sheets"
         self.count = 0  # sheets started so far
         self.current = None  # the sheet being filled: {"image", "orientation", "number", "used"}
+        self.full = False  # true once a still needed a sheet beyond MAX_SHEETS_PER_RUN; nothing after it is placed
 
     def names(self):
         """The sheet names made so far, in order, relative to the work folder, such as "sheets/sheet-01.jpg"."""
@@ -126,6 +127,8 @@ class SheetBook:
 
         Returns one record per still: {"sheet": "sheets/sheet-NN.jpg", "cell": 1-based place on the sheet,
         "box": [left, top, right, bottom] of the picture on the sheet, in pixels}.
+        Never starts a sheet beyond MAX_SHEETS_PER_RUN: from the first still that would need one, `full` is true and
+        that still and every one after it gets {"sheet": None, "cell": None, "box": None}.
         """
         from PIL import ImageDraw, ImageFont
 
@@ -135,7 +138,14 @@ class SheetBook:
         records = []
         touched_last = False
         for picture, text in stills:
+            if self.full:
+                records.append({"sheet": None, "cell": None, "box": None})
+                continue
             if self.current is None or self.current["orientation"] != orientation or self.current["used"] >= columns * rows:
+                if self.count >= settings.MAX_SHEETS_PER_RUN:
+                    self.full = True
+                    records.append({"sheet": None, "cell": None, "box": None})
+                    continue
                 if touched_last:
                     self.save_current()
                 self.start_sheet(orientation)

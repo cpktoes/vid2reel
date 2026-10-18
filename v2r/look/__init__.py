@@ -101,18 +101,18 @@ def read_manifest(work_dir):
     return manifest
 
 
-def orientation_of(size, shape):
-    """"tall" or "wide": the shape of a clip's stills, from its working size; a square follows the job's shape."""
-    width, height = size
-    if height > width:
-        return "tall"
-    if width > height:
-        return "wide"
-    return shape
-
-
 def plural(count, word):
     return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+def thinned_sentence(interval):
+    """The one sentence a run prints when it takes its stills further apart to stay within the sheet cap."""
+    def seconds(number):
+        return "second" if number == 1 else f"{number:g} seconds"
+
+    return (
+        f"There are too many stills for {settings.MAX_SHEETS_PER_RUN} sheets, so a still is taken every "
+        f"{seconds(interval)} instead of every {seconds(settings.STILL_INTERVAL_STEPS[0])}.")
 
 
 def skipped_entry(entry, sentence):
@@ -158,7 +158,7 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
     """Measure one done clip and put its stills on the sheets; returns its look.json entry, or a skipped one."""
     path, seconds, fps, size = facts
     letter = entry["letter"]
-    orientation = orientation_of(size, shape)
+    orientation = pick.orientation(size, shape)
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="v2r-look-") as folder:
         measured = measure.measure_clip(path, entry, have, folder)
@@ -170,7 +170,9 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
     notes = list(measured["notes"])
     records = [{"sheet": None, "cell": None, "box": None} for _ in times]
     taken = False
-    if picture_problem is None:
+    if picture_problem is None and book.full:
+        taken = True  # the sheet cap was reached by an earlier clip: its stills are listed, but not drawn
+    elif picture_problem is None:
         cell_w, cell_h = sheets.cell_size(orientation)
         fitted = sheets.fit_size(size[0], size[1], cell_w, cell_h)
         try:
@@ -221,6 +223,11 @@ def look(work_dir=None):
     problem = sheets.picture_problem()
     if problem:
         missing.append(problem)
+    interval, thinned = settings.STILL_INTERVAL_STEPS[0], False
+    if problem is None:  # the rhythm only needs thinning when sheets are going to be made
+        interval, thinned = pick.run_interval(manifest["clips"], manifest["shape"])
+    if thinned:
+        missing.append(thinned_sentence(interval))
     for sentence in missing:
         print(sentence, flush=True)
 
@@ -229,14 +236,15 @@ def look(work_dir=None):
         "shape": manifest["shape"],
         "finished": False,
         "stopped": None,
-        "rhythm": settings.STILL_INTERVAL_STEPS[0],
-        "rhythm_thinned": False,
+        "rhythm": interval,
+        "rhythm_thinned": thinned,
         "missing": missing,
         "sheets": [],
         "clips": [],
     }
     write_look(work_dir, result)
     book = sheets.SheetBook(work_dir)
+    said_full = False
     try:
         for entry in manifest["clips"]:
             letter = entry["letter"]
@@ -258,6 +266,13 @@ def look(work_dir=None):
                 clip = skipped_entry(entry, f"Clip {letter} could not be looked at.")
             result["clips"].append(clip)
             result["sheets"] = book.names()
+            if book.full and not said_full:
+                said_full = True
+                sentence = (
+                    f"Even with fewer stills the run needs more than {settings.MAX_SHEETS_PER_RUN} sheets, so the "
+                    f"stills from clip {letter} on are listed in look.json but not on a sheet.")
+                missing.append(sentence)
+                print(sentence, flush=True)
             write_look(work_dir, result)
             if clip["status"] == "skipped":
                 print(clip["sentence"], flush=True)
