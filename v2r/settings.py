@@ -76,6 +76,35 @@ LABEL_PADDING = 8  # pixels of dark box round the label text
 LABEL_BOX_COLOUR = (0, 0, 0)  # RGB, 0-255 per channel: the box behind a label
 LABEL_TEXT_COLOUR = (255, 255, 255)  # RGB, 0-255 per channel: the label text
 LOOK_DECIMALS = 2  # decimal places kept for numbers in look.json
+SHEET_JPEG_QUALITY_STEP = 10  # JPEG quality points taken off each time a sheet larger than SHEET_MAX_BYTES is saved again
+SHEET_JPEG_QUALITY_MIN = 65  # JPEG quality, 1-100: the lowest a sheet is saved at; it is kept whatever its size
+SHEET_MAX_BYTES = 1_500_000  # bytes: a sheet larger than this is saved again at lower quality
+EXTRAS_SHARE = 1 / 3  # share of a clip's base stills that is the most extra stills it may add (D-17)
+EXTRA_MIN_GAP = 0.3  # seconds an extra still keeps from every other still
+PEAK_SPREADS = 3  # spreads (median absolute deviations): a peak stands at least this many above the clip's median
+MOVEMENT_SPREAD_FLOOR = 0.5  # frame-difference units, 0-255: the smallest spread used, so a calm clip's flicker is no peak
+LOUDNESS_SPREAD_FLOOR = 2.0  # LU (loudness units): the smallest spread used for loudness peaks
+SCENE_THRESHOLD = 10  # scdet score, 0-100, at or above which the shot changed; FFmpeg's own default
+CUT_STILL_DELAY = 0.1  # seconds after a new shot's first frame that its still is taken
+LOUDNESS_DELAY = 0.1  # seconds the momentary loudness reading lags the sound
+SILENCE_LUFS = -70  # LUFS: sound quieter than this counts as silence and is written null
+DESHAKE_RANGE = 16  # pixels, a multiple of 16: how far deshake searches between analysed frames
+SHAKE_WINDOW_SECONDS = 1.0  # seconds: the centred average that separates a smooth pan from jitter
+CAMERA_STILL_PX = 1.5  # pixels per analysed frame at LOOK_WIDTH: mean camera movement below this is a still camera
+SHAKE_LIMIT_PX = 2.0  # pixels per analysed frame at LOOK_WIDTH: mean jitter at or above this is shaky
+SUBJECT_MOVEMENT_MIN = 1.0  # frame-difference units, 0-255: movement at or above this with a still camera is a subject moving
+# spreads (median absolute deviations of the clip's half-second blur): a half second blurrier than the median by more
+# than this many is not sharp
+BLUR_SPREADS = 3
+BLUR_SPREAD_FLOOR = 0.05  # pixels of edge width: the smallest spread used
+CANDIDATE_SECONDS = 2.0  # seconds each candidate window lasts (D-18)
+CANDIDATE_STEP = 0.5  # seconds between the starts of neighbouring candidate windows
+MAX_CANDIDATES = 5  # candidate moments listed per clip, at most
+CANDIDATE_MAX_SECONDS = 4.0  # seconds: the longest merged candidate stretch
+# share (0 to 1) of the larger movement score by which two windows may differ and still merge; never less than
+# MOVEMENT_SPREAD_FLOOR
+CANDIDATE_ALIKE_SHARE = 0.25
+CHROMA_NEUTRAL = 128  # 8-bit code value of grey in video chroma (a fact of the format): the colour cast is the offset from it
 
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer

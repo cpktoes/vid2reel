@@ -3,14 +3,33 @@
 Look measures and shows. It does not say which clip, moment or still belongs in a reel (decision D-04): look.json and
 the sheets carry measurements, stills and facts only. Choosing is the chat's Claude's job, following the handbook.
 
-look.json is what Stages 16 and 17 read; these names are frozen (decision D-03). It is written whole or not at all
-(look.json.tmp, then renamed), once at the start and again after every clip.
-Top level: `version` (1), `shape` (from the manifest), `finished`, `stopped`, `rhythm`, `rhythm_thinned`, `missing`,
-`sheets` and `clips`.
-Each done clip: `letter`, `number`, `status`, `kind`, `file`, `seconds`, `orientation`, `look_seconds`, `overall`,
-`halves`, `shot_changes`, `stills` and `notes`.
-Each half: `t`, `movement` and `brightness`. Each still: `label`, `t`, `why`, `sheet`, `cell` and `box`.
-`overall` holds `brightness`.
+look.json is what Stages 16 and 17 read; these names are frozen (decision D-03): names are added, never renamed.
+It is written whole or not at all (look.json.tmp, then renamed), once at the start and again after every clip.
+Any value may be null when it could not be measured; it is never NaN or infinity.
+Top level: `version` (1), `shape` ("tall" or "wide", from the manifest), `finished` (false until the last clip is
+done), `stopped` (null, or the sentence of a run that stopped as a whole), `rhythm` (seconds between base stills this
+run), `rhythm_thinned` (true when the run thinned the rhythm to stay within the sheet cap), `missing` (sentences naming
+what this computer could not measure or draw: a missing filter, no picture library, no scalable font), `sheets` (sheet
+file names relative to the work folder, in the order filled, such as "sheets/sheet-01.jpg") and `clips` (one entry per
+manifest entry, in letter order; letters and numbers are the manifest's, never recounted).
+Each clip: `letter`, `number`, `status` ("done" or "skipped"), `kind` ("video", "photo" or null). A skipped entry adds
+`sentence` and nothing more. A done entry adds `file` (the working copy's name, such as "A.mp4"), `seconds`,
+`orientation` ("tall" or "wide": the shape of its stills, which follows its working copy), `look_seconds` (seconds
+look spent on it), `overall`, `halves`, `shot_changes`, `stills`, `candidates` and `notes` (fixed sentences about
+anything that could not be made).
+`overall` (the whole clip): `brightness`, `brightness_low`, `brightness_high`, `blue_shift`, `red_shift`, `saturation`.
+Each `halves` entry (one for every half second from t = 0.0): `t` (seconds), `movement`, `camera`, `shake`,
+`camera_state` ("still", "panning", "shaky" or null), `subject`, `blur`, `sharp`, `brightness`, `loudness` and
+`shot_change`.
+`shot_changes`: the seconds where a new shot starts, or null when not measured.
+Each `stills` entry: `label` (such as "A 03.0": the letter and the time, written on the still), `t` (seconds), `why`
+("rhythm", "movement", "shot change" or "sound"), `sheet` (such as "sheets/sheet-01.jpg"; null when its picture could
+not be taken), `cell` (1-based place on the sheet, left to right then top to bottom) and `box` ([left, top, right,
+bottom] of the still on its sheet, in pixels).
+Each `candidates` entry: `rank`, `start`, `end` (seconds), `reason` (facts in words) and `stills` (their labels).
+Units: brightness in 8-bit code values (16 is black, 235 is white); movement as the mean frame difference, 0-255,
+between analysed frames; camera and shake in pixels per analysed frame at LOOK_WIDTH; blur as edge width in pixels
+(lower is sharper); loudness in LUFS; times in seconds. Every number is rounded to LOOK_DECIMALS places.
 """
 
 import errno
