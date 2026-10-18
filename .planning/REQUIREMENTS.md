@@ -31,7 +31,7 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 - [x] **LOOK-02**: A still is taken every second, plus extra stills at movement peaks and shot changes
 - [x] **LOOK-03**: work/look.json holds, for every half second of every clip, movement, camera shake as distinct from subject movement, sharpness, brightness, sound loudness and shot changes, plus each clip's overall exposure and colour balance
 - [ ] **LOOK-04**: look.json holds a ranked list of candidate moments per clip (steady, sharp, something moving) with start and end times and the reason in words; the code never chooses what goes in a reel
-- [ ] **LOOK-05**: Shot-change detection uses a well-maintained open-source library if one fits, with its licence recorded in docs/licenses.md
+- [x] **LOOK-05**: Shot-change detection uses a well-maintained open-source library if one fits, with its licence recorded in docs/licenses.md
 - [x] **LOOK-06**: Tests use generated clips with a known answer, such as a shape crossing the frame between seconds 4 and 5, and prove a still lands on it
 - [ ] **LOOK-07**: In the blind test, from the sheets and look.json alone, Claude picks the moment you would have picked in at least four clips out of five (checked by a person)
 
