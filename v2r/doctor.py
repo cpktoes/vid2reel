@@ -16,6 +16,8 @@ ENCODERS = {"libx264": "H.264 video encoder", "aac": "AAC audio encoder"}
 FILTERS = [
     "scale", "crop", "zscale", "tonemap", "loudnorm", "drawtext",
     "format", "fps", "setsar", "setpts", "loop", "transpose", "hflip", "vflip", "aresample", "apad", "anullsrc",
+    # the filters `v2r look` measures with (fps and scale are listed above)
+    "select", "signalstats", "blurdetect", "scdet", "deshake", "ebur128", "metadata", "ametadata",
 ]
 DECODERS = ["hevc", "h264", "aac", "mjpeg", "png"]
 HOSTS = ["github.com", "pypi.org"]
