@@ -160,3 +160,125 @@ def test_sound_peaks_shared_with_extras():
     extras = pick.extra_times(measured, pick.base_times(8.0, FPS, 1.0), 8.0, FPS)
     assert [round(e["t"], 1) for e in extras if e["why"] == "sound"] == pick.sound_peak_times(measured)
     assert pick.sound_peak_times({"halves": halves, "sound": []}) == []
+
+
+# ---- through the whole of look, on clips made with a known answer, in both shapes ----
+
+SIZE = {"tall": (360, 640), "wide": (640, 360)}  # the clip sizes swap with the shape
+CHOOSING_WORDS = re.compile(r"\b(best|use|pick|choose|chosen|recommend|should|good|great)\b", re.IGNORECASE)
+
+
+def look_clips(tmp_path, shape, makers):
+    """Make clips A, B ... from `makers` (each `(function(path, width, height), kind)`), run look, return the document."""
+    work = tmp_path / "work"
+    work.mkdir()
+    width, height = SIZE[shape]
+    entries = []
+    for index, (make, kind) in enumerate(makers):
+        path = work / f"{chr(ord('A') + index)}.mp4"
+        make(path, width, height)
+        entries.append({"file": path, "kind": kind})
+    make_manifest(work, shape, entries)
+    assert main(["look", str(work)]) == 0
+    return json.loads((work / "look.json").read_text(encoding="utf-8"))
+
+
+def one_clip(tmp_path, shape, make, kind="video"):
+    (clip,) = look_clips(tmp_path, shape, [(make, kind)])["clips"]
+    return clip
+
+
+def check_candidates(clip):
+    """What holds for any video's candidates: counted, ordered, inside the clip, not overlapping, citing real stills."""
+    found = clip["candidates"]
+    assert len(found) <= settings.MAX_CANDIDATES
+    assert [c["rank"] for c in found] == list(range(1, len(found) + 1))
+    real = {still["label"] for still in clip["stills"]}
+    for c in found:
+        assert 0 <= c["start"] < c["end"] <= clip["seconds"] + 0.01
+        assert c["end"] - c["start"] <= settings.CANDIDATE_MAX_SECONDS + 0.01
+        assert set(c["stills"]) <= real
+    ordered = sorted(found, key=lambda c: c["start"])
+    assert all(later["start"] >= earlier["end"] - 0.01 for earlier, later in zip(ordered, ordered[1:]))
+    return found
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_candidates_square_first(shape, tmp_path):
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="square", start=4.0, end=5.0))
+    found = check_candidates(clip)
+    first = found[0]
+    assert first["start"] <= 4.0 and first["end"] >= 5.0, found
+    assert "steady camera" in first["reason"] and "subject moving" in first["reason"]
+    assert "A 04.0" in first["stills"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_candidates_avoid_blur(shape, tmp_path):
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="blur", start=2.0, end=3.0))
+    found = check_candidates(clip)
+    assert found
+    assert not [c for c in found if c["start"] < 3.0 and c["end"] > 2.0], found
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_candidates_avoid_cut(shape, tmp_path):
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="cut", start=3.4))
+    found = check_candidates(clip)
+    assert found
+    assert not [c for c in found if c["start"] < 3.4 < c["end"]], found
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_candidates_never_shaky(shape, tmp_path):
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="jitter"))
+    found = check_candidates(clip)
+    for c in found:
+        inside = [half for half in clip["halves"] if c["start"] - 1e-6 <= half["t"] < c["end"] - 1e-6]
+        assert all(half["camera_state"] != "shaky" for half in inside), c
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_candidates_static_clip(shape, tmp_path):
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="plain"))
+    found = check_candidates(clip)
+    assert found
+    for c in found:
+        assert "steady camera" in c["reason"] and "nothing moving" in c["reason"], c
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_has_no_candidates(shape, tmp_path):
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="grey", level="0x808080"), "photo")
+    assert clip["kind"] == "photo" and clip["candidates"] == []
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_reasons_name_facts_only(shape, tmp_path):
+    makers = [
+        (lambda p, w, h: make_look_clip(p, w, h, pattern="square", start=4.0, end=5.0), "video"),
+        (lambda p, w, h: make_look_clip(p, w, h, pattern="blur", start=2.0, end=3.0), "video"),
+        (lambda p, w, h: make_look_clip(p, w, h, pattern="cut", start=3.4), "video"),
+        (lambda p, w, h: make_look_clip(p, w, h, pattern="plain", beep=(3.4, 3.6)), "video"),
+    ]
+    document = look_clips(tmp_path, shape, makers)
+    reasons = 0
+    for clip in document["clips"]:
+        check_candidates(clip)
+        for c in clip["candidates"]:
+            reasons += 1
+            assert not CHOOSING_WORDS.search(c["reason"]), c["reason"]
+            assert "; stills " in c["reason"] or "; no still inside" in c["reason"], c["reason"]
+    assert reasons >= 4
+
+    def keys(value):
+        if isinstance(value, dict):
+            for key, inner in value.items():
+                yield key
+                yield from keys(inner)
+        elif isinstance(value, list):
+            for inner in value:
+                yield from keys(inner)
+
+    for key in keys(document):
+        assert not any(word in key.lower() for word in ("chosen", "selected", "pick")), key

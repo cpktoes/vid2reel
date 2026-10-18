@@ -27,6 +27,9 @@ Each `stills` entry: `label` (such as "A 03.0": the letter and the time, written
 not be taken), `cell` (1-based place on the sheet, left to right then top to bottom) and `box` ([left, top, right,
 bottom] of the still on its sheet, in pixels).
 Each `candidates` entry: `rank`, `start`, `end` (seconds), `reason` (facts in words) and `stills` (their labels).
+A video has up to MAX_CANDIDATES of them, a photo and a skipped entry none. Rank 1 is first in a stated order (steady
+camera, then sharp picture, then movement) and is not a choice: choosing what goes in a reel is the chat's Claude's
+job, following the handbook (decision D-04). A stretch with a shaky camera, a blurred picture or a cut is never listed.
 Units: brightness in 8-bit code values (16 is black, 235 is white); movement as the mean frame difference, 0-255,
 between analysed frames; camera and shake in pixels per analysed frame at LOOK_WIDTH; blur as edge width in pixels
 (lower is sharper); loudness in LUFS; times in seconds. Every number is rounded to LOOK_DECIMALS places.
@@ -197,6 +200,10 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
         {"label": text, "t": measure.rounded(t), "why": why, **record}
         for text, t, why, record in zip(labels, times, reasons, records)
     ]
+    found = []  # a photo has no moments to rank (D-14)
+    if entry["kind"] == "video":
+        found = pick.candidates(
+            measured["halves"], measured["shot_changes"], stills, pick.sound_peak_times(measured), seconds, fps)
     return {
         "letter": letter,
         "number": entry["number"],
@@ -210,6 +217,7 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
         "halves": measured["halves"],
         "shot_changes": measured["shot_changes"],
         "stills": stills,
+        "candidates": found,
         "notes": notes,
     }
 
