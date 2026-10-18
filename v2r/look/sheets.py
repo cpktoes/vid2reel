@@ -1,6 +1,6 @@
 """Stills and contact sheets: frames pulled from a working copy through one FFmpeg pipe and laid out with Pillow.
 
-Pillow is imported inside the functions that draw, so measuring keeps working on a computer where it failed to install.
+Pillow is imported only inside `pillow_modules`, so measuring keeps working on a computer where it failed to install.
 """
 
 import os
@@ -15,15 +15,53 @@ def label(letter, t):
     return f"{letter} {t:04.1f}"
 
 
+NO_PICTURE_LIBRARY = (
+    "The picture library (Pillow) is not installed, so no contact sheets were made; the measurements are in look.json.")
+NO_SCALABLE_FONT = "Pillow here has no scalable font, so the labels on the sheets are small."
+
+
+def pillow_modules():
+    """Pillow's Image, ImageDraw, ImageFont and features modules; imported only now, as normalize does for photos,
+    so measuring keeps working on a computer where Pillow failed to install. ImportError means it is missing."""
+    from PIL import Image, ImageDraw, ImageFont, features
+
+    return Image, ImageDraw, ImageFont, features
+
+
 def picture_problem():
-    """One sentence saying why sheets cannot be drawn on this computer, or None when they can."""
+    """One sentence saying why sheets cannot be drawn on this computer (no Pillow), or None when they can."""
     try:
-        from PIL import features
+        pillow_modules()
     except ImportError:
-        return "The picture library is not installed here, so no contact sheets could be made."
-    if not features.check("freetype2"):
-        return "This computer's picture library has no scalable font, so no contact sheets could be made."
+        return NO_PICTURE_LIBRARY
     return None
+
+
+def filter_problem(have):
+    """One sentence saying which FFmpeg filter the stills need that this computer lacks, or None.
+
+    `have` is the set of filter names FFmpeg lists. The stills need `select` to pick frames and `scale` to shrink them.
+    """
+    for name in ("select", "scale"):
+        if name not in have:
+            return (
+                f"This computer's FFmpeg lacks the {name} filter, so no contact sheets were made; "
+                "the measurements are in look.json.")
+    return None
+
+
+def font_problem():
+    """The sentence to print when Pillow has no scalable font (labels then use its small built-in one), else None."""
+    _, _, _, features = pillow_modules()
+    return None if features.check("freetype2") else NO_SCALABLE_FONT
+
+
+def label_font(cell_w):
+    """The font labels are drawn in: sized by the cell when Pillow can scale a font, else Pillow's small built-in one."""
+    _, _, ImageFont, features = pillow_modules()
+    if features.check("freetype2"):
+        return ImageFont.load_default(size=round(cell_w * settings.LABEL_FONT_SHARE))
+    return ImageFont.load_default()  # a bitmap font: it has one size and does not take a size
 
 
 def cell_size(orientation):
@@ -56,7 +94,7 @@ def grab_stills(path, frame_numbers, size, seconds):
     a frame number given twice is read once. Raises ValueError when FFmpeg gave a different number of pictures than
     were asked for, and subprocess.CalledProcessError or TimeoutExpired when FFmpeg failed.
     """
-    from PIL import Image
+    Image = pillow_modules()[0]
 
     wanted = sorted(set(frame_numbers))
     if not wanted:
@@ -103,8 +141,7 @@ class SheetBook:
         return f"sheets/sheet-{number:02d}.jpg"
 
     def start_sheet(self, orientation):
-        from PIL import Image
-
+        Image = pillow_modules()[0]
         self.count += 1
         size = (settings.SHEET_WIDTH, sheet_height(orientation))
         self.current = {
@@ -115,11 +152,20 @@ class SheetBook:
         }
 
     def save_current(self):
-        """Write the sheet being filled to its file, whole or not at all."""
+        """Write the sheet being filled to its file, whole or not at all.
+
+        A sheet larger than SHEET_MAX_BYTES is saved again SHEET_JPEG_QUALITY_STEP quality points lower, down to
+        SHEET_JPEG_QUALITY_MIN; the last save is kept whatever its size, so a sheet is never lost for being large.
+        """
         self.folder.mkdir(exist_ok=True)
         final = self.folder / f"sheet-{self.current['number']:02d}.jpg"
         part = final.with_name(f"{final.stem}.part.jpg")
-        self.current["image"].save(part, "JPEG", quality=settings.SHEET_JPEG_QUALITY)
+        quality = settings.SHEET_JPEG_QUALITY
+        while True:
+            self.current["image"].save(part, "JPEG", quality=quality)
+            if part.stat().st_size <= settings.SHEET_MAX_BYTES or quality <= settings.SHEET_JPEG_QUALITY_MIN:
+                break
+            quality = max(settings.SHEET_JPEG_QUALITY_MIN, quality - settings.SHEET_JPEG_QUALITY_STEP)
         os.replace(part, final)
 
     def add(self, stills, orientation):
@@ -130,11 +176,10 @@ class SheetBook:
         Never starts a sheet beyond MAX_SHEETS_PER_RUN: from the first still that would need one, `full` is true and
         that still and every one after it gets {"sheet": None, "cell": None, "box": None}.
         """
-        from PIL import ImageDraw, ImageFont
-
+        ImageDraw = pillow_modules()[1]
         columns, rows = settings.SHEET_GRID[orientation]
         cell_w, cell_h = cell_size(orientation)
-        font = ImageFont.load_default(size=round(cell_w * settings.LABEL_FONT_SHARE))
+        font = label_font(cell_w)
         records = []
         touched_last = False
         for picture, text in stills:

@@ -220,9 +220,13 @@ def look(work_dir=None):
     clear_last_look(work_dir)  # a new run replaces the last one (D-08)
     have = doctor.ffmpeg_names("-filters")  # asked once per run
     missing = measure.missing_measurements(have)
-    problem = sheets.picture_problem()
+    problem = sheets.picture_problem() or sheets.filter_problem(have)  # why no sheets can be made, if so
     if problem:
         missing.append(problem)
+    else:
+        font_sentence = sheets.font_problem()  # sheets are still drawn, with a small built-in font
+        if font_sentence:
+            missing.append(font_sentence)
     interval, thinned = settings.STILL_INTERVAL_STEPS[0], False
     if problem is None:  # the rhythm only needs thinning when sheets are going to be made
         interval, thinned = pick.run_interval(manifest["clips"], manifest["shape"])

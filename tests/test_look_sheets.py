@@ -173,3 +173,107 @@ def test_sheets_square_follows_job_shape(shape, tmp_path):
     assert sheet_size(work / look["sheets"][0]) == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
     left, top, right, bottom = clip["stills"][0]["box"]
     assert right - left == bottom - top
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_sheet_bytes_guard(shape, tmp_path, monkeypatch):
+    from PIL import Image
+
+    width, height = TALL_SIZE[shape]
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    roomy = run_look(make_job(plain, shape, [(width, height, 4)]))
+    normal_bytes = (plain / "work" / roomy["sheets"][0]).stat().st_size
+
+    monkeypatch.setattr(settings, "SHEET_MAX_BYTES", 1000)  # far too small to ever be met
+    tight = tmp_path / "tight"
+    tight.mkdir()
+    work = make_job(tight, shape, [(width, height, 4)])
+    look = run_look(work)
+
+    (name,) = look["sheets"]
+    assert (work / name).stat().st_size < normal_bytes  # saved again at lower quality, and still kept
+    with Image.open(work / name) as sheet:
+        sheet.load()
+        assert sheet.size == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
+    assert [still["sheet"] for still in look["clips"][0]["stills"]] == [name] * 4
+    assert list((work / "sheets").glob("*.part.jpg")) == []
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_no_pillow_still_measures(shape, tmp_path, monkeypatch, capsys):
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3)])
+
+    def no_pillow():
+        raise ImportError("No module named 'PIL'")
+
+    monkeypatch.setattr(sheets, "pillow_modules", no_pillow)
+
+    look = run_look(work)
+
+    assert look["sheets"] == []
+    assert look["missing"] == [sheets.NO_PICTURE_LIBRARY]
+    assert capsys.readouterr().out.count(sheets.NO_PICTURE_LIBRARY) == 1
+    (clip,) = look["clips"]
+    assert clip["status"] == "done" and len(clip["halves"]) == 6
+    assert len(clip["stills"]) == 3
+    assert [(s["sheet"], s["cell"], s["box"]) for s in clip["stills"]] == [(None, None, None)] * 3
+    assert not (work / "sheets").exists()
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_no_select_filter(shape, tmp_path, monkeypatch, capsys):
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3)])
+    real = doctor.ffmpeg_names("-filters")
+    monkeypatch.setattr(doctor, "ffmpeg_names", lambda option: real - {"select"})
+
+    look = run_look(work)
+
+    sentence = (
+        "This computer's FFmpeg lacks the select filter, so no contact sheets were made; "
+        "the measurements are in look.json.")
+    assert look["sheets"] == []
+    assert sentence in look["missing"]
+    assert capsys.readouterr().out.count(sentence) == 1
+    (clip,) = look["clips"]
+    assert clip["status"] == "done" and len(clip["halves"]) == 6
+    assert {s["sheet"] for s in clip["stills"]} == {None}
+    assert not (work / "sheets").exists()
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_no_scalable_font_sentence(shape, tmp_path, monkeypatch, capsys):
+    from PIL import features
+
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3)])
+    real_check = features.check
+    monkeypatch.setattr(features, "check", lambda name, *rest: False if name == "freetype2" else real_check(name, *rest))
+
+    look = run_look(work)
+
+    assert look["missing"] == [sheets.NO_SCALABLE_FONT]
+    assert capsys.readouterr().out.count(sheets.NO_SCALABLE_FONT) == 1
+    assert look["sheets"] == ["sheets/sheet-01.jpg"]  # the sheets are still drawn
+    assert [s["cell"] for s in look["clips"][0]["stills"]] == [1, 2, 3]
+    assert sheet_size(work / look["sheets"][0]) == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_out_of_room_stops_run(shape, tmp_path, monkeypatch, capsys):
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3)])
+
+    def no_room(self):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(sheets.SheetBook, "save_current", no_room)
+
+    assert main(["look", str(work)]) == 1
+
+    assert "ran out of room" in capsys.readouterr().err
+    look = read_look(work)
+    assert "ran out of room" in look["stopped"]
+    assert look["finished"] is False
