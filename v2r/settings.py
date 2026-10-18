@@ -58,6 +58,25 @@ FFMPEG_SECONDS_PER_SECOND = 10
 ERROR_DETAIL_CHARS = 400  # characters of FFmpeg's own error text kept in a skipped entry
 FILE_TEXT_CHARS = 200  # characters kept of any other text that came from inside a file or its name (a file name, a date)
 
+# look: Stage 15's numbers. The blind test tunes them one at a time, so each stays a name of its own.
+LOOK_WIDTH = 320  # pixels wide the measuring pass reads each picture; the height follows the picture
+LOOK_FPS = 10  # frames a second the measuring pass reads
+SUMMARY_SECONDS = 0.5  # seconds each summary entry in look.json covers
+# seconds between the base stills; the first step that keeps a run within MAX_SHEETS_PER_RUN is used
+STILL_INTERVAL_STEPS = [1.0, 1.5, 2.0]
+MAX_SHEETS_PER_RUN = 20  # contact sheets one look run may make
+SHEET_GRID = {"tall": (4, 3), "wide": (3, 4)}  # (columns, rows) of cells on a sheet: 12 stills per sheet
+CELL_ASPECT = {"tall": (9, 16), "wide": (16, 9)}  # (width, height) proportion of one cell
+SHEET_WIDTH = 1950  # pixels wide a sheet is; Claude's viewer shrinks the long edge to about 1,568
+SHEET_PADDING = 8  # pixels between cells and round the edge of a sheet
+SHEET_BACKGROUND = (24, 24, 24)  # RGB, 0-255 per channel: the dark grey behind the stills
+SHEET_JPEG_QUALITY = 85  # JPEG quality, 1-100, a sheet is first saved at
+LABEL_FONT_SHARE = 0.07  # label text size as a share (0 to 1) of a cell's width
+LABEL_PADDING = 8  # pixels of dark box round the label text
+LABEL_BOX_COLOUR = (0, 0, 0)  # RGB, 0-255 per channel: the box behind a label
+LABEL_TEXT_COLOUR = (255, 255, 255)  # RGB, 0-255 per channel: the label text
+LOOK_DECIMALS = 2  # decimal places kept for numbers in look.json
+
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
 

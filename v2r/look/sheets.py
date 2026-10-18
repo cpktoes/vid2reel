@@ -1,0 +1,165 @@
+"""Stills and contact sheets: frames pulled from a working copy through one FFmpeg pipe and laid out with Pillow.
+
+Pillow is imported inside the functions that draw, so measuring keeps working on a computer where it failed to install.
+"""
+
+import os
+import subprocess
+from pathlib import Path
+
+from v2r import normalize, settings
+
+
+def label(letter, t):
+    """The words printed on a still: its clip letter and time, such as "A 03.0" or "B 07.5" (D-02)."""
+    return f"{letter} {t:04.1f}"
+
+
+def picture_problem():
+    """One sentence saying why sheets cannot be drawn on this computer, or None when they can."""
+    try:
+        from PIL import features
+    except ImportError:
+        return "The picture library is not installed here, so no contact sheets could be made."
+    if not features.check("freetype2"):
+        return "This computer's picture library has no scalable font, so no contact sheets could be made."
+    return None
+
+
+def cell_size(orientation):
+    """(width, height) in pixels of one cell on a sheet of this orientation, from the grid and the cell proportion."""
+    columns, _ = settings.SHEET_GRID[orientation]
+    width = (settings.SHEET_WIDTH - (columns + 1) * settings.SHEET_PADDING) // columns
+    aspect_width, aspect_height = settings.CELL_ASPECT[orientation]
+    return width, round(width * aspect_height / aspect_width)
+
+
+def sheet_height(orientation):
+    """Pixels high a sheet of this orientation is: every row of the grid, filled or not."""
+    _, rows = settings.SHEET_GRID[orientation]
+    return settings.SHEET_PADDING + rows * (cell_size(orientation)[1] + settings.SHEET_PADDING)
+
+
+def fit_size(width, height, cell_w, cell_h):
+    """The largest (width, height) with the picture's proportions that fits in the cell; each side even, at least 2."""
+    if cell_w * height <= cell_h * width:  # the width is what limits it
+        fitted_w, fitted_h = cell_w, cell_w * height // width
+    else:
+        fitted_w, fitted_h = cell_h * width // height, cell_h
+    return max(2, fitted_w // 2 * 2), max(2, fitted_h // 2 * 2)
+
+
+def grab_stills(path, frame_numbers, size, seconds):
+    """The pictures at `frame_numbers` of a working copy, each scaled to `size`, as Pillow RGB images.
+
+    One FFmpeg run reads them all (a `select` filter and a raw pipe). The images come back in the order asked for;
+    a frame number given twice is read once. Raises ValueError when FFmpeg gave a different number of pictures than
+    were asked for, and subprocess.CalledProcessError or TimeoutExpired when FFmpeg failed.
+    """
+    from PIL import Image
+
+    wanted = sorted(set(frame_numbers))
+    if not wanted:
+        return []
+    width, height = size
+    chooser = "+".join(f"eq(n,{number})" for number in wanted)
+    command = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+        "-i", str(Path(path).resolve()),
+        "-an", "-vf", f"select='{chooser}',scale={width}:{height}:flags=area",
+        "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+    ]
+    data = subprocess.run(
+        command, capture_output=True, check=True, timeout=normalize.ffmpeg_timeout(seconds)).stdout
+    frame_bytes = width * height * 3
+    if len(data) != frame_bytes * len(wanted):
+        raise ValueError("wrong number of stills")
+    pictures = {
+        number: Image.frombytes("RGB", (width, height), data[index * frame_bytes:(index + 1) * frame_bytes])
+        for index, number in enumerate(wanted)
+    }
+    return [pictures[number] for number in frame_numbers]
+
+
+class SheetBook:
+    """The contact sheets of one look run, filled in order, one still after another.
+
+    A sheet follows the grid of its stills' orientation; a still of another orientation starts a new sheet.
+    Every sheet touched is saved whole (a temporary name, then renamed), so a reader never finds half a sheet.
+    """
+
+    def __init__(self, work_dir):
+        self.folder = Path(work_dir) / "sheets"
+        self.count = 0  # sheets started so far
+        self.current = None  # the sheet being filled: {"image", "orientation", "number", "used"}
+
+    def names(self):
+        """The sheet names made so far, in order, relative to the work folder, such as "sheets/sheet-01.jpg"."""
+        return [self.name(number) for number in range(1, self.count + 1)]
+
+    @staticmethod
+    def name(number):
+        return f"sheets/sheet-{number:02d}.jpg"
+
+    def start_sheet(self, orientation):
+        from PIL import Image
+
+        self.count += 1
+        size = (settings.SHEET_WIDTH, sheet_height(orientation))
+        self.current = {
+            "image": Image.new("RGB", size, settings.SHEET_BACKGROUND),
+            "orientation": orientation,
+            "number": self.count,
+            "used": 0,
+        }
+
+    def save_current(self):
+        """Write the sheet being filled to its file, whole or not at all."""
+        self.folder.mkdir(exist_ok=True)
+        final = self.folder / f"sheet-{self.current['number']:02d}.jpg"
+        part = final.with_name(f"{final.stem}.part.jpg")
+        self.current["image"].save(part, "JPEG", quality=settings.SHEET_JPEG_QUALITY)
+        os.replace(part, final)
+
+    def add(self, stills, orientation):
+        """Put `stills`, a list of (image, label) pairs, on the sheets in order.
+
+        Returns one record per still: {"sheet": "sheets/sheet-NN.jpg", "cell": 1-based place on the sheet,
+        "box": [left, top, right, bottom] of the picture on the sheet, in pixels}.
+        """
+        from PIL import ImageDraw, ImageFont
+
+        columns, rows = settings.SHEET_GRID[orientation]
+        cell_w, cell_h = cell_size(orientation)
+        font = ImageFont.load_default(size=round(cell_w * settings.LABEL_FONT_SHARE))
+        records = []
+        touched_last = False
+        for picture, text in stills:
+            if self.current is None or self.current["orientation"] != orientation or self.current["used"] >= columns * rows:
+                if touched_last:
+                    self.save_current()
+                self.start_sheet(orientation)
+            slot = self.current["used"]
+            self.current["used"] += 1
+            touched_last = True
+            left = settings.SHEET_PADDING + (slot % columns) * (cell_w + settings.SHEET_PADDING)
+            top = settings.SHEET_PADDING + (slot // columns) * (cell_h + settings.SHEET_PADDING)
+            left += (cell_w - picture.width) // 2
+            top += (cell_h - picture.height) // 2
+            sheet = self.current["image"]
+            sheet.paste(picture, (left, top))
+            draw = ImageDraw.Draw(sheet)
+            box_left, box_top, box_right, box_bottom = draw.textbbox((0, 0), text, font=font)
+            pad = settings.LABEL_PADDING
+            draw.rectangle(
+                (left, top, left + (box_right - box_left) + 2 * pad, top + (box_bottom - box_top) + 2 * pad),
+                fill=settings.LABEL_BOX_COLOUR)
+            draw.text((left + pad - box_left, top + pad - box_top), text, font=font, fill=settings.LABEL_TEXT_COLOUR)
+            records.append({
+                "sheet": self.name(self.current["number"]),
+                "cell": slot + 1,
+                "box": [left, top, left + picture.width, top + picture.height],
+            })
+        if touched_last:
+            self.save_current()
+        return records

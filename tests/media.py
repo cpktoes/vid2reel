@@ -181,3 +181,57 @@ def corner_mean_image(path, corner, size=20):
     left = 0 if side == "left" else width - size
     upper = 0 if top == "top" else height - size
     return ImageStat.Stat(grey.crop((left, upper, left + size, upper + size))).mean[0]
+
+
+def make_manifest(work, shape, entries):
+    """Write work/manifest.json with normalize's frozen names, so look tests need not run normalize; returns it.
+
+    Each entry is a Path to a clip already saved in `work` (a done video), or a dict with `file` (Path or None),
+    `kind` ("video" or "photo"), `status` ("done" or "skipped") and `sound_added` (bool); the keys left out are
+    "video", "done" and False. A dict may also carry `working`, used exactly as given without probing, for a missing,
+    broken or wrongly named working copy. Letters are A, B, C in order and numbers count from 1.
+    """
+    clips = []
+    for number, item in enumerate(entries, start=1):
+        spec = item if isinstance(item, dict) else {"file": item}
+        file = spec.get("file")
+        kind = spec.get("kind", "video")
+        status = spec.get("status", "done")
+        sound_added = spec.get("sound_added", False)
+        letter = chr(ord("A") + number - 1)
+        original = {
+            "path": str(file) if file else f"/sent/{letter}-original.mov",
+            "name": file.name if file else f"{letter}-original.mov",
+            "bytes": file.stat().st_size if file and file.exists() else None,
+        }
+        if status == "skipped":
+            clips.append({
+                "letter": letter, "number": number, "status": "skipped", "kind": None, "original": original,
+                "sentence": f"The file number {number} could not be converted.", "detail": None,
+            })
+            continue
+        if "working" in spec:
+            working = spec["working"]
+        else:
+            info = probe(file)
+            video = stream(info, "video")
+            top, bottom = video["r_frame_rate"].split("/")
+            working = {
+                "file": file.name,
+                "size": [video["width"], video["height"]],
+                "fps": float(top) / float(bottom),
+                "seconds": float(info["format"]["duration"]),
+                "bytes": file.stat().st_size,
+                "sound_added": sound_added,
+                "colour_converted": False,
+            }
+        entry = {
+            "letter": letter, "number": number, "status": "done", "kind": kind, "original": original,
+            "working": working, "convert_seconds": 0.1, "notes": [],
+        }
+        if kind == "photo":
+            entry["photo"] = {"file": f"{letter}-photo.jpg", "size": list(working.get("size", [0, 0]))}
+        clips.append(entry)
+    manifest = {"version": 1, "shape": shape, "finished": True, "stopped": None, "clips": clips}
+    (work / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest

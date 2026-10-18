@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from v2r import __version__, build_skill, doctor, join, normalize, settings
+from v2r import __version__, build_skill, doctor, join, look, normalize, settings
 
 
 def main(argv=None):
@@ -35,6 +35,12 @@ def main(argv=None):
         "files", nargs="+", type=Path,
         help="files, in the order they were attached; they get the letters A, B, C...",
     )
+    look_parser = commands.add_parser(
+        "look", help="make contact sheets and measurements of the working copies in work/", allow_abbrev=False)
+    look_parser.add_argument(
+        "work", nargs="?", type=Path, default=None,
+        help="the work folder that holds manifest.json; leave out for work/ in this repo",
+    )
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
 
@@ -58,6 +64,13 @@ def main(argv=None):
             print(f"v2r normalize: {error}", file=sys.stderr)
             return 1
         return 0 if any(clip["status"] == "done" for clip in manifest["clips"]) else 1
+    elif args.command == "look":
+        try:
+            result = look.look(args.work)
+        except look.LookError as error:
+            print(f"v2r look: {error}", file=sys.stderr)
+            return 1
+        return 0 if any(clip["status"] == "done" for clip in result["clips"]) else 1
     elif args.command == "build-skill":
         print(build_skill.build())
     else:
