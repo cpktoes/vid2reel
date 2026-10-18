@@ -1,7 +1,8 @@
+import errno
 import json
 
 import pytest
-from media import make_clip, make_manifest
+from media import make_clip, make_manifest, sha256
 
 import v2r.look
 from v2r import settings
@@ -84,3 +85,229 @@ def test_frame_number_clamps():
 def test_base_times():
     assert pick.base_times(4.0, 30, 1.0) == [0.0, 1.0, 2.0, 3.0]
     assert pick.base_times(0.5, 30, 1.0) == [0.0]
+
+
+def make_work(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    return work
+
+
+def clip_in(work, name, shape, seconds):
+    """A clip of `seconds` saved in the work folder, sized for the shape."""
+    width, height = CLIP_SIZE[shape]
+    return make_clip(work / name, width, height, seconds=seconds)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_two_clips_in_letter_order(shape, tmp_path, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 3), clip_in(work, "B.mp4", shape, 2)])
+
+    assert main(["look", str(work)]) == 0
+
+    look = read_look(work)
+    assert [clip["letter"] for clip in look["clips"]] == ["A", "B"]
+    first, second = look["clips"]
+    assert [still["label"] for still in first["stills"]] == ["A 00.0", "A 01.0", "A 02.0"]
+    assert [still["label"] for still in second["stills"]] == ["B 00.0", "B 01.0"]
+    assert len(first["halves"]) == 6
+    assert len(second["halves"]) == 4
+    out = capsys.readouterr().out
+    assert out.index("A looked at in") < out.index("B looked at in")
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_skipped_entry_keeps_letter(shape, tmp_path):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [
+        clip_in(work, "A.mp4", shape, 2), {"status": "skipped"}, clip_in(work, "C.mp4", shape, 2)])
+
+    assert main(["look", str(work)]) == 0
+
+    first, skipped, third = read_look(work)["clips"]
+    assert (first["letter"], first["status"]) == ("A", "done")
+    assert (skipped["letter"], skipped["number"], skipped["status"], skipped["kind"]) == ("B", 2, "skipped", None)
+    assert skipped["sentence"] == "Clip B was skipped when the clips were converted, so it has no stills."
+    assert "stills" not in skipped
+    assert (third["letter"], third["number"], third["status"]) == ("C", 3, "done")
+    assert [still["label"] for still in third["stills"]] == ["C 00.0", "C 01.0"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_photo_gets_one_still(shape, tmp_path):
+    work = make_work(tmp_path)
+    width, height = CLIP_SIZE[shape]
+    clip = make_clip(work / "A.mp4", width, height, seconds=4, pattern="flat")
+    make_manifest(work, shape, [{"file": clip, "kind": "photo"}])
+
+    assert main(["look", str(work)]) == 0
+
+    (entry,) = read_look(work)["clips"]
+    assert entry["kind"] == "photo"
+    assert [still["label"] for still in entry["stills"]] == ["A 00.0"]
+    assert entry["overall"]["brightness"] is not None  # a photo is measured like any clip
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_bad_clip_does_not_stop_the_others(shape, tmp_path, capsys):
+    work = make_work(tmp_path)
+    width, height = CLIP_SIZE[shape]
+    plain = {"size": [width, height], "fps": 30.0, "seconds": 2.0, "bytes": 1, "sound_added": False,
+             "colour_converted": False}
+    (work / "B.mp4").write_bytes(b"this is not a video" * 100)
+    outside = clip_in(tmp_path, "C.mp4", shape, 2)  # a real clip, but outside the work folder
+    make_manifest(work, shape, [
+        {"file": None, "working": {**plain, "file": "A.mp4"}},  # the working copy is not on disk
+        {"file": None, "working": {**plain, "file": "B.mp4"}},  # not a video at all
+        {"file": outside, "working": {**plain, "file": "../C.mp4"}},  # not a plain name in the work folder
+        clip_in(work, "D.mp4", shape, 2),
+    ])
+
+    assert main(["look", str(work)]) == 0
+
+    clips = read_look(work)["clips"]
+    assert [(clip["letter"], clip["status"]) for clip in clips] == [
+        ("A", "skipped"), ("B", "skipped"), ("C", "skipped"), ("D", "done")]
+    assert clips[0]["sentence"] == "The working copy of clip A is missing or not in the work folder, so it was not looked at."
+    assert clips[1]["sentence"] == "Clip B could not be looked at."
+    assert clips[2]["sentence"] == "The working copy of clip C is missing or not in the work folder, so it was not looked at."
+    assert [still["label"] for still in clips[3]["stills"]] == ["D 00.0", "D 01.0"]
+    out = capsys.readouterr().out
+    assert "Clip B could not be looked at." in out
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_second_run_replaces_last_look(shape, tmp_path):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    (work / "sheets").mkdir()
+    (work / "look.json").write_text('{"old": true}', encoding="utf-8")
+    (work / "look.json.tmp").write_text("half", encoding="utf-8")
+    (work / "sheets" / "sheet-05.jpg").write_bytes(b"old sheet")
+    (work / "sheets" / "keep.txt").write_text("mine", encoding="utf-8")
+    (work / "notes.txt").write_text("mine too", encoding="utf-8")
+    kept = ["manifest.json", "A.mp4", "notes.txt", "sheets/keep.txt"]
+    before = {name: sha256(work / name) for name in kept}
+
+    assert main(["look", str(work)]) == 0
+
+    assert not (work / "sheets" / "sheet-05.jpg").exists()
+    assert not (work / "look.json.tmp").exists()
+    assert read_look(work)["version"] == 1
+    assert {name: sha256(work / name) for name in kept} == before
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_without_manifest(shape, tmp_path, capsys):
+    work = make_work(tmp_path)
+    (work / "look.json").write_text('{"old": true}', encoding="utf-8")
+
+    assert main(["look", str(work)]) == 1
+
+    assert capsys.readouterr().err.startswith("v2r look: There is no manifest.json")
+    assert (work / "look.json").read_text(encoding="utf-8") == '{"old": true}'
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_manifest_that_cannot_be_read(shape, tmp_path, capsys):
+    work = make_work(tmp_path)
+    (work / "manifest.json").write_text("not json at all", encoding="utf-8")
+    (work / "look.json").write_text('{"old": true}', encoding="utf-8")
+
+    assert main(["look", str(work)]) == 1
+
+    assert "manifest.json could not be read" in capsys.readouterr().err
+    assert (work / "look.json").read_text(encoding="utf-8") == '{"old": true}'
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_every_entry_skipped(shape, tmp_path):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [{"status": "skipped"}, {"status": "skipped"}])
+
+    assert main(["look", str(work)]) == 1
+
+    look = read_look(work)
+    assert look["finished"] is True
+    assert look["sheets"] == []
+    assert [clip["status"] for clip in look["clips"]] == ["skipped", "skipped"]
+    assert not list((work / "sheets").glob("*")) if (work / "sheets").exists() else True
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_short_clip_one_still(shape, tmp_path):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 0.5)])
+
+    assert main(["look", str(work)]) == 0
+
+    (clip,) = read_look(work)["clips"]
+    assert [still["label"] for still in clip["stills"]] == ["A 00.0"]
+    assert len(clip["halves"]) == 1
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_stills_that_fail_keep_the_measurements(shape, tmp_path, monkeypatch):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+
+    def wrong_count(*args):
+        raise ValueError("wrong number of stills")
+
+    monkeypatch.setattr(sheets, "grab_stills", wrong_count)
+
+    assert main(["look", str(work)]) == 0
+
+    (clip,) = read_look(work)["clips"]
+    assert clip["status"] == "done"
+    assert len(clip["halves"]) == 4
+    assert clip["notes"] == ["The stills of clip A could not be taken, so it is not on the sheets."]
+    assert [(still["sheet"], still["cell"], still["box"]) for still in clip["stills"]] == [(None, None, None)] * 2
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_without_picture_library_still_measures(shape, tmp_path, monkeypatch):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    problem = "The picture library is not installed here, so no contact sheets could be made."
+    monkeypatch.setattr(sheets, "picture_problem", lambda: problem)
+
+    assert main(["look", str(work)]) == 0
+
+    look = read_look(work)
+    assert problem in look["missing"]
+    assert look["sheets"] == []
+    (clip,) = look["clips"]
+    assert len(clip["halves"]) == 4
+    assert clip["notes"] == ["The stills of clip A could not be taken, so it is not on the sheets."]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_out_of_room_stops_the_run(shape, tmp_path, monkeypatch, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+
+    def no_room(*args):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(sheets, "grab_stills", no_room)
+
+    assert main(["look", str(work)]) == 1
+
+    sentence = "The work folder ran out of room, so look stopped; the clips looked at so far are in look.json."
+    assert sentence in capsys.readouterr().err
+    assert read_look(work)["stopped"] == sentence
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_without_ffmpeg(shape, tmp_path, monkeypatch, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    (work / "look.json").write_text('{"old": true}', encoding="utf-8")
+    monkeypatch.setattr(v2r.look.shutil, "which", lambda name: None)
+
+    assert main(["look", str(work)]) == 1
+
+    assert capsys.readouterr().err == "v2r look: FFmpeg is not installed here, so nothing was looked at.\n"
+    assert (work / "look.json").read_text(encoding="utf-8") == '{"old": true}'
