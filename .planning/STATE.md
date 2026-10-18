@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 3
 current_phase_name: Stage 15 – Seeing the footage
 status: executing
-stopped_at: Completed 03-07-PLAN.md
-last_updated: "2026-10-18T07:03:17.304Z"
+stopped_at: Completed 03-08-PLAN.md
+last_updated: "2026-10-18T22:03:12.961Z"
 last_activity: 2026-10-17
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 3 (Stage 15 – Seeing the footage) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-10-17 — Phase 3 execution started
 
-Progress: [█████████░] 88% (1 of 14 phases complete)
+Progress: [█████████░] 94% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -74,6 +74,7 @@ Progress: [█████████░] 88% (1 of 14 phases complete)
 | Phase 3 P03 | one checkpoint round trip | 3 tasks | 0 files |
 | Phase 03 P06 | 35 min | 2 tasks | 4 files |
 | Phase 03 P07 | 30 min | 2 tasks | 3 files |
+| Phase 03 P08 | one checkpoint round trip | 2 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: [Phase 3] Plan 03: user allowed the push; stage-15-look pushed at 22b6ceb, main unchanged; phone FFmpeg 6.1.1-3ubuntu5 has all eight look filters
 - [Phase ?]: [Phase 3] Plan 06: a flat-topped peak counts once, and a movement still sits half an analysed frame before the frames' times; short clips under 3 s get no extras
 - [Phase ?]: [03-07] Candidates are facts in a stated order; a still exactly at a stretch's end counts as inside it; unmeasured parts are named as not measured
+- [Phase ?]: [03-08] Blind test on the user's own footage passed 4 of 4 on four clips (user's choice of set size); no misses, no setting changes; look costs about 0.5 to 0.57 s per second of video on the Mac
+- [Phase ?]: [03-08] Observation for a later stage: two normalize runs at once make the second run's clean-up delete the first run's half-written file; a run-in-progress guard or a plainer sentence is wanted, not a Stage 15 fix
 
 ### Pending Todos
 
@@ -131,6 +134,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-18T07:03:17.271Z
-Stopped at: Completed 03-07-PLAN.md
+Last session: 2026-10-18T22:03:12.930Z
+Stopped at: Completed 03-08-PLAN.md
 Resume file: None
