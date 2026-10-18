@@ -1,6 +1,7 @@
 """When look takes its stills: the base rhythm and the frame each time points at. Pure functions, no files."""
 
 import math
+import statistics
 
 from v2r import settings
 
@@ -96,3 +97,116 @@ def run_interval(clips, shape):
         if sheets_needed(still_plan(clips, shape, interval)) <= settings.MAX_SHEETS_PER_RUN:
             return interval, index > 0
     return steps[-1], len(steps) > 1
+
+
+def spread(values, floor):
+    """The median absolute deviation of the numbers in `values` (None leaves out), never below `floor`."""
+    known = [value for value in values if value is not None]
+    if not known:
+        return floor
+    middle = statistics.median(known)
+    return max(statistics.median(abs(value - middle) for value in known), floor)
+
+
+def peaks(values, floor):
+    """[(index, score)] of the peaks in `values`, strongest first, earlier first when equal.
+
+    A peak is a local maximum (not below a neighbour that has a value; of two equal neighbours the first counts, so
+    a flat top is one peak) that stands at least PEAK_SPREADS spreads above the median of the numbers. The spread is
+    never taken below `floor`, so a calm clip's flicker is never a peak. The score is how many spreads above the median.
+    """
+    known = [value for value in values if value is not None]
+    if not known:
+        return []
+    middle = statistics.median(known)
+    width = spread(values, floor)
+    limit = middle + settings.PEAK_SPREADS * width
+    found = []
+    for index, value in enumerate(values):
+        if value is None or value < limit:
+            continue
+        before = values[index - 1] if index > 0 else None
+        after = values[index + 1] if index + 1 < len(values) else None
+        if (before is not None and value <= before) or (after is not None and value < after):
+            continue
+        found.append((index, (value - middle) / width))
+    found.sort(key=lambda peak: (-peak[1], peak[0]))
+    return found
+
+
+def movement_time(index, frames, middle):
+    """Where the movement of the peak half second `index` is centred, in seconds.
+
+    The middle of the analysed frames in that half and the halves either side, each weighted by how far its movement
+    rises above `middle` (the clip's median); the first frame of a new shot counts for nothing. When no frame rises
+    above the median, the middle of the half.
+    """
+    per_half = round(settings.SUMMARY_SECONDS * settings.LOOK_FPS)
+    total = weighted = 0.0
+    for frame in frames:
+        if frame.get("cut") or frame.get("movement") is None:
+            continue
+        if abs(round(frame["t"] * settings.LOOK_FPS) // per_half - index) > 1:
+            continue
+        weight = max(0.0, frame["movement"] - middle)
+        total += weight
+        weighted += weight * frame["t"]
+    if total <= 0:
+        return (index + 0.5) * settings.SUMMARY_SECONDS
+    return weighted / total
+
+
+def sound_time(index, sound):
+    """The time of the loudest reading inside half second `index` (the earlier of equal ones); the half's middle if none."""
+    start, end = index * settings.SUMMARY_SECONDS, (index + 1) * settings.SUMMARY_SECONDS
+    inside = [r for r in sound if r.get("loudness") is not None and start - 1e-6 <= r["t"] < end - 1e-6]
+    if not inside:
+        return start + settings.SUMMARY_SECONDS / 2
+    return min(inside, key=lambda reading: (-reading["loudness"], reading["t"]))["t"]
+
+
+def extra_times(measured, base, seconds, fps):
+    """The extra stills of a video clip as [{"t", "why"}] in time order: shot changes, movement and sound (D-01, D-17).
+
+    `measured` is measure_clip's dictionary and `base` the times of the base stills. Shot changes come first (earlier
+    first), then peaks of movement (only in half seconds where the camera is still, or in every one when the camera
+    was not measured) and of loudness, strongest first (equal ones to the earlier time). An extra is kept only if it
+    is at least EXTRA_MIN_GAP seconds, counted in whole frames, from every base still and every extra already kept,
+    and a clip adds at most extras_allowance(len(base)) of them. Each `t` is the time of a real frame of the clip.
+    """
+    allowed = extras_allowance(len(base))
+    halves = measured.get("halves") or []
+    candidates = []  # (time, why), in the order they are tried
+    for change in sorted(measured.get("shot_changes") or []):
+        candidates.append((change + settings.CUT_STILL_DELAY, "shot change"))
+    scored = []  # (score, time, why)
+    if halves:
+        measured_camera = any(half.get("camera_state") is not None for half in halves)
+        movement = [
+            half["movement"] if half.get("camera_state") == "still" or not measured_camera else None
+            for half in halves]
+        known = [value for value in movement if value is not None]
+        if known:
+            middle = statistics.median(known)
+            for index, score in peaks(movement, settings.MOVEMENT_SPREAD_FLOOR):
+                scored.append((score, movement_time(index, measured.get("frames") or [], middle), "movement"))
+        sound = measured.get("sound") or []
+        if sound:
+            loudness = [settings.SILENCE_LUFS if half.get("loudness") is None else half["loudness"] for half in halves]
+            for index, score in peaks(loudness, settings.LOUDNESS_SPREAD_FLOOR):
+                scored.append((score, sound_time(index, sound), "sound"))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    candidates += [(time, why) for _, time, why in scored]
+
+    gap = round(settings.EXTRA_MIN_GAP * fps)
+    kept = [frame_number(t, fps, seconds) for t in base]  # frames of every still so far
+    extras = []
+    for time, why in candidates:
+        if len(extras) >= allowed:
+            break
+        number = frame_number(time, fps, seconds)
+        if all(abs(number - other) >= gap for other in kept):
+            kept.append(number)
+            extras.append({"t": number / fps, "why": why})
+    extras.sort(key=lambda extra: extra["t"])
+    return extras
