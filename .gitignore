@@ -3,6 +3,7 @@
 /fixtures/
 /join.log
 /normalize.log
+/look.log
 
 # --- Media: ignored everywhere except tests/ and music/ --------------------
 # Patterns are case-insensitive so camera files like CLIP.MP4 are caught too.
