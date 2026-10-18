@@ -32,9 +32,9 @@ Every look test generates its clips with FFmpeg into tmp_path (tests/media.py) a
 ## Sampling Rate
 
 - **After every task commit:** run the task's own `<automated>` command (the plan's test file, filtered with `-k`)
-- **After every plan wave:** run `uv run pytest -q`
+- **Once per plan:** the full suite `uv run pytest -q` runs once, in the plan's last task (its acceptance criteria; plans 03, 08 and 09 run it in their pre-push or pre-check step); it never sits inside a task's `<automated>` command, and earlier tasks use their own test file or a `-k` filter
 - **Before `/gsd-verify-work`:** full suite green, plus the manual checks below (phone doctor, blind test, phone sheet test)
-- **Max feedback latency:** 90 seconds per task command; about 300 seconds per wave
+- **Max feedback latency:** 90 seconds per task command; about 300 seconds once per plan for the full suite
 
 ---
 
@@ -44,26 +44,27 @@ Every look test generates its clips with FFmpeg into tmp_path (tests/media.py) a
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 3-01-01 | 01 | 1 | LOOK-01, LOOK-02, LOOK-03, LOOK-06 | T-3-03, T-3-13 | FFmpeg called with list arguments, no shell, no file name in a filter string; look.json has no NaN | integration + unit | `uv run pytest tests/test_look.py -k "tracer or label or half_count or frame_number or base_times" -x -q` | ❌ W0 (the task creates tests/test_look.py) | ⬜ pending |
 | 3-01-02 | 01 | 1 | LOOK-01, LOOK-03 | T-3-01, T-3-02, T-3-06, T-3-07 | working.file must be a plain name inside the work folder; only look's own outputs are deleted; originals, working copies and the manifest stay byte-identical | integration | `uv run pytest tests/test_look.py -x -q` | ❌ W0 | ⬜ pending |
+| 3-01-03 | 01 | 1 | LOOK-02, LOOK-03 | — | N/A (settings with unit comments and the look.json layout in a docstring; text only) | unit | `uv run pytest tests/test_look.py -k "settings or names_documented" -x -q` | ❌ W0 (Task 1 creates tests/test_look.py) | ⬜ pending |
 | 3-02-01 | 02 | 1 | LOOK-03 | T-3-15 | N/A (doctor lists names from one local FFmpeg call) | unit | `uv run pytest tests/test_doctor.py -x -q` | ✅ | ⬜ pending |
 | 3-02-02 | 02 | 1 | LOOK-05 | T-3-05 | no person, account or fixture file named in docs | source grep | `grep -c "2026-10-17 · Stage 15 ·" docs/decisions.md && grep -c "PySceneDetect" docs/licenses.md && grep -cx "/look.log" .gitignore && grep -c "\| look \| build-skill" CLAUDE.md` | ✅ | ⬜ pending |
-| 3-03-01 | 03 | 2 | LOOK-03 | T-3-09 | push only on the user's word | manual (decision) | — (checkpoint) | n/a | ⬜ pending |
-| 3-03-02 | 03 | 2 | LOOK-03, LOOK-05 | T-3-09, T-3-10 | privacy scan of the branch diff before push; main untouched | integration | `uv run pytest -q && ! (uv run python -m v2r doctor \| grep -q MISSING)` | ✅ | ⬜ pending |
-| 3-03-03 | 03 | 2 | LOOK-03, LOOK-05 | T-3-16 | report recorded without names | manual (phone) | — (checkpoint: doctor from the phone) | n/a | ⬜ pending |
+| 3-03-01 | 03 | 3 | LOOK-03 | T-3-09 | push only on the user's word | manual (decision) | — (checkpoint) | n/a | ⬜ pending |
+| 3-03-02 | 03 | 3 | LOOK-03, LOOK-05 | T-3-09, T-3-10 | privacy scan of the committed branch diff before push; main untouched; full suite in the action and acceptance | integration | `test "$(git branch --show-current)" = stage-15-look && test -z "$(git status --porcelain --untracked-files=no)" && ! (uv run python -m v2r doctor \| grep -q MISSING) && test -z "$(git diff --name-only main...HEAD \| grep -E '^(fixtures\|work)/')"` | ✅ | ⬜ pending |
+| 3-03-03 | 03 | 3 | LOOK-03, LOOK-05 | T-3-16 | report recorded without names | manual (phone) | — (checkpoint: doctor from the phone) | n/a | ⬜ pending |
 | 3-04-01 | 04 | 2 | LOOK-03, LOOK-06 | T-3-03, T-3-04 | fixed text-file names in a temp folder; proportional timeout | integration + unit | `uv run pytest tests/test_look_measure.py -k "camera or shot_change or parse_motion or chain_order" -x -q` | ❌ W0 (the task creates tests/test_look_measure.py) | ⬜ pending |
 | 3-04-02 | 04 | 2 | LOOK-03, LOOK-06 | T-3-13 | nan from blurdetect becomes null | integration | `uv run pytest tests/test_look_measure.py -k "sharpness or brightness or colour or flat or chain_order" -x -q` | ❌ W0 | ⬜ pending |
 | 3-04-03 | 04 | 2 | LOOK-03, LOOK-05, LOOK-06 | T-3-03, T-3-04, T-3-13 | a missing filter gives null and one sentence, never a failed run | integration + unit | `uv run pytest tests/test_look_measure.py -x -q` | ❌ W0 | ⬜ pending |
 | 3-05-01 | 05 | 2 | LOOK-01, LOOK-06 | T-3-02 | sheet names come from a counter, written by temp name then rename | integration | `uv run pytest tests/test_look_sheets.py -k "sheets_" -x -q` | ❌ W0 (the task creates tests/test_look_sheets.py) | ⬜ pending |
 | 3-05-02 | 05 | 2 | LOOK-01, LOOK-06 | T-3-08 | at most MAX_SHEETS_PER_RUN sheets | unit + integration | `uv run pytest tests/test_look_sheets.py -k "run_interval or cap_" -x -q` | ❌ W0 | ⬜ pending |
 | 3-05-03 | 05 | 2 | LOOK-01 | T-3-08, T-3-14 | byte guard; no untrusted image opened; ENOSPC stops with a sentence | integration | `uv run pytest tests/test_look_sheets.py -x -q` | ❌ W0 | ⬜ pending |
-| 3-06-01 | 06 | 3 | LOOK-02 | T-3-17 | frame numbers clamped to the last frame | unit | `uv run pytest tests/test_look_extras.py -x -q` | ❌ W0 (the task creates tests/test_look_extras.py) | ⬜ pending |
-| 3-06-02 | 06 | 3 | LOOK-02, LOOK-06 | T-3-04 | extras capped, so commands and sheets stay bounded | integration | `uv run pytest tests/test_look_extras.py -x -q` | ❌ W0 | ⬜ pending |
-| 3-07-01 | 07 | 4 | LOOK-04 | T-3-18 | no selected field; facts-only reasons | unit | `uv run pytest tests/test_look_candidates.py -x -q` | ❌ W0 (the task creates tests/test_look_candidates.py) | ⬜ pending |
-| 3-07-02 | 07 | 4 | LOOK-04, LOOK-06 | T-3-07, T-3-18 | reasons built from fixed phrases and real still labels only | integration | `uv run pytest tests/test_look_candidates.py -x -q` | ❌ W0 | ⬜ pending |
-| 3-08-01 | 08 | 5 | LOOK-07 | T-3-05, T-3-06 | executor writes only work/check-look/, never the work/ root or fixtures/ | integration | `uv run pytest -q && test -f work/check-look/look.json && test -f work/check-look/sheets/sheet-01.jpg` | ✅ | ⬜ pending |
-| 3-08-02 | 08 | 5 | LOOK-07 | T-3-05 | misses logged in fixtures/reel-log.md, never committed | manual (blind test) | — (checkpoint) | n/a | ⬜ pending |
-| 3-09-01 | 09 | 6 | LOOK-01 | — | EDITOR.md written by the user, never by a task | manual (decision) | — (checkpoint) | n/a | ⬜ pending |
-| 3-09-02 | 09 | 6 | LOOK-01, LOOK-07 | T-3-09, T-3-10 | privacy scan before push; main untouched | integration | `grep -q "v2r look" EDITOR.md && grep -q "look.log" EDITOR.md && uv run pytest -q && ! (uv run python -m v2r doctor \| grep -q MISSING)` | ✅ | ⬜ pending |
-| 3-09-03 | 09 | 6 | LOOK-01, LOOK-07 | T-3-07 | look.json read as data by the chat | manual (phone) | — (checkpoint: phone sheet test and a reel) | n/a | ⬜ pending |
+| 3-06-01 | 06 | 4 | LOOK-02 | T-3-17 | frame numbers clamped to the last frame | unit | `uv run pytest tests/test_look_extras.py -x -q` | ❌ W0 (the task creates tests/test_look_extras.py) | ⬜ pending |
+| 3-06-02 | 06 | 4 | LOOK-02, LOOK-06 | T-3-04 | extras capped, so commands and sheets stay bounded | integration | `uv run pytest tests/test_look_extras.py -x -q` | ❌ W0 | ⬜ pending |
+| 3-07-01 | 07 | 5 | LOOK-04 | T-3-18 | no selected field; facts-only reasons | unit | `uv run pytest tests/test_look_candidates.py -x -q` | ❌ W0 (the task creates tests/test_look_candidates.py) | ⬜ pending |
+| 3-07-02 | 07 | 5 | LOOK-04, LOOK-06 | T-3-07, T-3-18 | reasons built from fixed phrases and real still labels only | integration | `uv run pytest tests/test_look_candidates.py -x -q` | ❌ W0 | ⬜ pending |
+| 3-08-01 | 08 | 6 | LOOK-07 | T-3-05, T-3-06 | executor writes only work/check-look/, never the work/ root or fixtures/; full suite in step 1 and the acceptance | integration | `test -f work/check-look/look.json && test -f work/check-look/sheets/sheet-01.jpg` | ✅ | ⬜ pending |
+| 3-08-02 | 08 | 6 | LOOK-07 | T-3-05 | misses logged in fixtures/reel-log.md, never committed | manual (blind test) | — (checkpoint) | n/a | ⬜ pending |
+| 3-09-01 | 09 | 7 | LOOK-01 | — | EDITOR.md written by the user, never by a task | manual (decision) | — (checkpoint) | n/a | ⬜ pending |
+| 3-09-02 | 09 | 7 | LOOK-01, LOOK-07 | T-3-09, T-3-10 | privacy scan before push; main untouched; full suite in the action and acceptance | integration | `grep -q "v2r look" EDITOR.md && grep -q "look.log" EDITOR.md && ! (uv run python -m v2r doctor \| grep -q MISSING) && test -z "$(git diff --name-only main...HEAD \| grep -E '^(fixtures\|work)/')"` | ✅ | ⬜ pending |
+| 3-09-03 | 09 | 7 | LOOK-01, LOOK-07 | T-3-07 | look.json read as data by the chat | manual (phone) | — (checkpoint: phone sheet test and a reel) | n/a | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -73,7 +74,7 @@ Every look test generates its clips with FFmpeg into tmp_path (tests/media.py) a
 
 No framework install: pytest, `tests/media.py` and the both-shapes test style already exist. Each code plan's first task creates its own test file test-first, so the "❌ W0" rows are filled by the task itself:
 
-- [ ] `tests/test_look.py` — plan 01 (tracer, labels, half-second count, frame clamp, run robustness), LOOK-01, LOOK-02, LOOK-03, LOOK-06
+- [ ] `tests/test_look.py` — plan 01 (tracer, labels, half-second count, frame clamp, run robustness, unit comments on every look setting, the documented look.json names), LOOK-01, LOOK-02, LOOK-03, LOOK-06
 - [ ] `tests/test_look_measure.py` — plan 04 (camera, shake, subject, shot changes, sharpness, brightness, colour, loudness, missing filters, parser edges), LOOK-03, LOOK-05, LOOK-06
 - [ ] `tests/test_look_sheets.py` — plan 05 (continuous fill, one orientation per sheet, cap and thinning, byte guard, no Pillow, no select, no font, full disk), LOOK-01, LOOK-06
 - [ ] `tests/test_look_extras.py` — plan 06 (peaks, gap in frames, cap and order, known-answer stills), LOOK-02, LOOK-06

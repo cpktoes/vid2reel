@@ -526,16 +526,23 @@ Add to `doctor.FILTERS`: `"select", "signalstats", "blurdetect", "scdet", "desha
 | A5 | Suggested thresholds (k=3, spread floor 0.25 to 0.5, shake limit, camera-still limit, ~10 percent blur margin) are starting points only | Section 5 | Wrong picks in the blind test; settings, tuned one at a time |
 | A6 | Real-footage evidence is one handheld walking clip (private; not named); one clip does not prove the correlation claim for all footage | Findings | If other footage shows a link, the camera/subject split could be improved later |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **How should a sideways clip's wide stills share a sheet with tall stills (D-13 vs D-15)?**
+Every question below was settled when the plans were written; each item names the plan that carries the answer.
+
+1. **How should a sideways clip's wide stills share a sheet with tall stills (D-13 vs D-15)?** — RESOLVED (plan 05)
    - Known: grids differ (4 across vs 3 across); orientation follows each working copy.
    - Unclear: whether D-15's "fill continuously" overrides orientation.
    - Recommendation: a sheet holds only one orientation; start a new sheet when the orientation changes (so a mixed job may use one extra part-filled sheet). If the planner prefers one grid, fit wide stills into tall cells with a dark margin on the *sheet only* (the "no bars" rule is about the finished video).
-2. **Refine D-10's wording?** The same filters are used, but "frame difference on the steadied picture is subject movement" did not hold in tests. Recommendation: build D-10's fallback as the default: three figures (movement, camera, shake) and a `subject` flag only where camera and shake are low. It needs one line in docs/decisions.md.
-3. **Should the sheet cap's thinning be decided before measuring?** Recommendation: yes (see the diagram note); base stills per clip follow from `working.seconds`, extras are at most a third more.
-4. **What exactly does a photo get as a candidate?** Recommendation: none; its entry says `kind: "photo"` with its one still.
-5. **Merged candidate length cap** (suggest 4 s) and **tier rule for pans** are new settings the planner must name.
+   - RESOLVED (plan 05, Task 1): a sheet holds one orientation; consecutive clips of the same orientation share sheets in letter order (D-15), and a new sheet with that orientation's grid starts whenever the orientation changes (4 by 3 for tall stills, 3 by 4 for wide, D-13). Plan 02 records it in docs/decisions.md.
+2. **Refine D-10's wording?** — RESOLVED (plan 04) The same filters are used, but "frame difference on the steadied picture is subject movement" did not hold in tests. Recommendation: build D-10's fallback as the default: three figures (movement, camera, shake) and a `subject` flag only where camera and shake are low. It needs one line in docs/decisions.md.
+   - RESOLVED (plan 04, Task 1): D-10's fallback is built as the default: look.json reports movement, camera and shake per half second, and `subject` is judged only where camera_state is "still" (null while the camera pans, shakes or was not measured). Plan 02 writes the docs/decisions.md line.
+3. **Should the sheet cap's thinning be decided before measuring?** — RESOLVED (plan 05) Recommendation: yes (see the diagram note); base stills per clip follow from `working.seconds`, extras are at most a third more.
+   - RESOLVED (plan 05, Task 2): yes; `pick.run_interval` decides the run's rhythm from the manifest's `working.seconds` before the first clip is measured, counting each clip's full extras allowance and a new sheet at each change of orientation, so the extras plan 06 adds can never push a run past MAX_SHEETS_PER_RUN.
+4. **What exactly does a photo get as a candidate?** — RESOLVED (plan 07) Recommendation: none; its entry says `kind: "photo"` with its one still.
+   - RESOLVED (plan 07, Task 2): none; a photo's `candidates` is an empty list, its entry keeps `kind: "photo"` and its one still (plan 01 gives it the one still, D-14).
+5. **Merged candidate length cap** (suggest 4 s) and **tier rule for pans** are new settings the planner must name. — RESOLVED (plans 01 and 07)
+   - RESOLVED: plan 01 names `CANDIDATE_MAX_SECONDS = 4.0` and `CANDIDATE_ALIKE_SHARE = 0.25` in settings.py; plan 07 (Task 1) applies the tier rule: tier 1 camera still throughout, tier 2 panning with no shake, tier 3 camera not measured, then movement, then earlier start.
 
 ## Environment Availability
 

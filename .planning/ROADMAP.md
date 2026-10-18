@@ -118,30 +118,33 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Tracer: one clip to a labelled contact sheet and look.json in both shapes, then several clips, skipped entries, photos, bad clips and clearing the last run (wave 1)
+- [ ] 03-01-PLAN.md — Tracer: one clip to a labelled contact sheet and look.json in both shapes, then several clips, skipped entries, photos, bad clips and clearing the last run, then every look setting with its unit and the whole look.json layout (wave 1)
 - [ ] 03-02-PLAN.md — Doctor lists every look filter; Stage 15 decisions, the PySceneDetect licence note, the look command and look.log recorded (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-03-PLAN.md — Push with permission and run doctor from the phone (wave 2, checkpoints)
 - [ ] 03-04-PLAN.md — Every measurement: camera, shake and subject, sharpness, shot changes, brightness, colour, loudness; a missing filter gives null (wave 2)
 - [ ] 03-05-PLAN.md — Sheets across a run: letter order, one orientation per sheet, the 20-sheet cap with up-front thinning, graceful fallbacks (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-06-PLAN.md — Extra stills at shot changes, movement while the camera is still and loud moments; known-answer still tests (wave 3)
+- [ ] 03-03-PLAN.md — Push with permission and run doctor from the phone, alone on the committed tree once plans 04 and 05 are done (wave 3, checkpoints)
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4** *(blocked on Wave 3 completion: waits for the phone's doctor report)*
 
-- [ ] 03-07-PLAN.md — Ranked candidate moments with facts-only reasons citing the stills (wave 4)
+- [ ] 03-06-PLAN.md — Extra stills at shot changes, movement while the camera is still and loud moments; known-answer still tests (wave 4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 03-08-PLAN.md — Mac demo and timing, then the user's Finder check and blind test on five clips (wave 5, checkpoint)
+- [ ] 03-07-PLAN.md — Ranked candidate moments with facts-only reasons citing the stills (wave 5)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 03-09-PLAN.md — The user's EDITOR.md look step, pre-push checks, push with permission, phone sheet test and a reel (wave 6, checkpoints)
+- [ ] 03-08-PLAN.md — Mac demo and timing, then the user's Finder check and blind test on five clips (wave 6, checkpoint)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 03-09-PLAN.md — The user's EDITOR.md look step, pre-push checks, push with permission, phone sheet test and a reel (wave 7, checkpoints)
 
 ### Phase 4: Stage 16 – Cut list and renderer
 
