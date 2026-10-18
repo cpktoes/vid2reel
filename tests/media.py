@@ -124,7 +124,7 @@ def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, 
         if video_filter:
             command += ["-filter:v:0", video_filter]
     command += ["-map", f"{inputs - 1}:a", "-t", str(seconds)]
-    command += ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-ar", "48000"]
+    command += ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-ar", "48000"]
     run([*command, str(path)])
     return path
 

@@ -17,12 +17,12 @@ def real_filters():
 def measured(tmp_path, shape, pattern, have=None, **options):
     """Make a look test clip in `tmp_path` and measure it directly; returns measure_clip's dict."""
     work = tmp_path / "work"
-    work.mkdir(exist_ok=True)
+    work.mkdir(parents=True, exist_ok=True)
     width, height = CLIP_SIZE[shape]
     clip = make_look_clip(work / "A.mp4", width, height, pattern, **options)
     entry = make_manifest(work, shape, [clip])["clips"][0]
     folder = tmp_path / "measuring"
-    folder.mkdir(exist_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
     return measure.measure_clip(clip, entry, set(real_filters()) if have is None else have, folder)
 
 
@@ -88,5 +88,46 @@ def test_parse_motion_header_and_rows(tmp_path):
 
 
 def test_chain_order():
-    have = {"fps", "scale", "signalstats", "scdet", "deshake", "metadata"}
-    assert filter_names(measure.video_chain(have)) == ["fps", "scale", "signalstats", "scdet", "deshake", "metadata"]
+    have = {"fps", "scale", "signalstats", "blurdetect", "scdet", "deshake", "metadata"}
+    assert filter_names(measure.video_chain(have)) == [
+        "fps", "scale", "signalstats", "blurdetect", "scdet", "deshake", "metadata"]
+    have.discard("deshake")
+    assert filter_names(measure.video_chain(have)) == ["fps", "scale", "signalstats", "blurdetect", "scdet", "metadata"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_sharpness_blurred_stretch(shape, tmp_path):
+    result = measured(tmp_path, shape, "blur", start=2.0, end=3.0)
+    blurred = halves_where(result, 2.0, 3.0)
+    assert [half["sharp"] for half in blurred] == [False, False]
+    outside = halves_where(result, 0.0, 1.5) + halves_where(result, 3.5, 99)
+    assert all(half["sharp"] is True for half in outside), outside
+    assert min(half["blur"] for half in blurred) > max(half["blur"] for half in outside)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_brightness_two_grey_levels(shape, tmp_path):
+    dark = measured(tmp_path / "dark", shape, "grey", level="0x303030")
+    light = measured(tmp_path / "light", shape, "grey", level="0xC0C0C0")
+    assert light["overall"]["brightness"] - dark["overall"]["brightness"] > 100
+    for low, high in zip(dark["halves"], light["halves"]):
+        assert high["brightness"] - low["brightness"] > 100
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_colour_cast(shape, tmp_path):
+    plain = measured(tmp_path / "plain", shape, "plain")["overall"]
+    cast = measured(tmp_path / "cast", shape, "cast")["overall"]
+    assert cast["red_shift"] - plain["red_shift"] > 4
+    assert plain["blue_shift"] - cast["blue_shift"] > 4
+    assert set(cast) == {"brightness", "brightness_low", "brightness_high", "blue_shift", "red_shift", "saturation"}
+    assert cast["brightness_low"] < cast["brightness"] < cast["brightness_high"]
+    assert cast["saturation"] > 0
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_flat_picture_has_no_sharpness(shape, tmp_path):
+    result = measured(tmp_path / "grey", shape, "grey", level="0x303030")
+    assert all(half["blur"] is None and half["sharp"] is None for half in result["halves"])
+    assert all(frame["blur"] is None for frame in result["frames"])
+    assert result["overall"]["saturation"] == 0

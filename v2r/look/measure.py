@@ -1,6 +1,14 @@
 """The measuring pass: one FFmpeg run over a working copy, read back as half-second summaries.
 
 This measures and reports; it decides nothing. A measurement that cannot be made is None, never a guess (D-21).
+
+What the numbers in a clip's `overall` mean (Stage 16's `match` reads them to make clips sit together):
+- `brightness`: the average brightness of the whole clip in 8-bit code values; 16 is black, 235 is white.
+- `brightness_low` and `brightness_high`: how dark the dark parts and how bright the bright parts are (the average of
+  each picture's darkest tenth and brightest tenth), same scale; far apart means a wide range of light and dark.
+- `blue_shift`: above 0 the clip leans blue, below 0 it leans yellow (0 is neutral).
+- `red_shift`: above 0 the clip leans red, below 0 it leans green (0 is neutral).
+- `saturation`: how strong the colour is; 0 is grey, bright bars are about 40, a very vivid clip is higher.
 """
 
 import errno
@@ -22,6 +30,7 @@ HEADER = re.compile(r"frame:(\d+)\s+pts:(-?\d+)\s+pts_time:(\S+)")
 # This table is the one place a measuring filter is named. The piece is built when the chain is built, from settings.
 MEASURES = [
     ("signalstats", "movement, brightness and colour", lambda: "signalstats"),
+    ("blurdetect", "sharpness", lambda: "blurdetect"),
     ("scdet", "shot changes", lambda: f"scdet=threshold={settings.SCENE_THRESHOLD}"),
     # deshake goes last because nothing uses its steadied picture; it is in the chain only to write its motion file.
     ("deshake", "camera movement and shake",
@@ -114,11 +123,30 @@ def camera_and_shake(rows, skip):
     return camera, shake
 
 
+def overall_of(blocks):
+    """The `overall` dict of a clip from all its analysed frames' signalstats (each value None if not measured)."""
+    def average(key):
+        return mean_of(finite(block.get(key)) for block in blocks)
+
+    def shift(value):
+        return None if value is None else value - settings.CHROMA_NEUTRAL
+
+    return {
+        "brightness": rounded(average("lavfi.signalstats.YAVG")),
+        "brightness_low": rounded(average("lavfi.signalstats.YLOW")),
+        "brightness_high": rounded(average("lavfi.signalstats.YHIGH")),
+        "blue_shift": rounded(shift(average("lavfi.signalstats.UAVG"))),
+        "red_shift": rounded(shift(average("lavfi.signalstats.VAVG"))),
+        "saturation": rounded(average("lavfi.signalstats.SATAVG")),
+    }
+
+
 def measure_video(path, seconds, have, folder):
-    """Run the measuring pass over `path`; returns (frames, motion_read).
+    """Run the measuring pass over `path`; returns (frames, overall, motion_read).
 
     `frames` has one dict per analysed frame: `t`, `movement`, `cut` (true on the first frame of a new shot, false
-    when it is not, None when scdet did not run), `camera`, `shake` and `brightness`; a value not measured is None.
+    when it is not, None when scdet did not run), `camera`, `shake`, `blur` (edge width in pixels, lower is sharper)
+    and `brightness`; a value not measured is None. `overall` is the clip's overall_of dict.
     `motion_read` is false when deshake ran but its motion file could not be matched to the frames.
 
     FFmpeg runs inside `folder` (a temporary folder) so its text files have plain fixed names. Raises
@@ -162,9 +190,10 @@ def measure_video(path, seconds, have, folder):
             "cut": cuts[index] if cut_ran else None,
             "camera": camera[index],
             "shake": shake[index],
+            "blur": finite(block.get("lavfi.blur")),  # a flat picture has no edges: nan, so None
             "brightness": finite(block.get("lavfi.signalstats.YAVG")),
         })
-    return frames, motion_read
+    return frames, overall_of(blocks), motion_read
 
 
 def half_count(seconds):
@@ -194,13 +223,17 @@ def camera_state(camera, shake):
 def summarise(frames, sound, seconds):
     """The half-second entries of a clip, in time order from t = 0.0.
 
-    Each has `t`, `movement`, `camera`, `shake`, `camera_state`, `subject`, `brightness` and `shot_change`.
-    `frames` are measure_video's dicts. A frame at exactly a half's start belongs to that half, and a frame past the
-    last half is counted in the last half. Cut frames (the first frame of a new shot) are left out of the movement,
-    camera and shake means, because the change from one shot to the next is not movement; the cut itself is reported
-    by `shot_change`. `subject` is true only where the camera is still and the picture moves, and None where the camera
-    pans, shakes or was not measured, so camera motion is never reported as a subject moving. `sound` is the loudness
-    series (empty until a later step measures it). A half without frames has None for its numbers.
+    Each has `t`, `movement`, `camera`, `shake`, `camera_state`, `subject`, `blur`, `sharp`, `brightness` and
+    `shot_change`. `frames` are measure_video's dicts. A frame at exactly a half's start belongs to that half, and a
+    frame past the last half is counted in the last half.
+
+    Cut frames (the first frame of a new shot) are left out of the movement, camera and shake means, because the change
+    from one shot to the next is not movement; the cut itself is reported by `shot_change`. `subject` is true only
+    where the camera is still and the picture moves, and None where the camera pans, shakes or was not measured, so
+    camera motion is never reported as a subject moving. `blur` is the half's mean edge width and `sharp` is true
+    unless that is more than BLUR_SPREADS spreads above the clip's median half (never judged against a fixed number).
+    `sound` is the loudness series (empty until a later step measures it). A half without frames has None for its
+    numbers.
     """
     per_half = round(settings.SUMMARY_SECONDS * settings.LOOK_FPS)  # analysed frames in one half second
     count = half_count(seconds)
@@ -209,6 +242,7 @@ def summarise(frames, sound, seconds):
         index = round(frame["t"] * settings.LOOK_FPS) // per_half
         bins[min(max(index, 0), count - 1)].append(frame)
     halves = []
+    blurs = []
     for index, members in enumerate(bins):
         steady = [f for f in members if not f["cut"]]
         movement = mean_of(f["movement"] for f in steady)
@@ -221,6 +255,8 @@ def summarise(frames, sound, seconds):
         shot_change = None
         if any(f["cut"] is not None for f in members):
             shot_change = any(f["cut"] for f in members)
+        blur = mean_of(f["blur"] for f in members)
+        blurs.append(blur)
         halves.append({
             "t": rounded(index * settings.SUMMARY_SECONDS),
             "movement": rounded(movement),
@@ -228,9 +264,20 @@ def summarise(frames, sound, seconds):
             "shake": rounded(shake),
             "camera_state": state,
             "subject": subject,
+            "blur": rounded(blur),
+            "sharp": None,
             "brightness": rounded(mean_of(f["brightness"] for f in members)),
             "shot_change": shot_change,
         })
+    # Sharpness is judged against the clip's own half seconds: real footage moves only 10 to 15 percent between sharp
+    # and blurred, so no fixed blur number could say "blurred".
+    known = [blur for blur in blurs if blur is not None]
+    if known:
+        middle = statistics.median(known)
+        spread = statistics.median(abs(blur - middle) for blur in known)
+        limit = middle + settings.BLUR_SPREADS * max(spread, settings.BLUR_SPREAD_FLOOR)
+        for half, blur in zip(halves, blurs):
+            half["sharp"] = None if blur is None else blur <= limit
     return halves
 
 
@@ -243,10 +290,11 @@ def measure_clip(path, entry, have, folder):
     seconds = entry["working"]["seconds"]
     notes = []
     frames = []
+    overall = overall_of([])
     pass_possible = all(name in have for name in NEEDED_FOR_ANY) and any(name in have for name, _, _ in MEASURES)
     if pass_possible:
         try:
-            frames, motion_read = measure_video(path, seconds, have, folder)
+            frames, overall, motion_read = measure_video(path, seconds, have, folder)
             if not motion_read:
                 notes.append(f"The camera movement of clip {entry['letter']} could not be read.")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
@@ -258,7 +306,7 @@ def measure_clip(path, entry, have, folder):
         shot_changes = [round(f["t"], 1) for f in frames if f["cut"]]
     return {
         "halves": summarise(frames, [], seconds),
-        "overall": {"brightness": rounded(mean_of(frame["brightness"] for frame in frames))},
+        "overall": overall,
         "shot_changes": shot_changes,
         "frames": frames,
         "sound": [],
