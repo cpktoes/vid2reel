@@ -6,7 +6,7 @@ current_phase: 3
 current_phase_name: Stage 15 – Seeing the footage
 status: planning
 stopped_at: Completed 02-08-PLAN.md
-last_updated: "2026-10-18T02:51:11.161Z"
+last_updated: "2026-10-18T02:55:34.567Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 2 complete, transitioned to Phase 3
 progress:
@@ -103,6 +103,7 @@ None.
 | 261014-rvv | Stage 14 review follow-ups: safe handbook recipe, proportional FFmpeg timeout, IN-01 and IN-05 | 2026-10-14 | 0d3f8e2 | [261014-rvv-stage-14-review-follow-ups-safe-handbook](./quick/261014-rvv-stage-14-review-follow-ups-safe-handbook/) |
 | 2 | Record the Stage 14 phone test of 2026-10-14 in docs/phone-limits.md | 2026-10-15 | 8e1fd6f | — |
 | 3 | Record the Stage 15 sampling decision (one still a second plus extras at movement peaks and scene changes) in CLAUDE.md, docs/decisions.md and the guide's seventeenth edition | 2026-10-17 | 7e81d4f | — |
+| 4 | Bring the guide's Stage 14 level with the build and publish the eighteenth edition; record in docs/decisions.md that both editions were made from Claude Code | 2026-10-17 | 048423e | — |
 
 ## Deferred Items
 
