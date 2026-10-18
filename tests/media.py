@@ -58,7 +58,7 @@ LOOK_FPS = 30  # frames a second of a look test clip, as in a working copy
 # Detail in both directions for the clips that need the camera to be measurable: bars plus two grids.
 # k is the clip's width over 360, so a wide clip, which look shrinks more, keeps lines as thick as a narrow one's.
 DETAIL = ("smptehdbars=size={w}x{h}:rate=30:duration={s},drawgrid=w={g1}:h={g1}:t={t1}:c=white,"
-          "drawgrid=w={g2}:h={g3}:t={t2}:c=black")
+          "drawgrid=w={g2}:h={g3}:t={t2}:c=black,gblur=sigma=1")
 
 
 def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, end=None, level=None, beep=None, speed=None):
