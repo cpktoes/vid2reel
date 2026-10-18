@@ -37,7 +37,7 @@ MEASURES = [
     ("scdet", "shot changes", lambda: f"scdet=threshold={settings.SCENE_THRESHOLD}"),
     # deshake goes last because nothing uses its steadied picture; it is in the chain only to write its motion file.
     ("deshake", "camera movement and shake",
-     lambda: f"deshake=rx={settings.DESHAKE_RANGE}:ry={settings.DESHAKE_RANGE}:filename=motion.txt"),
+     lambda: f"deshake=rx={settings.DESHAKE_RANGE}:ry={settings.DESHAKE_RANGE}:contrast={settings.DESHAKE_CONTRAST}:filename=motion.txt"),
 ]
 
 
