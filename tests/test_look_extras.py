@@ -1,6 +1,12 @@
 """Extra stills: where look adds a still besides the one-a-second rhythm (D-01, D-17), and proof that one lands on a moment."""
 
+import json
+
+import pytest
+from media import LOOK_FPS, make_bursts_clip, make_look_clip, make_manifest, white_share
+
 from v2r import settings
+from v2r.__main__ import main
 from v2r.look import pick
 
 FPS = 30
@@ -116,3 +122,82 @@ def test_short_clip_cap_zero():
     assert len(base) == 2
     measured = measured_of(halves_of(4, movement={2: 6.0}), shot_changes=[1.4])
     assert pick.extra_times(measured, base, 2.0, FPS) == []
+
+
+# ---- through the whole of look, on clips made with a known answer, in both shapes ----
+
+SIZE = {"tall": (360, 640), "wide": (640, 360)}  # the clip sizes swap with the shape
+MIN_GAP_FRAMES = round(settings.EXTRA_MIN_GAP * LOOK_FPS)
+
+
+def run_look(tmp_path, shape, make, kind="video"):
+    """Make clip A with `make(path, width, height)`, run look on it, and return (work folder, A's look.json entry)."""
+    work = tmp_path / "work"
+    work.mkdir()
+    width, height = SIZE[shape]
+    make(work / "A.mp4", width, height)
+    make_manifest(work, shape, [{"file": work / "A.mp4", "kind": kind}])
+    assert main(["look", str(work)]) == 0
+    (clip,) = json.loads((work / "look.json").read_text(encoding="utf-8"))["clips"]
+    stills = clip["stills"]
+    frames = [round(still["t"] * LOOK_FPS) for still in stills]
+    assert all(later - earlier >= MIN_GAP_FRAMES for earlier, later in zip(frames, frames[1:]))
+    assert [still["t"] for still in stills] == sorted(still["t"] for still in stills)
+    return work, clip
+
+
+def extras_of(clip, why=None):
+    return [still for still in clip["stills"] if still["why"] != "rhythm" and why in (None, still["why"])]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_moment_still_lands_on_square(shape, tmp_path):
+    # visible only from 4.2 to 4.8 s: no base still (4.0, 5.0) can show it, so only an extra can
+    work, clip = run_look(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="square", start=4.2, end=4.8))
+    assert not [s for s in clip["stills"] if s["why"] == "rhythm" and 4.0 < s["t"] < 5.0]
+    inside = [s for s in extras_of(clip, "movement") if 4.2 <= s["t"] <= 4.8]
+    assert inside, clip["stills"]
+    base = next(s for s in clip["stills"] if s["t"] == 4.0)
+    moment = white_share(work / inside[0]["sheet"], inside[0]["box"])
+    before = white_share(work / base["sheet"], base["box"])
+    assert moment >= before + 0.01
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_cut_still_after_shot_change(shape, tmp_path):
+    _, clip = run_look(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="cut", start=3.4))
+    assert [s for s in extras_of(clip, "shot change") if 3.4 < s["t"] <= 3.6 + 1e-6], clip["stills"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_sound_still_at_beep(shape, tmp_path):
+    _, clip = run_look(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, beep=(3.4, 3.6)))
+    assert [s for s in extras_of(clip, "sound") if abs(s["t"] - 3.5) <= 0.3 + 1e-6], clip["stills"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_extras_cap_holds(shape, tmp_path):
+    # five quick bursts, each well clear of the base stills: all five qualify and only the cap (8 // 3 = 2) stops them
+    _, clip = run_look(
+        tmp_path, shape, lambda p, w, h: make_bursts_clip(p, w, h, [1.35, 2.35, 4.35, 5.35, 6.35]))
+    assert len([s for s in clip["stills"] if s["why"] == "rhythm"]) == 8
+    extras = extras_of(clip)
+    assert len(extras) == 2, clip["stills"]
+    for still in extras:  # each one lands in a burst, not beside it
+        assert any(start - 0.05 <= still["t"] <= start + 0.35 for start in (1.35, 2.35, 4.35, 5.35, 6.35)), still
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_no_extras_static_silent(shape, tmp_path):
+    _, clip = run_look(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h))
+    assert extras_of(clip) == []
+    assert len(clip["stills"]) == 8
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_photo_gets_no_extras(shape, tmp_path):
+    _, clip = run_look(
+        tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="grey", level="0x7E7E7E", beep=(3.4, 3.6)),
+        kind="photo")
+    assert len(clip["stills"]) == 1
+    assert clip["stills"][0]["why"] == "rhythm"

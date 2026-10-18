@@ -129,6 +129,31 @@ def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, 
     return path
 
 
+BURST_SECONDS = 0.3  # how long a burst of make_bursts_clip lasts
+
+
+def make_bursts_clip(path, width, height, times, seconds=8):
+    """A silent clip shaped like a working copy with a quick burst of movement after each of `times`.
+
+    A white square a third of the width wide crosses the frame left to right during the 0.3 s after each time and is
+    hidden the rest of the time (by `overlay` with `eval=frame`, where `t` is time; a still square would change the
+    picture only on the frames where it appears and vanishes).
+    """
+    side = width // 3
+    x = f"-{side}"
+    for start in times:
+        end = round(start + BURST_SECONDS, 3)
+        x = f"if(between(t,{start},{end}),(t-{start})/{BURST_SECONDS}*({width}-{side}),{x})"
+    bars = BARS.format(w=width, h=height, fps=LOOK_FPS, s=seconds)
+    square = f"color=white:size={side}x{side}:rate={LOOK_FPS}:duration={seconds}"
+    graph = f"[0][1]overlay=x='{x}':y={(height - side) // 2}:eval=frame[v]"
+    run(["ffmpeg", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i", bars, "-f", "lavfi", "-i", square,
+         "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-filter_complex", graph,
+         "-map", "[v]", "-map", "2:a", "-t", str(seconds), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "12",
+         "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-ar", "48000", str(path)])
+    return path
+
+
 def make_audio(path, seconds=2):
     """A sound-only file (the beep, AAC in .m4a): not a video and not a photo."""
     run(["ffmpeg", "-loglevel", "error", "-nostdin", "-f", "lavfi", "-i", BEEP.format(s=seconds), "-c:a", "aac", str(path)])
@@ -256,6 +281,18 @@ def corner_mean_image(path, corner, size=20):
     left = 0 if side == "left" else width - size
     upper = 0 if top == "top" else height - size
     return ImageStat.Stat(grey.crop((left, upper, left + size, upper + size))).mean[0]
+
+
+def white_share(path, box):
+    """The share (0 to 1) of pixels in `box` ([left, top, right, bottom]) of a picture file whose three channels are all
+    at least 200 (near white), read by Pillow."""
+    from PIL import Image, ImageChops
+
+    with Image.open(path) as image:
+        red, green, blue = image.convert("RGB").crop(tuple(box)).split()
+    darkest = ImageChops.darker(ImageChops.darker(red, green), blue)  # per pixel, the lowest of the three channels
+    counts = darkest.histogram()
+    return sum(counts[200:]) / sum(counts)
 
 
 def make_manifest(work, shape, entries):

@@ -162,10 +162,18 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="v2r-look-") as folder:
         measured = measure.measure_clip(path, entry, have, folder)
-    # A photo is one still, labelled 00.0 (D-14); a video gets the base rhythm.
-    times = [0.0] if entry["kind"] == "photo" else pick.base_times(seconds, fps, rhythm)
-    numbers = [pick.frame_number(t, fps, seconds) for t in times]
+    # A photo is one still, labelled 00.0 (D-14); a video gets the base rhythm and the extras where a measurement
+    # says something happened (D-01, D-17), all in time order.
+    if entry["kind"] == "photo":
+        wanted = [(0.0, "rhythm")]
+    else:
+        base = pick.base_times(seconds, fps, rhythm)
+        wanted = [(t, "rhythm") for t in base]
+        wanted += [(extra["t"], extra["why"]) for extra in pick.extra_times(measured, base, seconds, fps)]
+        wanted.sort(key=lambda item: item[0])
+    numbers = [pick.frame_number(t, fps, seconds) for t, _ in wanted]
     times = [number / fps for number in numbers]  # the time of the working copy's own frame
+    reasons = [why for _, why in wanted]
     labels = [sheets.label(letter, t) for t in times]
     notes = list(measured["notes"])
     records = [{"sheet": None, "cell": None, "box": None} for _ in times]
@@ -186,8 +194,8 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
             return skipped_entry(entry, f"Clip {letter} could not be looked at.")
         notes.append(f"The stills of clip {letter} could not be taken, so it is not on the sheets.")
     stills = [
-        {"label": text, "t": measure.rounded(t), "why": "rhythm", **record}
-        for text, t, record in zip(labels, times, records)
+        {"label": text, "t": measure.rounded(t), "why": why, **record}
+        for text, t, why, record in zip(labels, times, reasons, records)
     ]
     return {
         "letter": letter,

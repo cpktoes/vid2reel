@@ -138,7 +138,8 @@ def movement_time(index, frames, middle):
     """Where the movement of the peak half second `index` is centred, in seconds.
 
     The middle of the analysed frames in that half and the halves either side, each weighted by how far its movement
-    rises above `middle` (the clip's median); the first frame of a new shot counts for nothing. When no frame rises
+    rises above `middle` (the clip's median); the first frame of a new shot counts for nothing. A frame's movement is
+    the change since the frame before it, so it is placed half an analysed frame earlier than the frame's own time. When no frame rises
     above the median, the middle of the half.
     """
     per_half = round(settings.SUMMARY_SECONDS * settings.LOOK_FPS)
@@ -150,7 +151,7 @@ def movement_time(index, frames, middle):
             continue
         weight = max(0.0, frame["movement"] - middle)
         total += weight
-        weighted += weight * frame["t"]
+        weighted += weight * (frame["t"] - 0.5 / settings.LOOK_FPS)  # a frame's change happened before its time
     if total <= 0:
         return (index + 0.5) * settings.SUMMARY_SECONDS
     return weighted / total
