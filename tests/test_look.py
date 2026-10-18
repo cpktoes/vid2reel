@@ -311,3 +311,56 @@ def test_run_without_ffmpeg(shape, tmp_path, monkeypatch, capsys):
 
     assert capsys.readouterr().err == "v2r look: FFmpeg is not installed here, so nothing was looked at.\n"
     assert (work / "look.json").read_text(encoding="utf-8") == '{"old": true}'
+
+
+LOOK_SETTINGS = [
+    "LOOK_WIDTH", "LOOK_FPS", "SUMMARY_SECONDS", "STILL_INTERVAL_STEPS", "MAX_SHEETS_PER_RUN", "SHEET_GRID",
+    "CELL_ASPECT", "SHEET_WIDTH", "SHEET_PADDING", "SHEET_BACKGROUND", "SHEET_JPEG_QUALITY", "LABEL_FONT_SHARE",
+    "LABEL_PADDING", "LABEL_BOX_COLOUR", "LABEL_TEXT_COLOUR", "LOOK_DECIMALS",
+    "SHEET_JPEG_QUALITY_STEP", "SHEET_JPEG_QUALITY_MIN", "SHEET_MAX_BYTES", "EXTRAS_SHARE", "EXTRA_MIN_GAP",
+    "PEAK_SPREADS", "MOVEMENT_SPREAD_FLOOR", "LOUDNESS_SPREAD_FLOOR", "SCENE_THRESHOLD", "CUT_STILL_DELAY",
+    "LOUDNESS_DELAY", "SILENCE_LUFS", "DESHAKE_RANGE", "SHAKE_WINDOW_SECONDS", "CAMERA_STILL_PX", "SHAKE_LIMIT_PX",
+    "SUBJECT_MOVEMENT_MIN", "BLUR_SPREADS", "BLUR_SPREAD_FLOOR", "CANDIDATE_SECONDS", "CANDIDATE_STEP",
+    "MAX_CANDIDATES", "CANDIDATE_MAX_SECONDS", "CANDIDATE_ALIKE_SHARE", "CHROMA_NEUTRAL",
+]
+
+
+def look_block_lines():
+    """The lines of v2r/settings.py from the `# look:` comment up to the `# doctor` comment."""
+    import pathlib
+
+    lines = pathlib.Path(settings.__file__).read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("# look:"))
+    end = next(i for i, line in enumerate(lines) if i > start and line.startswith("# doctor"))
+    return lines[start:end]
+
+
+def test_look_settings_have_unit_comments():
+    import re
+
+    assert len(LOOK_SETTINGS) == 41
+    for name in LOOK_SETTINGS:
+        assert hasattr(settings, name), f"{name} is not in v2r/settings.py"
+    block = look_block_lines()
+    assignments = [i for i, line in enumerate(block) if re.match(r"[A-Z][A-Z0-9_]* = ", line)]
+    assert {block[i].split(" = ")[0] for i in assignments} == set(LOOK_SETTINGS)  # nothing else, nothing missing
+    for i in assignments:
+        assert "#" in block[i] or block[i - 1].lstrip().startswith("#"), f"no unit comment: {block[i]}"
+
+
+LOOK_JSON_NAMES = [
+    "version", "shape", "finished", "stopped", "rhythm", "rhythm_thinned", "missing", "sheets", "clips",
+    "letter", "number", "status", "kind", "sentence", "file", "seconds", "orientation", "look_seconds", "overall",
+    "halves", "shot_changes", "stills", "candidates", "notes",
+    "brightness", "brightness_low", "brightness_high", "blue_shift", "red_shift", "saturation",
+    "t", "movement", "camera", "shake", "camera_state", "subject", "blur", "sharp", "loudness", "shot_change",
+    "label", "why", "sheet", "cell", "box",
+    "rank", "start", "end", "reason",
+    "LUFS",
+]
+
+
+def test_look_json_names_documented():
+    for name in LOOK_JSON_NAMES:
+        quoted = name if name == "LUFS" else f"`{name}`"  # a key is written in backticks, as in normalize's docstring
+        assert quoted in v2r.look.__doc__, f"{name} is not named in the v2r.look docstring"
