@@ -23,8 +23,11 @@ from v2r import normalize, settings
 # FFmpeg pieces without which no measuring pass can run at all; any other missing filter only loses its own numbers.
 NEEDED_FOR_ANY = ["fps", "scale", "metadata"]
 STATS_FILE = "stats.txt"  # a fixed plain name inside the temporary folder: no file name of the user's is ever in a filter
+LOUD_FILE = "loud.txt"  # the loudness readings, written beside the others
 MOTION_FILE = "motion.txt"  # deshake's own record of the camera's shift; its name is also written in MEASURES below
 HEADER = re.compile(r"frame:(\d+)\s+pts:(-?\d+)\s+pts_time:(\S+)")
+
+SOUND_FILTERS = ["ebur128", "ametadata"]  # the pieces of the separate pass over the sound alone
 
 # Every measuring filter, in the order it sits in the chain: (filter name, what it measures in words, the chain piece).
 # This table is the one place a measuring filter is named. The piece is built when the chain is built, from settings.
@@ -53,15 +56,27 @@ def rounded(value):
 
 
 def missing_measurements(have):
-    """One plain sentence for each measuring piece this computer's FFmpeg lacks (`have` is its set of filter names)."""
+    """One plain sentence for each measuring piece this computer's FFmpeg lacks (`have` is its set of filter names).
+
+    Without a piece every picture measurement needs, one sentence says so and nothing is measured at all. Otherwise a
+    missing filter loses only the numbers it feeds, which look writes as null.
+    """
+    def named(names):
+        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        return f"{listed} filter" if len(names) == 1 else f"{listed} filters"
+
     lacking = [name for name in NEEDED_FOR_ANY if name not in have]
     if lacking:
-        names = lacking[0] if len(lacking) == 1 else ", ".join(lacking[:-1]) + " and " + lacking[-1]
-        return [f"This computer's FFmpeg lacks the {names} filter, so nothing could be measured."]
-    return [
+        return [f"This computer's FFmpeg lacks the {named(lacking)}, so nothing could be measured (null in look.json)."]
+    sentences = [
         f"This computer's FFmpeg lacks the {name} filter, so {words} are not measured (null in look.json)."
         for name, words, _ in MEASURES if name not in have
     ]
+    lacking = [name for name in SOUND_FILTERS if name not in have]
+    if lacking:
+        sentences.append(
+            f"This computer's FFmpeg lacks the {named(lacking)}, so loudness is not measured (null in look.json).")
+    return sentences
 
 
 def video_chain(have):
@@ -196,6 +211,35 @@ def measure_video(path, seconds, have, folder):
     return frames, overall_of(blocks), motion_read
 
 
+def measure_loudness(path, seconds, have, folder):
+    """Run the sound-only pass over `path`; returns one dict per loudness reading, in time order.
+
+    Each has `t` (seconds, already moved back by LOUDNESS_DELAY because the reading describes sound a little before
+    it was printed) and `loudness` (momentary loudness in LUFS, None when silent or not a number). Raises
+    subprocess.CalledProcessError or TimeoutExpired when FFmpeg fails; the caller turns that into unknown values.
+    """
+    folder = Path(folder)
+    loud = folder / LOUD_FILE
+    loud.unlink(missing_ok=True)
+    command = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+        "-i", str(Path(path).resolve()),
+        "-map", "0:a:0", "-vn", "-af", f"ebur128=metadata=1,ametadata=mode=print:file={LOUD_FILE}", "-f", "null", "-",
+    ]
+    subprocess.run(
+        command, cwd=folder, capture_output=True, text=True, check=True, timeout=normalize.ffmpeg_timeout(seconds))
+    readings = []
+    for block in parse_metadata(loud):
+        if block["t"] is None:
+            continue
+        value = finite(block.get("lavfi.r128.M"))
+        readings.append({
+            "t": max(0.0, block["t"] - settings.LOUDNESS_DELAY),
+            "loudness": None if value is None or value < settings.SILENCE_LUFS else value,
+        })
+    return readings
+
+
 def half_count(seconds):
     """How many summary entries a clip of `seconds` has: one for every half second, at least one.
 
@@ -223,8 +267,8 @@ def camera_state(camera, shake):
 def summarise(frames, sound, seconds):
     """The half-second entries of a clip, in time order from t = 0.0.
 
-    Each has `t`, `movement`, `camera`, `shake`, `camera_state`, `subject`, `blur`, `sharp`, `brightness` and
-    `shot_change`. `frames` are measure_video's dicts. A frame at exactly a half's start belongs to that half, and a
+    Each has `t`, `movement`, `camera`, `shake`, `camera_state`, `subject`, `blur`, `sharp`, `brightness`, `loudness`
+    and `shot_change`. `frames` are measure_video's dicts. A frame at exactly a half's start belongs to that half, and a
     frame past the last half is counted in the last half.
 
     Cut frames (the first frame of a new shot) are left out of the movement, camera and shake means, because the change
@@ -232,8 +276,9 @@ def summarise(frames, sound, seconds):
     where the camera is still and the picture moves, and None where the camera pans, shakes or was not measured, so
     camera motion is never reported as a subject moving. `blur` is the half's mean edge width and `sharp` is true
     unless that is more than BLUR_SPREADS spreads above the clip's median half (never judged against a fixed number).
-    `sound` is the loudness series (empty until a later step measures it). A half without frames has None for its
-    numbers.
+    `sound` is measure_loudness's readings (empty when not measured): a half's `loudness` is its loudest
+    reading, a reading exactly on a boundary belonging to the later half. A half without frames or readings has None
+    for those numbers.
     """
     per_half = round(settings.SUMMARY_SECONDS * settings.LOOK_FPS)  # analysed frames in one half second
     count = half_count(seconds)
@@ -241,6 +286,11 @@ def summarise(frames, sound, seconds):
     for frame in frames:
         index = round(frame["t"] * settings.LOOK_FPS) // per_half
         bins[min(max(index, 0), count - 1)].append(frame)
+    heard = [[] for _ in range(count)]
+    for reading in sound:
+        index = math.floor(reading["t"] / settings.SUMMARY_SECONDS + 1e-6)  # exactly on a boundary: the later half
+        if 0 <= index < count and reading["loudness"] is not None:
+            heard[index].append(reading["loudness"])
     halves = []
     blurs = []
     for index, members in enumerate(bins):
@@ -267,6 +317,7 @@ def summarise(frames, sound, seconds):
             "blur": rounded(blur),
             "sharp": None,
             "brightness": rounded(mean_of(f["brightness"] for f in members)),
+            "loudness": rounded(max(heard[index])) if heard[index] else None,
             "shot_change": shot_change,
         })
     # Sharpness is judged against the clip's own half seconds: real footage moves only 10 to 15 percent between sharp
@@ -290,8 +341,10 @@ def measure_clip(path, entry, have, folder):
     seconds = entry["working"]["seconds"]
     notes = []
     frames = []
+    sound = []
     overall = overall_of([])
     pass_possible = all(name in have for name in NEEDED_FOR_ANY) and any(name in have for name, _, _ in MEASURES)
+    failed = False
     if pass_possible:
         try:
             frames, overall, motion_read = measure_video(path, seconds, have, folder)
@@ -300,15 +353,27 @@ def measure_clip(path, entry, have, folder):
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
             if isinstance(error, OSError) and error.errno == errno.ENOSPC:
                 raise
+            failed = True
             notes.append(f"The measurements of clip {entry['letter']} could not be made.")
+    # normalize adds silence to a clip with no sound; reading it would only give a floor value (RESEARCH Pitfall 10)
+    hears = (
+        pass_possible and not failed and not entry["working"].get("sound_added")
+        and all(name in have for name in SOUND_FILTERS))
+    if hears:
+        try:
+            sound = measure_loudness(path, seconds, have, folder)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
+            if isinstance(error, OSError) and error.errno == errno.ENOSPC:
+                raise
+            notes.append(f"The loudness of clip {entry['letter']} could not be measured.")
     shot_changes = None
     if frames and frames[0]["cut"] is not None:
         shot_changes = [round(f["t"], 1) for f in frames if f["cut"]]
     return {
-        "halves": summarise(frames, [], seconds),
+        "halves": summarise(frames, sound, seconds),
         "overall": overall,
         "shot_changes": shot_changes,
         "frames": frames,
-        "sound": [],
+        "sound": sound,
         "notes": notes,
     }
