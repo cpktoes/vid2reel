@@ -37,14 +37,14 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 
 ### Cut list and renderer (Stage 16)
 
-- [ ] **CUT-01**: schema/cutlist.schema.json defines the cut list: the canvas (tall 1080×1920 or wide 1920×1080, fps), ordered segments (clip, from, to in seconds, focus_x from 0 to 1, optional move, own sound kept or not), the look (filter "none" unless asked, mild per-clip touch-up numbers), the sound (track id, start point, fades, music level) and a "why" per segment citing a still, with room for text, speed, transitions and a voice track
+- [x] **CUT-01**: schema/cutlist.schema.json defines the cut list: the canvas (tall 1080×1920 or wide 1920×1080, fps), ordered segments (clip, from, to in seconds, focus_x from 0 to 1, optional move, own sound kept or not), the look (filter "none" unless asked, mild per-clip touch-up numbers), the sound (track id, start point, fades, music level) and a "why" per segment citing a still, with room for text, speed, transitions and a voice track
 - [x] **CUT-02**: `python -m v2r check` validates a cut list against the schema and the manifest and reports every problem as one plain-English sentence
 - [x] **CUT-03**: `python -m v2r render` builds the video from the cut list and the working copies alone, straight cuts only, every segment filling the canvas cropped around focus_x, with no letterbox and no blurred-background mode; a valid list is built exactly and an invalid one builds nothing
 - [x] **CUT-04**: A segment's optional move (push-in, pull-out, pan left, pan right) is a slow, steady change across the segment, capped in settings.py, and a photo's move is rendered from the full-resolution image
 - [x] **CUT-05**: `python -m v2r match` reads each clip's exposure and colour balance from look.json and writes a mild per-clip correction into the cut list, capped in settings.py; the renderer applies exactly those numbers and nothing else to colour, and the filter field accepts only "none" for now
 - [ ] **CUT-06**: Each segment's own sound can be on or off, music is laid underneath with the start point, fades and level from the cut list, and the finished mix is normalized to the loudness the main platforms target, with the figure used stated
 - [x] **CUT-07**: The output is an MP4 with H.264 video and AAC sound at the canvas size and frame rate, fast-start, under `MAX_RESULT_BYTES`, with a contact sheet of the finished video and a cover still alongside
-- [ ] **CUT-08**: Fields for text, speed, transitions and a voice track are accepted and ignored with a note
+- [x] **CUT-08**: Fields for text, speed, transitions and a voice track are accepted and ignored with a note
 - [ ] **CUT-09**: Golden renders exist in both shapes from generated clips, with expected length, size and a colour check at a known second, and the same cut list always makes the same video
 
 ### Editor's handbook (Stage 17)
