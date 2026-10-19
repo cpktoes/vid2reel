@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: stage-16-cut-list-and-renderer
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-10-19T21:17:47.062Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-10-19T21:37:21.755Z"
 last_activity: 2026-10-19
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 28
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 04 (stage-16-cut-list-and-renderer) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 Status: Ready to execute
 Last activity: 2026-10-19 — Phase 04 execution started
 
-Progress: [███████░░░] 68% (1 of 14 phases complete)
+Progress: [███████░░░] 71% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Progress: [███████░░░] 68% (1 of 14 phases complete)
 | Phase 03 P09 | 3 checkpoint round trips | 3 tasks | 4 files |
 | Phase 04 P02 | 5min | 2 tasks | 4 files |
 | Phase 04 P01 | about 1h (Task 2) | 2 tasks | 14 files |
+| Phase 04 P03 | 25 min plus 11 min 40 s suite | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: [Phase 3] Handheld pan reads shaky not panning (SHAKE_LIMIT_PX 2.0): left alone, candidate for a later tuning pass
 - [Phase 04]: 04-01: frames(s) = floor(round(s x 30, 6) + 0.5); whole clips use a thousandth-of-a-frame benefit
 - [Phase 04]: 04-01: check runs canvas, clips block, segments, fit in order, each only if earlier ones found nothing; one sentence per clip in the clips block
+- [Phase ?]: 04-03: missing_ffmpeg_features with no list named checks all five of doctor's lists; naming any encoder/filter/decoder list means unnamed muxers/demuxers are none, so normalize is unchanged
+- [Phase ?]: 04-03: render's FFmpeg piece check runs right after the FFmpeg-present check and before check, building and touching nothing
 
 ### Pending Todos
 
@@ -146,6 +149,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-19T21:17:47.041Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-10-19T21:37:21.691Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
