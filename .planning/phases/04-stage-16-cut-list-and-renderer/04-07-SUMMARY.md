@@ -101,7 +101,7 @@ None. The only new surface is `check` reading `music/library.json` through plan 
 
 ## Test results
 
-- `uv run pytest tests/test_cutlist_check.py -q`: 234 passed (tall and wide), a few seconds.
+- `uv run pytest tests/test_cutlist_check.py -q`: 233 passed (tall and wide), a few seconds.
 - Render tests after the length rule (tracer, video, sound, plan, settings): 177 passed in 3 min 3 s.
 - Full suite `uv run pytest -x -q`: 844 passed in 12 min 43 s.
 
