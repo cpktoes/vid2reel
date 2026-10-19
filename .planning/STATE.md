@@ -6,7 +6,7 @@ current_phase: 4
 current_phase_name: Stage 16 – Cut list and renderer
 status: planning
 stopped_at: Completed 03-09-PLAN.md
-last_updated: "2026-10-19T06:30:59.145Z"
+last_updated: "2026-10-19T06:38:03.264Z"
 last_activity: 2026-10-18
 last_activity_desc: Phase 3 complete, transitioned to Phase 4
 progress:
@@ -129,6 +129,7 @@ None.
 | 3 | Record the Stage 15 sampling decision (one still a second plus extras at movement peaks and scene changes) in CLAUDE.md, docs/decisions.md and the guide's seventeenth edition | 2026-10-17 | 7e81d4f | — |
 | 4 | Bring the guide's Stage 14 level with the build and publish the eighteenth edition; record in docs/decisions.md that both editions were made from Claude Code | 2026-10-17 | 048423e | — |
 | 5 | Record the Stage 15 phone tests in docs/phone-limits.md and settle the Stage 15 wording in CLAUDE.md and docs/decisions.md | 2026-10-18 | 6577548 | — |
+| 6 | Bring the guide's Stage 15 level with the build and publish the nineteenth edition; record it in docs/decisions.md | 2026-10-18 | 4bdbd92 | — |
 
 ## Deferred Items
 
