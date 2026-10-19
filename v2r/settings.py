@@ -126,6 +126,9 @@ RENDER_PIECE_PRESET = "ultrafast"  # x264 speed of each shot's scratch piece
 RENDER_PIECE_CRF = 10  # x264 quality of each scratch piece, lower is better; 10 is near lossless
 RENDER_X264_PRESET = "medium"  # x264 speed of the finished reel; join's own default
 RENDER_X264_CRF = 20  # x264 quality of the finished reel, lower is better; the bitrate ceiling from FIT_STEPS still applies
+MAX_CUTLIST_BYTES = 1_000_000  # bytes: a cut list larger than this is not read
+CUTLIST_ECHO_CHARS = 40  # characters: the longest piece of the list's own text a sentence repeats; longer text is cut, so a list cannot print a long instruction
+CUTLIST_MAX_DIGITS = 15  # digits: the longest whole number a cut list may hold; a longer one is refused before Python turns it into a number
 
 # Phone limits, measured in Claude's cloud workspace on 2026-10-12 (see docs/phone-limits.md)
 MAX_ATTACHMENT_BYTES = 400 * 1000**2  # one attached file: the app warns above this, but a 408.7 MB file still arrived

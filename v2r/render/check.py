@@ -7,6 +7,8 @@ Every sentence that repeats text from the list or the work folder passes it thro
 """
 
 import json
+import math
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,8 +33,8 @@ class Checked:
 
 
 def shown(value):
-    """Text from the list or a file, made safe to print."""
-    return normalize.clean_text(value)
+    """Text from the list, made safe to print and cut to settings.CUTLIST_ECHO_CHARS characters (T-4-06)."""
+    return normalize.clean_text(value, settings.CUTLIST_ECHO_CHARS)
 
 
 def is_number(value):
@@ -45,17 +47,62 @@ def shape_of(canvas):
     return plan.shape_of(canvas)
 
 
+class Refused(Exception):
+    """The reader met something a cut list may not hold; the message is the one sentence that says so."""
+
+
+def refuse_constant(text):
+    raise Refused(f"The cut list holds {shown(text)}, which is not a number a cut list may hold.")
+
+
+def read_float(text):
+    """A decimal number; one that overflows to infinity (such as 1e400) is refused."""
+    value = float(text)
+    if not math.isfinite(value):
+        refuse_constant(text)
+    return value
+
+
+def read_int(text):
+    """A whole number of at most settings.CUTLIST_MAX_DIGITS digits, checked before Python turns it into a number."""
+    if len(text.lstrip("-")) > settings.CUTLIST_MAX_DIGITS:
+        refuse_constant(text)
+    return int(text)
+
+
+def read_block(pairs):
+    """One block of the list as a dictionary; a name given twice in it is refused."""
+    block = {}
+    for key, value in pairs:
+        if key in block:
+            raise Refused(f'The cut list names "{shown(key)}" twice in one block; each name may appear once.')
+        block[key] = value
+    return block
+
+
 def read_cutlist(path):
-    """(data, problems): the cut list as Python data, or None and the sentence that says why not."""
+    """(data, problems): the cut list as Python data, or None and the sentence that says why not.
+
+    The reading is strict (T-4-03): a file that is too large, a list nested too deeply, NaN, infinity, a number that
+    overflows, a whole number of too many digits and a name given twice in one block are each refused in one sentence.
+    """
     path = Path(path)
     if not path.is_file():
-        return None, [f"There is no cut list at {shown(path)} yet."]
+        return None, [f"There is no cut list at {normalize.clean_text(path)} yet."]
     try:
+        if path.stat().st_size > settings.MAX_CUTLIST_BYTES:
+            return None, [f"The cut list is larger than {settings.MAX_CUTLIST_BYTES / 1e6:g} MB, so it was not read."]
         text = path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return None, [NOT_TEXT]
     try:
-        return json.loads(text), []
+        return json.loads(
+            text, parse_constant=refuse_constant, parse_float=read_float, parse_int=read_int,
+            object_pairs_hook=read_block), []
+    except Refused as refusal:
+        return None, [str(refusal)]
+    except RecursionError:
+        return None, ["The cut list is not valid JSON."]
     except json.JSONDecodeError as error:
         return None, [f"The cut list is not valid JSON (line {error.lineno}, column {error.colno}: {shown(error.msg)})."]
 
@@ -137,6 +184,64 @@ def working_seconds(entry):
     return float(seconds) if is_number(seconds) and seconds > 0 else None
 
 
+def plain_file(name, work_dir):
+    """True when `name` is the plain name of a file directly inside the work folder (T-4-02): no folders, no hidden names."""
+    if not isinstance(name, str) or not name or name.startswith(".") or Path(name).name != name:
+        return False
+    folder = Path(work_dir).resolve()
+    path = folder / name
+    return path.is_file() and path.resolve().parent == folder
+
+
+def letters_sentence(letters):
+    """"A", "A and B" or "A, B and C"."""
+    if len(letters) <= 1:
+        return "".join(letters)
+    return ", ".join(letters[:-1]) + " and " + letters[-1]
+
+
+def clips_problem(letter, record, manifest, work_dir):
+    """The one sentence that says why a clip of the list's clips block does not match the work folder, or None."""
+    if not look.LETTER.fullmatch(letter):
+        return f"The list's clips name \"{shown(letter)}\"; a clip's name must be a capital letter such as A."
+    found = next((entry for entry in manifest["clips"] if entry["letter"] == letter), None)
+    if found is None:
+        done = [entry["letter"] for entry in manifest["clips"] if entry.get("status") == "done"]
+        return f"Clip {letter} in this list is not in the work folder, which has clips {letters_sentence(done)}."
+    if found.get("status") == "skipped":
+        return f"Clip {letter} was skipped when the clips were converted, so it cannot be in the list."
+    entry = manifest_entry(manifest, letter)
+    missing = f"The working copy of clip {letter} is missing or not in the work folder, so it cannot be built."
+    if entry is None:
+        return missing
+    name = (entry.get("original") or {}).get("name")
+    if unicodedata.normalize("NFC", record["file"]) != unicodedata.normalize("NFC", name if isinstance(name, str) else ""):
+        return f"Clip {letter} in this list was {shown(record['file'])}, but {letter} in the work folder is {shown(name)}."
+    folder_seconds = working_seconds(entry)
+    if folder_seconds is not None and plan.clip_frames(record["seconds"]) != plan.clip_frames(folder_seconds):
+        return (
+            f"Clip {letter} in this list is {record['seconds']:.2f} seconds long, "
+            f"but {letter} in the work folder is {folder_seconds:.2f} seconds long.")
+    facts = look.working_facts(entry, work_dir)
+    if isinstance(facts, str):
+        return missing
+    if abs(facts[2] - settings.OUTPUT_FPS) > 0.001:
+        return f"The working copy of clip {letter} is not at {settings.OUTPUT_FPS} frames a second, so normalize has to make it again."
+    if entry["kind"] == "photo" and not plain_file((entry.get("photo") or {}).get("file"), work_dir):
+        return f"The full-size copy of photo {letter} is missing from the work folder, so it cannot be built."
+    return None
+
+
+def clips_problems(data, manifest, work_dir):
+    """The list's clips block must be the work folder's clips: same letters, files and lengths, one sentence per clip (D-04)."""
+    problems = []
+    for letter, record in data["clips"].items():
+        problem = clips_problem(letter, record, manifest, work_dir)
+        if problem:
+            problems.append(problem)
+    return problems
+
+
 def segment_problems(data, manifest, work_dir):
     """Each shot, in the list's order, must be a real stretch of a clip the list names (D-05, D-13)."""
     problems = []
@@ -198,7 +303,12 @@ def check(cutlist_path=None, work_dir=None):
     checked.problems = structure_problems(data)
     if checked.problems:
         return checked
-    checked.problems = canvas_problems(data, manifest) + segment_problems(data, manifest, work_dir)
+    # Each rule runs only when the ones before it found nothing, so a sentence never rests on something already wrong.
+    checked.problems = canvas_problems(data, manifest)
+    if not checked.problems:
+        checked.problems = clips_problems(data, manifest, work_dir)
+    if not checked.problems:
+        checked.problems = segment_problems(data, manifest, work_dir)
     if not checked.problems:
         checked.problems = fit_problems(data)
     return checked
