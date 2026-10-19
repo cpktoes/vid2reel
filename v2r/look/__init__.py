@@ -9,9 +9,10 @@ Any value may be null when it could not be measured; it is never NaN or infinity
 Top level: `version` (1), `shape` ("tall" or "wide", from the manifest), `finished` (false until the last clip is
 done), `stopped` (null, or the sentence of a run that stopped as a whole), `rhythm` (seconds between base stills this
 run), `rhythm_thinned` (true when the run thinned the rhythm to stay within the sheet cap), `missing` (sentences naming
-what this computer could not measure or draw: a missing filter, no picture library, no scalable font), `sheets` (sheet
-file names relative to the work folder, in the order filled, such as "sheets/sheet-01.jpg") and `clips` (one entry per
-manifest entry, in letter order; letters and numbers are the manifest's, never recounted).
+what this computer could not measure or draw: a missing filter, no picture library, no scalable font; also the sheet cap
+or the run's time limit being reached), `sheets` (sheet file names relative to the work folder, in the order filled,
+such as "sheets/sheet-01.jpg") and `clips` (one entry per manifest entry, in letter order; letters and numbers are the
+manifest's, never recounted).
 Each clip: `letter`, `number`, `status` ("done" or "skipped"), `kind` ("video", "photo" or null). A skipped entry adds
 `sentence` and nothing more. A done entry adds `file` (the working copy's name, such as "A.mp4"), `seconds`,
 `orientation` ("tall" or "wide": the shape of its stills, which follows its working copy), `look_seconds` (seconds
@@ -57,6 +58,8 @@ UNREADABLE_MANIFEST = "The work folder's manifest.json could not be read, so not
 NO_FFMPEG = "FFmpeg is not installed here, so nothing was looked at."
 OUT_OF_ROOM = "The work folder ran out of room, so look stopped; the clips looked at so far are in look.json."
 LAST_LOOK_SHEETS = re.compile(r"^sheet-\d+(\.part)?\.jpg$")  # the last run's sheets, and only those
+LOOK_TEMP_PREFIX = ".v2r-look-"  # a hidden folder in the work folder holds the clip being looked at's scratch files
+LAST_LOOK_TEMP = re.compile(r"^\.v2r-look-[A-Za-z0-9_]+$")  # the prefix and what tempfile adds, and nothing else
 LETTER = re.compile(r"[A-Z]{1,3}")  # what normalize's letters look like; used whole (fullmatch), never with $
 
 
@@ -82,7 +85,12 @@ def writable(clip):
 
 
 def clear_last_look(work_dir):
-    """Delete the last run's look.json, look.json.tmp and sheets/sheet-NN.jpg files; nothing else, ever (D-08)."""
+    """Delete the last run's look.json, look.json.tmp, sheets/sheet-NN.jpg files and any scratch folder it left.
+
+    A scratch folder is a real folder (never a link) directly in the work folder whose whole name is look's hidden
+    prefix and the letters tempfile adds. Nothing else, ever (D-08). One that cannot be removed is harmless and does
+    not stop the run.
+    """
     work_dir = Path(work_dir)
     for name in ("look.json", "look.json.tmp"):
         leftover = work_dir / name
@@ -93,6 +101,9 @@ def clear_last_look(work_dir):
         for entry in sheets_folder.iterdir():
             if LAST_LOOK_SHEETS.match(entry.name) and entry.is_file():
                 entry.unlink()
+    for entry in work_dir.iterdir():
+        if LAST_LOOK_TEMP.match(entry.name) and entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry, ignore_errors=True)
 
 
 def read_manifest(work_dir):
@@ -170,54 +181,59 @@ def working_facts(entry, work_dir):
     return path, seconds, fps, size
 
 
-def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
-    """Measure one done clip and put its stills on the sheets; returns its look.json entry, or a skipped one."""
+def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem, deadline=None):
+    """Measure one done clip and put its stills on the sheets; returns its look.json entry, or a skipped one.
+
+    `deadline` (a time.monotonic() value, or None) is when the whole run must be over; every FFmpeg command is held
+    to it. The scratch files of the clip live in a hidden folder inside the work folder until the clip is done.
+    """
     path, seconds, fps, size = facts
     letter = entry["letter"]
     orientation = pick.orientation(size, shape)
     started = time.monotonic()
-    with tempfile.TemporaryDirectory(prefix="v2r-look-") as folder:
-        measured = measure.measure_clip(path, entry, have, folder, seconds)  # the cleaned seconds, not the raw text
-    # A photo is one still, labelled 00.0 (D-14); a video gets the base rhythm and the extras where a measurement
-    # says something happened (D-01, D-17), all in time order.
-    if entry["kind"] == "photo":
-        wanted = [(0.0, "rhythm")]
-    else:
-        base = pick.base_times(seconds, fps, rhythm)
-        wanted = [(t, "rhythm") for t in base]
-        wanted += [(extra["t"], extra["why"]) for extra in pick.extra_times(measured, base, seconds, fps)]
-        wanted.sort(key=lambda item: item[0])
-    numbers = [pick.frame_number(t, fps, seconds) for t, _ in wanted]
-    times = [number / fps for number in numbers]  # the time of the working copy's own frame
-    reasons = [why for _, why in wanted]
-    labels = [sheets.label(letter, t) for t in times]
-    notes = list(measured["notes"])
-    records = [{"sheet": None, "cell": None, "box": None} for _ in times]
-    taken = False
-    if picture_problem is None and book.full:
-        taken = True  # the sheet cap was reached by an earlier clip: its stills are listed, but not drawn
-    elif picture_problem is None:
-        cell_w, cell_h = sheets.cell_size(orientation)
-        fitted = sheets.fit_size(size[0], size[1], cell_w, cell_h)
-        # Only the stills that still fit within the sheet cap are read, and they arrive one at a time, so a long
-        # clip never holds all its pictures in memory; the rest are listed but not drawn.
-        fitting = min(len(numbers), book.room(orientation))
-        try:
-            pictures = sheets.grab_stills(path, numbers[:fitting], fitted, seconds)
-            records = book.add(zip(pictures, labels[:fitting]), orientation)
-            if fitting < len(numbers):
-                book.full = True
-                records += [{"sheet": None, "cell": None, "box": None}] * (len(numbers) - fitting)
-            taken = True
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
-            pass
-        except OSError as error:  # a sheet that could not be saved: the book is back as it was; the clip is kept
-            if error.errno == errno.ENOSPC:
-                raise
-    if not taken:
-        if not measured["measured"]:  # neither the picture measurements nor the stills could be made
-            return skipped_entry(entry, f"Clip {letter} could not be looked at.")
-        notes.append(f"The stills of clip {letter} could not be taken, so it is not on the sheets.")
+    with tempfile.TemporaryDirectory(prefix=LOOK_TEMP_PREFIX, dir=path.parent) as folder:
+        # the cleaned seconds, not the raw text
+        measured = measure.measure_clip(path, entry, have, folder, seconds, deadline)
+        # A photo is one still, labelled 00.0 (D-14); a video gets the base rhythm and the extras where a measurement
+        # says something happened (D-01, D-17), all in time order.
+        if entry["kind"] == "photo":
+            wanted = [(0.0, "rhythm")]
+        else:
+            base = pick.base_times(seconds, fps, rhythm)
+            wanted = [(t, "rhythm") for t in base]
+            wanted += [(extra["t"], extra["why"]) for extra in pick.extra_times(measured, base, seconds, fps)]
+            wanted.sort(key=lambda item: item[0])
+        numbers = [pick.frame_number(t, fps, seconds) for t, _ in wanted]
+        times = [number / fps for number in numbers]  # the time of the working copy's own frame
+        reasons = [why for _, why in wanted]
+        labels = [sheets.label(letter, t) for t in times]
+        notes = list(measured["notes"])
+        records = [{"sheet": None, "cell": None, "box": None} for _ in times]
+        taken = False
+        if picture_problem is None and book.full:
+            taken = True  # the sheet cap was reached by an earlier clip: its stills are listed, but not drawn
+        elif picture_problem is None:
+            cell_w, cell_h = sheets.cell_size(orientation)
+            fitted = sheets.fit_size(size[0], size[1], cell_w, cell_h)
+            # Only the stills that still fit within the sheet cap are read, and they arrive one at a time, so a long
+            # clip never holds all its pictures in memory; the rest are listed but not drawn.
+            fitting = min(len(numbers), book.room(orientation))
+            try:
+                pictures = sheets.grab_stills(path, numbers[:fitting], fitted, seconds, folder, deadline)
+                records = book.add(zip(pictures, labels[:fitting]), orientation)
+                if fitting < len(numbers):
+                    book.full = True
+                    records += [{"sheet": None, "cell": None, "box": None}] * (len(numbers) - fitting)
+                taken = True
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+                pass
+            except OSError as error:  # a sheet that could not be saved: the book is back as it was; the clip is kept
+                if error.errno == errno.ENOSPC:
+                    raise
+        if not taken:
+            if not measured["measured"]:  # neither the picture measurements nor the stills could be made
+                return skipped_entry(entry, f"Clip {letter} could not be looked at.")
+            notes.append(f"The stills of clip {letter} could not be taken, so it is not on the sheets.")
     stills = [
         {"label": text, "t": measure.rounded(t), "why": why, **record}
         for text, t, why, record in zip(labels, times, reasons, records)
@@ -249,7 +265,8 @@ def look(work_dir=None):
 
     Writes look.json and the contact sheets in `work_dir` and returns the look.json dictionary. A clip that can't
     be looked at is skipped with one sentence and the others carry on; only a run that can't go on at all (no
-    manifest, no FFmpeg, no room) raises LookError, and it deletes nothing when it cannot start.
+    manifest, no FFmpeg, no room) raises LookError, and it deletes nothing when it cannot start. A run that reaches
+    LOOK_RUN_SECONDS skips the clips it has not started, and still ends normally.
     """
     work_dir = Path(WORK_DIR if work_dir is None else work_dir)
     manifest = read_manifest(work_dir)
@@ -286,7 +303,9 @@ def look(work_dir=None):
     }
     write_look(work_dir, result)
     book = sheets.SheetBook(work_dir)
+    run_started = time.monotonic()
     said_full = False
+    said_time = False
     try:
         for entry in manifest["clips"]:
             letter = entry["letter"]
@@ -296,10 +315,21 @@ def look(work_dir=None):
                         entry, f"Clip {letter} was skipped when the clips were converted, so it has no stills.")
                 else:
                     facts = working_facts(entry, work_dir)
+                    deadline = run_started + settings.LOOK_RUN_SECONDS  # read now, so it is the setting's current value
                     if isinstance(facts, str):
                         clip = skipped_entry(entry, facts)
+                    elif time.monotonic() >= deadline:
+                        clip = skipped_entry(entry, f"Clip {letter} was not looked at because look reached its time limit.")
+                        if not said_time:
+                            said_time = True
+                            sentence = (
+                                f"look reached its time limit, so clip {letter} and any clips after it were not "
+                                "looked at.")
+                            missing.append(sentence)
+                            print(sentence, flush=True)
                     else:
-                        clip = look_at_clip(entry, facts, result["shape"], result["rhythm"], have, book, problem)
+                        clip = look_at_clip(
+                            entry, facts, result["shape"], result["rhythm"], have, book, problem, deadline)
             except OSError as error:
                 if error.errno == errno.ENOSPC:
                     raise

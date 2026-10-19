@@ -17,6 +17,7 @@ import math
 import re
 import statistics
 import subprocess
+import time
 from pathlib import Path
 
 from v2r import normalize, settings
@@ -40,6 +41,21 @@ MEASURES = [
     ("deshake", "camera movement and shake",
      lambda: f"deshake=rx={settings.DESHAKE_RANGE}:ry={settings.DESHAKE_RANGE}:contrast={settings.DESHAKE_CONTRAST}:filename={MOTION_FILE}"),
 ]
+
+
+def run_timeout(allowance, deadline):
+    """Seconds one FFmpeg command may take: `allowance`, cut to the time the whole run has left.
+
+    `deadline` is a time.monotonic() value, or None for no limit on the run. When no time is left it raises
+    subprocess.TimeoutExpired without starting anything, which every caller already treats as a command that ran too
+    long.
+    """
+    if deadline is None:
+        return allowance
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise subprocess.TimeoutExpired("ffmpeg", 0)
+    return min(allowance, left)
 
 
 def finite(text):
@@ -173,7 +189,7 @@ def overall_of(blocks):
     }
 
 
-def measure_video(path, seconds, have, folder):
+def measure_video(path, seconds, have, folder, deadline=None):
     """Run the measuring pass over `path`; returns (frames, overall, motion_read).
 
     `frames` has one dict per analysed frame: `t`, `movement`, `cut` (true on the first frame of a new shot, false
@@ -183,6 +199,8 @@ def measure_video(path, seconds, have, folder):
 
     FFmpeg runs inside `folder` (a temporary folder) so its text files have plain fixed names. Raises
     subprocess.CalledProcessError or TimeoutExpired when FFmpeg fails; the caller turns that into unknown values.
+    `deadline` (a time.monotonic() value, or None) is when the whole look run must be over: the command gets no more
+    time than that leaves (`run_timeout`).
     """
     folder = Path(folder)
     stats = folder / STATS_FILE
@@ -195,7 +213,8 @@ def measure_video(path, seconds, have, folder):
         "-map", "0:v:0", "-an", "-vf", video_chain(have), "-f", "null", "-",
     ]
     subprocess.run(
-        command, cwd=folder, capture_output=True, text=True, check=True, timeout=normalize.ffmpeg_timeout(seconds))
+        command, cwd=folder, capture_output=True, text=True, check=True,
+        timeout=run_timeout(normalize.ffmpeg_timeout(seconds), deadline))
     blocks = parse_metadata(stats)
     cut_ran = "scdet" in have
     cuts = [cut_ran and "lavfi.scd.time" in block for block in blocks]
@@ -228,12 +247,13 @@ def measure_video(path, seconds, have, folder):
     return frames, overall_of(blocks), motion_read
 
 
-def measure_loudness(path, seconds, have, folder):
+def measure_loudness(path, seconds, have, folder, deadline=None):
     """Run the sound-only pass over `path`; returns one dict per loudness reading, in time order.
 
     Each has `t` (seconds, already moved back by LOUDNESS_DELAY because the reading describes sound a little before
     it was printed) and `loudness` (momentary loudness in LUFS, None when silent or not a number). Raises
     subprocess.CalledProcessError or TimeoutExpired when FFmpeg fails; the caller turns that into unknown values.
+    `deadline` is as in `measure_video`.
     """
     folder = Path(folder)
     loud = folder / LOUD_FILE
@@ -244,7 +264,8 @@ def measure_loudness(path, seconds, have, folder):
         "-map", "0:a:0", "-vn", "-af", f"ebur128=metadata=1,ametadata=mode=print:file={LOUD_FILE}", "-f", "null", "-",
     ]
     subprocess.run(
-        command, cwd=folder, capture_output=True, text=True, check=True, timeout=normalize.ffmpeg_timeout(seconds))
+        command, cwd=folder, capture_output=True, text=True, check=True,
+        timeout=run_timeout(normalize.ffmpeg_timeout(seconds), deadline))
     readings = []
     for block in parse_metadata(loud):
         if block["t"] is None:
@@ -349,14 +370,15 @@ def summarise(frames, sound, seconds):
     return halves
 
 
-def measure_clip(path, entry, have, folder, seconds=None):
+def measure_clip(path, entry, have, folder, seconds=None, deadline=None):
     """Everything look measures about one working copy.
 
     Returns {"halves", "overall", "shot_changes", "frames", "sound", "notes", "measured"}. If FFmpeg fails or runs too
     long every measurement is None and a note says so; the stills still go ahead (D-21). `measured` is true when the
     picture measuring pass ran and finished; it is false when it could not run or failed. A note about something
     smaller (camera movement, loudness) does not make it false. `seconds` is the clip's length as a number; look passes
-    the one it has already checked, and when it is not given the manifest's own is used.
+    the one it has already checked, and when it is not given the manifest's own is used. `deadline` (a
+    time.monotonic() value, or None) is when the whole look run must be over; both FFmpeg commands are held to it.
     """
     if seconds is None:
         seconds = entry["working"]["seconds"]
@@ -368,7 +390,7 @@ def measure_clip(path, entry, have, folder, seconds=None):
     failed = False
     if pass_possible:
         try:
-            frames, overall, motion_read = measure_video(path, seconds, have, folder)
+            frames, overall, motion_read = measure_video(path, seconds, have, folder, deadline)
             if not motion_read:
                 notes.append(f"The camera movement of clip {entry['letter']} could not be read.")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
@@ -382,7 +404,7 @@ def measure_clip(path, entry, have, folder, seconds=None):
         and all(name in have for name in SOUND_FILTERS))
     if hears:
         try:
-            sound = measure_loudness(path, seconds, have, folder)
+            sound = measure_loudness(path, seconds, have, folder, deadline)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
             if isinstance(error, OSError) and error.errno == errno.ENOSPC:
                 raise

@@ -10,7 +10,7 @@ import threading
 from pathlib import Path
 
 from v2r import normalize, settings
-from v2r.look import pick
+from v2r.look import measure, pick
 
 
 def label(letter, t):
@@ -70,7 +70,7 @@ def label_font(cell_w):
 def cell_size(orientation):
     """(width, height) in pixels of one cell on a sheet of this orientation, from the grid and the cell proportion."""
     columns, _ = settings.SHEET_GRID[orientation]
-    width = (settings.SHEET_WIDTH - (columns + 1) * settings.SHEET_PADDING) // columns
+    width = (settings.SHEET_WIDTH[orientation] - (columns + 1) * settings.SHEET_PADDING) // columns
     aspect_width, aspect_height = settings.CELL_ASPECT[orientation]
     return width, round(width * aspect_height / aspect_width)
 
@@ -90,7 +90,7 @@ def fit_size(width, height, cell_w, cell_h):
     return max(2, fitted_w // 2 * 2), max(2, fitted_h // 2 * 2)
 
 
-def grab_stills(path, frame_numbers, size, seconds):
+def grab_stills(path, frame_numbers, size, seconds, folder=None, deadline=None):
     """The pictures at `frame_numbers` of a working copy, each scaled to `size`, one at a time as Pillow RGB images.
 
     A generator: one FFmpeg run reads them all (a `select` filter and a raw pipe), and each picture is handed on as soon
@@ -98,6 +98,9 @@ def grab_stills(path, frame_numbers, size, seconds):
     backwards (time order); a number given twice gives the same picture twice and is read once. The generator raises
     ValueError when FFmpeg gave a different number of pictures than were asked for, and subprocess.CalledProcessError
     or TimeoutExpired when FFmpeg failed; FFmpeg is stopped if the caller stops asking for pictures.
+    FFmpeg's error text is kept in a temporary file made inside `folder` (the system's temporary area when None).
+    `deadline` (a time.monotonic() value, or None) is when the whole look run must be over: FFmpeg gets no more time
+    than that leaves, and TimeoutExpired is raised before it starts when none is left.
     """
     Image = pillow_modules()[0]
 
@@ -115,10 +118,10 @@ def grab_stills(path, frame_numbers, size, seconds):
         "-an", "-vf", f"select='{chooser}',scale={width}:{height}:flags=area",
         "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
     ]
-    timeout = normalize.ffmpeg_timeout(seconds)
+    timeout = measure.run_timeout(normalize.ffmpeg_timeout(seconds), deadline)
     frame_bytes = width * height * 3
     timed_out = threading.Event()
-    with tempfile.TemporaryFile() as errors:
+    with tempfile.TemporaryFile(dir=folder) as errors:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=errors)
 
         def stop():
@@ -190,7 +193,7 @@ class SheetBook:
     def start_sheet(self, orientation):
         Image = pillow_modules()[0]
         self.count += 1
-        size = (settings.SHEET_WIDTH, sheet_height(orientation))
+        size = (settings.SHEET_WIDTH[orientation], sheet_height(orientation))
         self.current = {
             "image": Image.new("RGB", size, settings.SHEET_BACKGROUND),
             "orientation": orientation,

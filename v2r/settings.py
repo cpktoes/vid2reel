@@ -66,9 +66,15 @@ SUMMARY_SECONDS = 0.5  # seconds each summary entry in look.json covers
 STILL_INTERVAL_STEPS = [1.0, 1.5, 2.0]
 MAX_SHEETS_PER_RUN = 20  # contact sheets one look run may make
 MAX_CLIP_SECONDS = 3 * 60 * 60  # seconds: the longest working copy look reads; a manifest that claims more is not believed
+# seconds a whole look run may take: a hang guard, not a speed goal. The phone measured about 0.5 s of work per second
+# of video (docs/phone-limits.md), so this covers about an hour of footage; clips not started by then are skipped
+LOOK_RUN_SECONDS = 30 * 60
 SHEET_GRID = {"tall": (4, 3), "wide": (3, 4)}  # (columns, rows) of cells on a sheet: 12 stills per sheet
 CELL_ASPECT = {"tall": (9, 16), "wide": (16, 9)}  # (width, height) proportion of one cell
-SHEET_WIDTH = 1950  # pixels wide a sheet is; Claude's viewer shrinks the long edge to about 1,568
+# pixels wide a sheet is, by the stills' orientation. Claude's viewer shrinks a picture's long edge to about 1,568, so a
+# tall sheet is 1192 wide and so 1568 high and is seen as made; a wide sheet stays 1950 by 1476 (only tall sheets were
+# resized, 2026-10-18)
+SHEET_WIDTH = {"tall": 1192, "wide": 1950}
 SHEET_PADDING = 8  # pixels between cells and round the edge of a sheet
 SHEET_BACKGROUND = (24, 24, 24)  # RGB, 0-255 per channel: the dark grey behind the stills
 SHEET_JPEG_QUALITY = 85  # JPEG quality, 1-100, a sheet is first saved at
