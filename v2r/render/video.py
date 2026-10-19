@@ -40,6 +40,36 @@ def perspective_filter(start, end, frames):
     return "perspective=" + ":".join(parts) + ":sense=source:eval=frame:interpolation=cubic"
 
 
+def touch_up_filter(record):
+    """The one colour step of render: the list's touch-up numbers as exact code-value arithmetic; "" for none.
+
+    `record` is the list's touch-up for the clip (brightness, blue and red offsets in 8-bit code values, saturation as
+    a multiplier), or None. A missing record, or one whose numbers are all neutral (0, 0, 0 and 1), builds no colour
+    filter at all, so the shot's colour is its working copy's own (CUT-05).
+    Brightness is added to Y. Each colour channel keeps its distance from the format's neutral value times the
+    saturation, plus its offset; the neutral value is the pivot of the multiply, never a target (D-24). The explicit
+    round() and limits are required: a bare lutyuv truncates (181.96 became 181) and its own limits depend on the
+    range the frame is tagged with. Only numbers formatted here enter the string (T-4-01).
+    """
+    if not record:
+        return ""
+    brightness, blue, red, saturation = (
+        float(record["brightness"]), float(record["blue"]), float(record["red"]), float(record["saturation"]))
+    if (brightness, blue, red, saturation) == (0.0, 0.0, 0.0, 1.0):
+        return ""
+    luma_low, luma_high = settings.LUMA_RANGE
+    chroma_low, chroma_high = settings.CHROMA_RANGE
+    neutral = settings.CHROMA_NEUTRAL
+
+    def colour(offset):
+        return (f"clip(round({neutral}+(val-{neutral})*{saturation:.6f}+({offset:.6f})),{chroma_low},{chroma_high})")
+
+    return (
+        f"lutyuv=y='clip(round(val+({brightness:.6f})),{luma_low},{luma_high})':"
+        f"u='{colour(blue)}':v='{colour(red)}'"
+    )
+
+
 FINISH = "format=yuv420p,setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709[v]"
 
 
@@ -51,25 +81,28 @@ def video_chain(segment, the_plan):
     A photo (D-21): the region is cut from the full-size upright picture, scaled to the canvas once, and that one
     frame is repeated for the length of the shot before the move, so a photo is as sharp as the picture allows. The
     JPEG is full range and needs the explicit conversion to the limited range of video.
-    The touch-up adds its step here, in this one place.
+    The touch-up adds its step here, in this one place: after the move, so the move's interpolation never mixes
+    corrected and uncorrected values, and on the canvas-sized picture rather than the source.
     """
     canvas_w, canvas_h = the_plan["canvas"]
     crop_w, crop_h, crop_x, crop_y = segment["crop"]
     move = perspective_filter(segment["window_start"], segment["window_end"], segment["frames"])
     move = f"{move}," if move else ""
+    touch_up = touch_up_filter(segment.get("touch_up"))
+    steps = move + (f"{touch_up}," if touch_up else "")
     if segment["kind"] == "photo":
         return (
             f"[0:v]crop={crop_w}:{crop_h}:{crop_x}:{crop_y}:exact=1,"
             f"scale={canvas_w}:{canvas_h}:flags=bicubic+accurate_rnd:out_color_matrix=bt709:out_range=tv,"
             f"format=yuv420p,setsar=1,loop=loop={segment['frames'] - 1}:size=1:start=0,"
-            f"setpts=N/({the_plan['fps']}*TB),{move}{FINISH}"
+            f"setpts=N/({the_plan['fps']}*TB),{steps}{FINISH}"
         )
     _, skip = plan.seek(segment["start_frame"])
     end = skip + segment["frames"]
     return (
         f"[0:v]trim=start_frame={skip}:end_frame={end},setpts=N/({the_plan['fps']}*TB),"
         f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
-        f"scale={canvas_w}:{canvas_h}:flags=bicubic+accurate_rnd,setsar=1,{move}{FINISH}"
+        f"scale={canvas_w}:{canvas_h}:flags=bicubic+accurate_rnd,setsar=1,{steps}{FINISH}"
     )
 
 
