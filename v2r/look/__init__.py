@@ -207,6 +207,9 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
             taken = True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
             pass
+        except OSError as error:  # a sheet that could not be saved: the book is back as it was; the clip is kept
+            if error.errno == errno.ENOSPC:
+                raise
     if not taken:
         if not measured["measured"]:  # neither the picture measurements nor the stills could be made
             return skipped_entry(entry, f"Clip {letter} could not be looked at.")

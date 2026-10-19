@@ -331,6 +331,57 @@ def test_only_the_stills_that_fit_are_read(shape, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("shape", SHAPES)
+def test_failed_save_leaves_the_book_as_it_was(shape, tmp_path, monkeypatch):
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3), (width, height, 3), (width, height, 2)])
+    real = sheets.SheetBook.save_current
+    calls = []
+
+    def flaky(self):
+        calls.append(1)
+        if len(calls) == 2:  # the save that follows clip B
+            raise OSError(errno.EIO, "the disk hiccuped")
+        real(self)
+
+    monkeypatch.setattr(sheets.SheetBook, "save_current", flaky)
+
+    look = run_look(work)
+
+    a, b, c = look["clips"]
+    assert (b["status"], b["notes"]) == ("done", ["The stills of clip B could not be taken, so it is not on the sheets."])
+    assert all(still["sheet"] is None for still in b["stills"])
+    assert len(b["halves"]) == 6  # B's measurements stand
+    assert [still["cell"] for still in a["stills"]] == [1, 2, 3]
+    assert [still["cell"] for still in c["stills"]] == [4, 5]  # C starts right after A: B left no blank cells
+    assert look["sheets"] == ["sheets/sheet-01.jpg"]
+    assert sorted(path.name for path in (work / "sheets").iterdir()) == ["sheet-01.jpg"]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_failed_save_after_a_sheet_was_filled_removes_its_files(shape, tmp_path, monkeypatch):
+    width, height = TALL_SIZE[shape]
+    columns, rows = settings.SHEET_GRID[shape]
+    work = make_job(tmp_path, shape, [(width, height, columns * rows + 2)])  # runs onto a second sheet
+    real = sheets.SheetBook.save_current
+    calls = []
+
+    def flaky(self):
+        calls.append(1)
+        if len(calls) == 2:  # the first sheet was saved when it filled; the second cannot be
+            raise OSError(errno.EIO, "the disk hiccuped")
+        real(self)
+
+    monkeypatch.setattr(sheets.SheetBook, "save_current", flaky)
+
+    look = run_look(work)
+
+    (clip,) = look["clips"]
+    assert clip["status"] == "done" and all(still["sheet"] is None for still in clip["stills"])
+    assert look["sheets"] == []
+    assert list((work / "sheets").iterdir()) == []  # neither the filled sheet nor a half-written one is left
+
+
+@pytest.mark.parametrize("shape", SHAPES)
 def test_stills_command_that_hangs_keeps_the_measurements(shape, tmp_path, monkeypatch):
     import types
 

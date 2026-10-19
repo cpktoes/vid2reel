@@ -166,6 +166,7 @@ class SheetBook:
         self.count = 0  # sheets started so far
         self.current = None  # the sheet being filled: {"image", "orientation", "number", "used"}
         self.full = False  # true once a still needed a sheet beyond MAX_SHEETS_PER_RUN; nothing after it is placed
+        self.saved = []  # the number of every sheet saved so far, one entry for each save, in order
 
     def names(self):
         """The sheet names made so far, in order, relative to the work folder, such as "sheets/sheet-01.jpg"."""
@@ -212,6 +213,7 @@ class SheetBook:
                 break
             quality = max(settings.SHEET_JPEG_QUALITY_MIN, quality - settings.SHEET_JPEG_QUALITY_STEP)
         os.replace(part, final)
+        self.saved.append(self.current["number"])
 
     def add(self, stills, orientation):
         """Put `stills`, pairs of (image, label), on the sheets in order; any iterable of pairs will do.
@@ -220,7 +222,41 @@ class SheetBook:
         "box": [left, top, right, bottom] of the picture on the sheet, in pixels}.
         Never starts a sheet beyond MAX_SHEETS_PER_RUN: from the first still that would need one, `full` is true and
         that still and every one after it gets {"sheet": None, "cell": None, "box": None}.
+        If anything goes wrong part-way (a picture that does not arrive, a sheet that cannot be saved) the book is put
+        back as it was before the call, and the exception goes on, so the sheets always agree with look.json.
         """
+        before = {
+            "count": self.count,
+            "full": self.full,
+            "saved": len(self.saved),
+            "current": None if self.current is None else {**self.current, "image": self.current["image"].copy()},
+        }
+        try:
+            return self.place(stills, orientation)
+        except BaseException:
+            self.put_back(before)
+            raise
+
+    def put_back(self, before):
+        """Return the book to the state `add` took before its call; files this call made are removed or rewritten."""
+        resaved = set(self.saved[before["saved"]:])
+        for number in range(1, self.count + 1):
+            final = self.folder / Path(self.name(number)).name
+            part = final.with_name(f"{final.stem}.part.jpg")
+            part.unlink(missing_ok=True)
+            if number > before["count"]:
+                final.unlink(missing_ok=True)  # a sheet that was begun in this call and never belonged to the book
+        del self.saved[before["saved"]:]
+        self.count, self.full, self.current = before["count"], before["full"], before["current"]
+        if self.current is not None and self.current["number"] in resaved:
+            try:
+                self.save_current()  # the sheet that was filled again in this call is written as it was
+            except OSError:
+                pass  # the first problem is the one that is reported
+            del self.saved[before["saved"]:]
+
+    def place(self, stills, orientation):
+        """The work of `add`: put the stills on the sheets and save every sheet touched; see `add`."""
         ImageDraw = pillow_modules()[1]
         columns, rows = settings.SHEET_GRID[orientation]
         cell_w, cell_h = cell_size(orientation)
