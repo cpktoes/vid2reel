@@ -6,7 +6,9 @@ and a hidden scratch folder (.v2r-render-XXXX) that is always removed, whether t
 
 One piece per shot is built into the scratch folder, the pieces are joined, and the reel is encoded once, under the
 frame size and bitrate that join.fit gives for its length. The reel is written under a .part name, checked, and only
-then given its real name.
+then given its real name. Beside the reel goes its cover still (reel-SHAPE-STAMP-cover.jpg), the frame the cut list's
+cover names, or the first frame when it names none; it is made after the reel exists, so a failed run leaves the last
+reel's proof sheets and cover as they were.
 """
 
 import errno
@@ -219,4 +221,11 @@ def render(cutlist_path=None, work_dir=None):
     else:
         sentences.append(
             f"The proof sheets are in {work_dir / proof.FOLDER}: {', '.join(Path(n).name for n in sheet_names)}.")
+    cover = proof.cover_path(reel)
+    problem = proof.make_cover(reel, the_plan["cover_frame"], (width, height), cover, seconds)
+    if problem:
+        sentences.append(problem)
+    else:
+        sentences.append(
+            f"The cover still is {cover.name}, the frame at {the_plan['cover_frame'] / the_plan['fps']:.1f} seconds.")
     return reel, sentences

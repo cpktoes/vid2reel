@@ -4,16 +4,20 @@ That is where a black frame or a crop onto a shoulder shows. Sheets go in their 
 sheets are never touched.
 """
 
+import os
 import re
 import subprocess
 from pathlib import Path
 
+from v2r import settings
 from v2r.look import pick, sheets
 
 FOLDER = "proof"
 LAST_PROOF = re.compile(r"^proof-\d+(\.part)?\.jpg$")  # the last run's proof sheets, and only those
 NO_PICTURE_LIBRARY = "The picture library (Pillow) is not installed, so no proof sheet was made."
 NOT_MADE = "The proof sheets could not be made, so the reel was kept without them."
+NO_COVER_LIBRARY = "The picture library (Pillow) is not installed, so no cover still was made."
+COVER_NOT_MADE = "The cover still could not be made, so the reel was kept without it."
 
 
 def clear_last_proof(work_dir):
@@ -50,3 +54,30 @@ def make_proof(reel_path, the_plan, size, work_dir):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError, OSError):
         return [], NOT_MADE
     return book.names(), None
+
+
+def cover_path(reel_path):
+    """Where a reel's cover still goes: beside the reel, named for it."""
+    reel = Path(reel_path)
+    return reel.with_name(f"{reel.stem}-cover.jpg")
+
+
+def make_cover(reel_path, frame, size, cover, seconds=0):
+    """Save frame number `frame` of a finished reel as a JPEG at `cover`, whole or not at all; returns None or a sentence.
+
+    `size` is the reel's own (width, height), so the cover is the reel's frame size; `seconds` is the reel's length, which
+    sets how long FFmpeg may take to read as far as the frame. The sentence is set when no cover
+    could be made; the reel is kept.
+    """
+    if sheets.picture_problem():
+        return NO_COVER_LIBRARY
+    cover = Path(cover)
+    part = cover.with_name(f"{cover.stem}.part.jpg")
+    try:
+        for image in sheets.grab_stills(reel_path, [frame], size, seconds):
+            image.save(part, "JPEG", quality=settings.COVER_JPEG_QUALITY)
+        os.replace(part, cover)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError, OSError):
+        part.unlink(missing_ok=True)
+        return COVER_NOT_MADE
+    return None

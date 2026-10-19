@@ -120,10 +120,25 @@ def move_windows(move, canvas_size, focus, amount=None):
     return full, list(full)
 
 
+def cover_frame(cutlist, segments):
+    """The reel frame the cover still is: the first frame (0) when the list names no cover (D-09).
+
+    The cover names a shot by its 1-based number and a moment `at` seconds into it, so it follows its shot when the
+    reel is shortened or reordered. A moment that rounds past the shot's last frame is the last frame (the stated rule;
+    check allows an `at` only below the shot's length, so this is rounding and nothing else).
+    `segments` are the plan's segments.
+    """
+    cover = cutlist.get("cover")
+    if not cover:
+        return 0
+    segment = segments[cover["segment"] - 1]
+    return segment["reel_start"] + min(frames(cover["at"]), segment["frames"] - 1)
+
+
 def plan(cutlist, manifest):
     """What `render` will build, for a cut list that has passed `check`; segments stay in the list's order (D-13).
 
-    Returns {"shape", "canvas", "fps", "segments": [...], "total_frames", "seconds", "sound_block"}. Each segment
+    Returns {"shape", "canvas", "fps", "segments": [...], "cover_frame", "total_frames", "seconds", "sound_block"}. Each segment
     holds `number` (1-based), `clip`, `kind`, `working` (the working copy's file name), `photo` (the full-size copy's
     file name, or None), `source_size`, `start_frame`, `frames`, `reel_start`, `crop`, `share`, `focus`, `move`,
     `window_start`, `window_end` (canvas rectangles [x, y, w, h] the move runs between; equal when it does not move), `sound`
@@ -171,6 +186,7 @@ def plan(cutlist, manifest):
         "canvas": canvas,
         "fps": fps,
         "segments": segments,
+        "cover_frame": cover_frame(cutlist, segments),
         "total_frames": reel_start,
         "seconds": reel_start / fps,
         "sound_block": cutlist.get("sound") or {},

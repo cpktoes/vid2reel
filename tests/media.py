@@ -186,6 +186,23 @@ def make_colour_clip(path, width, height, seconds, yuv=(128, 128, 128), beep=Non
     return encode_picture(path, picture, seconds, beep, width, height)
 
 
+def make_split_clip(path, width, height, seconds, first, second, direction="across", beep=None):
+    """The same kind of clip in two flat colours, given as (Y, U, V) code values: `first` on the left half and `second`
+    on the right half ("across"), or `first` on the top half and `second` on the bottom half ("down").
+
+    A test that crops this clip around a focus point sees one colour or the other, so it proves where the crop was.
+    """
+    if direction not in ("across", "down"):
+        raise ValueError(direction)
+    where = "X" if direction == "across" else "Y"
+    size = "W" if direction == "across" else "H"
+    planes = ":".join(
+        f"{name}='if(lt({where},{size}/2),{first[number]},{second[number]})'"
+        for number, name in enumerate(("lum", "cb", "cr")))
+    picture = f"color=black:size={width}x{height}:rate=30:duration={seconds},format=yuv420p,geq={planes}"
+    return encode_picture(path, picture, seconds, beep, width, height)
+
+
 LINE_WIDTH = 4  # pixels: how thick the white lines of make_line_clip are
 
 
