@@ -1,10 +1,16 @@
 """The reel's sound: defaults, kept runs, the drop curve, the gain rule and the music library, as pure functions."""
 
+import array
 import json
 import math
+import re
+import subprocess
 
 import pytest
+from cutlists import clips_block, write_list
+from media import filter_names, make_colour_clip, make_manifest
 
+from v2r import render as render_module
 from v2r import settings
 from v2r.render import plan, sound
 
@@ -196,3 +202,232 @@ def test_track_whose_file_is_outside_the_music_folder(tmp_path):
     with pytest.raises(sound.LibraryError) as error:
         sound.track("hum", folder)
     assert str(error.value) == 'The music file for "hum" is missing from music/.'
+
+
+# --- the sound in a finished reel, measured with FFmpeg's own meters, in both shapes ---------------------------------
+
+SMALL = {"tall": (360, 640), "wide": (640, 360)}  # pictures are not what these tests measure, so the canvas is small
+TIMEOUT = 120
+
+
+@pytest.fixture
+def small(monkeypatch):
+    monkeypatch.setattr(settings, "SHAPES", dict(SMALL))
+    monkeypatch.setattr(settings, "RENDER_X264_PRESET", "ultrafast")
+
+
+def sound_work(tmp_path, shape, segments, music=None, clip_seconds=5.0, beep=None):
+    """A work folder with one clip A (a flat colour; its sound is a 1 kHz tone over `beep`, else silence) and a list.
+
+    `segments` are (from, to, sound) triples on clip A; `music` is the list's sound block, or None for no block.
+    Returns the work folder.
+    """
+    work = tmp_path / "work"
+    work.mkdir()
+    width, height = SMALL[shape]
+    make_colour_clip(work / "A.mp4", width, height, clip_seconds, (120, 128, 128), beep=beep)
+    manifest = make_manifest(work, shape, [work / "A.mp4"])
+    data = {
+        "version": 1,
+        "canvas": {"width": width, "height": height, "fps": settings.OUTPUT_FPS},
+        "clips": clips_block(manifest),
+        "segments": [
+            {"clip": "A", "from": start, "to": end, "sound": mode, "why": "a shot"} for start, end, mode in segments],
+    }
+    if music is not None:
+        data["sound"] = music
+    write_list(work, data)
+    return work
+
+
+def render_it(work):
+    """Render the work folder's list; returns (the reel's path, the closing sentences)."""
+    reel, sentences = render_module.render(work / "cutlist.json", work)
+    return reel, sentences
+
+
+def window_levels(path, start, end):
+    """(mean volume, max volume) in dB of the reel's sound between two times."""
+    err = subprocess.run(
+        ["ffmpeg", "-nostdin", "-i", str(path), "-vn", "-af", f"atrim=start={start}:end={end},volumedetect",
+         "-f", "null", "-"], capture_output=True, text=True, check=True, timeout=TIMEOUT).stderr
+    mean = float(re.search(r"mean_volume: (\S+) dB", err).group(1))
+    peak = float(re.search(r"max_volume: (\S+) dB", err).group(1))
+    return mean, peak
+
+
+def integrated_and_peak(path):
+    """(integrated loudness in LUFS, true peak in dBTP) of the reel's sound, from ebur128's summary."""
+    err = subprocess.run(
+        ["ffmpeg", "-nostdin", "-i", str(path), "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"],
+        capture_output=True, text=True, check=True, timeout=TIMEOUT).stderr
+    summary = err[err.rindex("Summary:"):]
+    loudness = float(re.search(r"I:\s+(\S+) LUFS", summary).group(1))
+    peak = float(re.search(r"Peak:\s+(\S+) dBFS", summary).group(1))
+    return loudness, peak
+
+
+def envelope_samples(expression, seconds, times):
+    """The values of an aevalsrc expression at the given times, rendered alone to raw 32-bit floats at 48 kHz."""
+    data = subprocess.run(
+        ["ffmpeg", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i",
+         f"aevalsrc='{expression}':s={settings.AUDIO_RATE}:d={seconds}", "-f", "f32le", "-"],
+        capture_output=True, check=True, timeout=TIMEOUT).stdout
+    values = array.array("f")
+    values.frombytes(data)
+    return [values[round(t * settings.AUDIO_RATE)] for t in times]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_kept_and_off_sound(shape, small, tmp_path):
+    work = sound_work(
+        tmp_path, shape, [(0.0, 2.0, "keep"), (2.0, 4.0, "off")], beep=(0.0, 5.0))
+    reel, sentences = render_it(work)
+    kept_mean, kept_peak = window_levels(reel, 0.2, 1.8)
+    _, off_peak = window_levels(reel, 2.2, 3.8)
+    assert kept_peak > -20
+    assert off_peak < -60
+    assert "sound evened to -14.0 LUFS" in sentences[-2]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_music_drops_under_kept_sound(shape, small, tmp_path):
+    work = sound_work(
+        tmp_path, shape, [(0.0, 1.5, "off"), (1.5, 3.0, "keep"), (3.0, 4.5, "off")],
+        music={"music": "test-tone", "fade_in": 0, "fade_out": 0, "music_under_sound": -12})
+    reel, _ = render_it(work)
+    first, _ = window_levels(reel, 0.3, 1.0)
+    kept, _ = window_levels(reel, 1.8, 2.7)
+    last, _ = window_levels(reel, 3.5, 4.3)
+    ramp, _ = window_levels(reel, 1.30, 1.40)  # the middle of the 0.3 second ramp that ends as the kept shot begins
+    assert first - kept == pytest.approx(12, abs=0.5)
+    assert last == pytest.approx(first, abs=0.5)
+    assert first - ramp == pytest.approx(6, abs=1.0)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_adjacent_kept_segments_hold_the_drop(shape, small, tmp_path):
+    work = sound_work(
+        tmp_path, shape, [(0.0, 1.5, "off"), (1.5, 3.0, "keep"), (3.0, 4.5, "keep")],
+        music={"music": "test-tone", "fade_in": 0, "fade_out": 0, "music_under_sound": -12})
+    reel, _ = render_it(work)
+    before, _ = window_levels(reel, 0.3, 1.0)
+    across, _ = window_levels(reel, 2.9, 3.1)  # either side of the cut between the two kept shots
+    end, _ = window_levels(reel, 3.5, 4.4)
+    assert before - across == pytest.approx(12, abs=0.5)
+    assert before - end == pytest.approx(12, abs=0.5)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_fades(shape, small, tmp_path):
+    work = sound_work(
+        tmp_path, shape, [(0.0, 2.25, "off"), (2.25, 4.5, "off")],
+        music={"music": "test-tone", "fade_in": 1.0, "fade_out": 1.5})
+    reel, _ = render_it(work)
+    middle, _ = window_levels(reel, 1.5, 2.9)
+    start, _ = window_levels(reel, 0.0, 0.1)
+    end, _ = window_levels(reel, 4.4, 4.5)
+    half, _ = window_levels(reel, 3.70, 3.80)  # the middle of the 1.5 second fade out, which begins at 3.0
+    assert middle - start > 15
+    assert middle - end > 15
+    assert middle - half == pytest.approx(6, abs=1.0)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("target", [None, -16])
+def test_loudness_is_evened_to_the_target(shape, target, small, tmp_path):
+    block = {"music": "test-tone", "music_under_sound": -12}
+    if target is not None:
+        block["loudness"] = target
+    work = sound_work(
+        tmp_path, shape, [(0.0, 2.0, "keep"), (2.0, 4.0, "off")], music=block, beep=(0.0, 5.0))
+    reel, sentences = render_it(work)
+    wanted = -14 if target is None else target
+    loudness, _ = integrated_and_peak(reel)
+    assert loudness == pytest.approx(wanted, abs=0.3)
+    assert f"sound evened to {wanted:.1f} LUFS." in sentences[-2]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_peak_ceiling_stops_the_gain(shape, small, tmp_path):
+    work = sound_work(tmp_path, shape, [(0.0, 2.0, "keep"), (2.0, 4.0, "keep")], music={"loudness": 0}, beep=(0.0, 5.0))
+    reel, sentences = render_it(work)
+    said = sentences[-2]
+    assert "short of the 0 LUFS target because the loudest peak would have gone past -1 dBTP." in said
+    figure = float(re.search(r"sound evened to (\S+) LUFS", said).group(1))
+    loudness, peak = integrated_and_peak(reel)
+    assert figure < 0
+    assert loudness == pytest.approx(figure, abs=0.3)  # the sentence states what the reel really measures
+    assert peak <= -0.5
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_silent_reel_has_a_silent_aac_track(shape, small, tmp_path):
+    work = sound_work(tmp_path, shape, [(0.0, 2.0, "off"), (2.0, 4.0, "off")])
+    reel, sentences = render_it(work)
+    info = json.loads(subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,channels", "-of", "json", str(reel)],
+        capture_output=True, text=True, check=True, timeout=TIMEOUT).stdout)
+    tracks = [item for item in info["streams"] if item["codec_type"] == "audio"]
+    assert [(item["codec_name"], item["channels"]) for item in tracks] == [("aac", 2)]
+    assert window_levels(reel, 0.0, 4.0)[1] <= -90
+    assert sentences[-2].endswith(", with no sound to even.")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_library_track_is_used(shape, small, tmp_path, monkeypatch):
+    folder = tmp_path / "music"
+    folder.mkdir()
+    # silent until 8 seconds into the track, then a 330 Hz tone: music_from 5 puts the tone 3 seconds into the reel
+    subprocess.run(
+        ["ffmpeg", "-nostdin", "-loglevel", "error", "-f", "lavfi", "-i",
+         "aevalsrc='0.5*sin(2*PI*330*t)*gt(t,8)':s=48000:d=30", "-c:a", "aac", str(folder / "hum.m4a")],
+        check=True, timeout=TIMEOUT)
+    (folder / "library.json").write_text(
+        json.dumps({"tracks": [{"id": "hum", "file": "hum.m4a", "seconds": 30.0}]}), encoding="utf-8")
+    monkeypatch.setattr(sound, "MUSIC_DIR", folder)
+    work = sound_work(
+        tmp_path, shape, [(0.0, 2.0, "off"), (2.0, 4.5, "off")],
+        music={"music": "hum", "music_from": 5.0, "fade_in": 0, "fade_out": 0})
+    reel, sentences = render_it(work)
+    assert window_levels(reel, 0.3, 2.7)[1] < -50
+    assert window_levels(reel, 3.3, 4.4)[0] > -40
+    assert sound.track("hum")["seconds"] == 30.0
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_drop_expression_matches_its_reference(shape):
+    runs = [(0.5, 2.0), (3.0, 3.5), (5.0, 6.0)]
+    expression = sound.drop_expression(runs, -12, 0.3)
+    times = [0.1, 0.3, 0.55, 2.1, 2.2, 2.45, 2.9, 3.2, 4.0, 5.9]
+    got = envelope_samples(expression, 7, times)
+    for t, value in zip(times, got):
+        assert 20 * math.log10(value) == pytest.approx(20 * math.log10(sound.gain_at(t, runs, -12, 0.3)), abs=0.05)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("music", [
+    None,
+    {"music": "test-tone"},
+    {"music": "test-tone", "music_under_sound": -12, "fade_in": 1.0, "fade_out": 2.0, "music_from": 3.0},
+])
+def test_sound_commands_use_only_listed_filters(shape, music, tmp_path):
+    manifest = {"clips": [clip_entry("A", shape)]}
+    width, height = settings.SHAPES[shape]
+    cutlist = {
+        "version": 1, "canvas": {"width": width, "height": height, "fps": 30},
+        "segments": [
+            {"clip": "A", "from": 0.0, "to": 2.0, "sound": "keep", "why": "a"},
+            {"clip": "A", "from": 2.0, "to": 4.0, "sound": "off", "why": "b"}],
+    }
+    if music is not None:
+        cutlist["sound"] = music
+    the_plan = plan.plan(cutlist, manifest)
+    command = sound.mix_command(the_plan, tmp_path, tmp_path / "mix.wav")
+    assert command == sound.mix_command(the_plan, tmp_path, tmp_path / "mix.wav")  # equal inputs, equal commands
+    graph = command[command.index("-filter_complex") + 1]
+    names = filter_names(re.sub(r"'[^']*'", "", graph))
+    assert set(names) <= set(render_module.RENDER_FILTERS), names
+    assert "loudnorm" not in graph and "acompressor" not in graph and "alimiter" not in graph
+    assert ("amix=inputs=2:duration=first:normalize=0" in graph) == (music is not None)
+    assert ("amultiply" in graph) == bool(music and music.get("music_under_sound"))

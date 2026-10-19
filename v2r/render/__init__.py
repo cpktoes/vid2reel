@@ -25,7 +25,7 @@ from v2r.render import check, plan, proof, sound, video
 RENDER_ENCODERS = ["libx264", "aac", "pcm_f32le"]
 RENDER_FILTERS = [
     "trim", "setpts", "crop", "scale", "setsar", "format", "setparams", "loop", "perspective", "lutyuv",
-    "atrim", "asetpts", "aformat", "anullsrc", "apad", "concat", "sine", "afade", "aevalsrc", "amultiply", "amix",
+    "atrim", "asetpts", "aformat", "aresample", "anullsrc", "apad", "concat", "sine", "afade", "aevalsrc", "amultiply", "amix",
     "volume", "ebur128", "ametadata", "select",
 ]
 RENDER_DECODERS = ["h264", "aac", "mjpeg", "pcm_f32le"]
@@ -169,12 +169,22 @@ def render(cutlist_path=None, work_dir=None):
         list_path.write_text(video.concat_list(names), encoding="utf-8")
 
         mix = scratch / "mix.wav"
-        run_step(
-            sound.mix_command(the_plan, work_dir, normalize.part_path(mix)), "mixing the sound", seconds,
-            normalize.part_path(mix), mix)
+        try:
+            mix_command = sound.mix_command(the_plan, work_dir, normalize.part_path(mix))
+        except sound.LibraryError as error:  # the music was fine when check ran and is not now
+            raise RenderError(str(error)) from error
+        run_step(mix_command, "mixing the sound", seconds, normalize.part_path(mix), mix)
+
+        # One plain gain evens the whole mix: no compression, no limiter, nothing that changes its own level over time.
+        wanted = sound.sound_settings(checked.cutlist)["loudness"]
+        try:
+            integrated, true_peak = sound.measure_loudness(mix, scratch, seconds)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError) as error:
+            raise RenderError("FFmpeg failed while measuring the sound, so nothing was built.") from error
+        gain, figure, capped = sound.gain_for(integrated, true_peak, wanted, settings.TRUE_PEAK_CEILING)
 
         run_step(
-            video.final_command(list_path, mix, fitted, 0.0, part, canvas=canvas), "encoding the reel", seconds, part)
+            video.final_command(list_path, mix, fitted, gain, part, canvas=canvas), "encoding the reel", seconds, part)
         self_check(part, fitted, the_plan["total_frames"])
         size = part.stat().st_size
         if size > settings.MAX_RESULT_BYTES:
@@ -193,7 +203,16 @@ def render(cutlist_path=None, work_dir=None):
         sentences.append(
             f"The reel is {join.minutes(seconds)} long, so it was made at {width}x{height} instead of "
             f"{canvas[0]}x{canvas[1]} to come back under the {settings.MAX_RESULT_BYTES / join.MIB:.0f} MiB limit.")
-    sentences.append(f"Made {reel.name}: {size / join.MIB:.1f} MiB, {width}x{height}, {seconds:.1f} seconds.")
+    made = f"Made {reel.name}: {size / join.MIB:.1f} MiB, {width}x{height}, {seconds:.1f} seconds"
+    if figure is None:
+        made += ", with no sound to even."
+    elif capped:
+        made += (
+            f", sound evened to {figure:.1f} LUFS, short of the {wanted:g} LUFS target because the loudest peak "
+            f"would have gone past {settings.TRUE_PEAK_CEILING:g} dBTP.")
+    else:
+        made += f", sound evened to {figure:.1f} LUFS."
+    sentences.append(made)
     sheet_names, problem = proof.make_proof(reel, the_plan, (width, height), work_dir)
     if problem:
         sentences.append(problem)

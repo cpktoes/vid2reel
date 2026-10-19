@@ -6,9 +6,11 @@ sample count and every shot's sound is exactly as long as its picture.
 
 import json
 import math
+import subprocess
 from pathlib import Path
 
 from v2r import ROOT, normalize, settings
+from v2r.look import measure
 from v2r.render import plan, video
 
 MUSIC_DIR = ROOT / "music"  # read when called, so a test can point it at a folder of its own
@@ -168,15 +170,60 @@ def samples_per_frame():
     return settings.AUDIO_RATE // settings.OUTPUT_FPS
 
 
-def mix_command(the_plan, work_dir, output):
-    """The one FFmpeg command that builds the sound bed (a float WAV) of the whole reel into `output`.
+def music_branch(the_plan, settings_for_reel, extra_input):
+    """The graph pieces that make the music: cut from `music_from`, faded, and dropped under kept sound; ends in [ducked].
 
-    The inputs are the working copies of the shots whose sound is kept, read over the same stretch as their picture.
-    A working copy always carries stereo AAC (normalize adds silence where a clip had none), so no other case exists.
+    The music's first sample is round(music_from x rate) and its length is exactly the bed's, so music_from is exact to
+    the sample and the music never needs looping or extending: a track too short is refused by check (D-15).
+    `extra_input` is the index of the library track among the command's inputs, or None for the generated test tone.
+    Every number is formatted here; the track's file reaches FFmpeg only as an input argument (T-4-01).
+    """
+    rate = settings.AUDIO_RATE
+    seconds = the_plan["seconds"]
+    length = the_plan["total_frames"] * samples_per_frame()
+    first = round(settings_for_reel["music_from"] * rate)
+    if extra_input is None:
+        source = (
+            f"sine=frequency={settings.TEST_TONE_HZ}:sample_rate={rate}:"
+            f"duration={settings_for_reel['music_from'] + seconds + 1:.6f}")
+    else:
+        source = f"[{extra_input}:a]aresample={rate}"
+    steps = [
+        source,
+        f"atrim=start_sample={first}:end_sample={first + length}",
+        f"asetpts=N/{rate}/TB",
+        f"aformat=sample_fmts=fltp:sample_rates={rate}:channel_layouts=stereo",
+    ]
+    fade_in, fade_out = settings_for_reel["fade_in"], settings_for_reel["fade_out"]
+    if fade_in > 0:  # a fade longer than the reel covers the whole reel
+        steps.append(f"afade=t=in:st=0:d={min(fade_in, seconds):.6f}")
+    if fade_out > 0:
+        steps.append(f"afade=t=out:st={max(0.0, seconds - fade_out):.6f}:d={min(fade_out, seconds):.6f}")
+    runs = kept_runs(the_plan)
+    drop = settings_for_reel["music_under_sound"]
+    dropped = drop < 0 and bool(runs)
+    graph = [",".join(steps) + ("[music]" if dropped else "[ducked]")]
+    if dropped:
+        graph.append(
+            f"aevalsrc='{drop_expression(runs, drop, settings.MUSIC_DROP_RAMP)}':s={rate}:d={seconds:.6f},"
+            "aformat=channel_layouts=mono[env]")
+        graph.append("[music][env]amultiply[ducked]")
+    return graph
+
+
+def mix_command(the_plan, work_dir, output):
+    """The one FFmpeg command that builds the sound of the whole reel (a float WAV) into `output`.
+
+    The bed is the working copies of the shots whose sound is kept, read over the same stretch as their picture, and
+    digital silence for the others. A working copy always carries stereo AAC (normalize adds silence where a clip had
+    none), so no other case exists. With a music id, the music is laid under the whole bed (music_branch) and the two
+    are added together at their own levels (normalize=0, or FFmpeg halves the bed). Raises LibraryError when the
+    music cannot be read.
     """
     per_frame = samples_per_frame()
     rate = settings.AUDIO_RATE
     form = f"aformat=sample_fmts=fltp:sample_rates={rate}:channel_layouts=stereo"
+    chosen = sound_settings({"sound": the_plan["sound_block"]})
     inputs, branches, labels = [], [], []
     kept = 0  # inputs given so far
     for index, segment in enumerate(the_plan["segments"]):
@@ -194,10 +241,45 @@ def mix_command(the_plan, work_dir, output):
             branches.append(f"anullsrc=r={rate}:cl=stereo,atrim=end_sample={length},{form}[s{index}]")
         labels.append(f"[s{index}]")
     branches.append(f"{''.join(labels)}concat=n={len(labels)}:v=0:a=1[bed]")
+    result = "[bed]"
+    if chosen["music"] is not None:
+        found = track(chosen["music"])
+        extra = None
+        if found["path"] is not None:
+            extra = kept
+            inputs += ["-i", str(found["path"])]
+        branches += music_branch(the_plan, chosen, extra)
+        branches.append("[bed][ducked]amix=inputs=2:duration=first:normalize=0[mix]")
+        result = "[mix]"
     return [
         *video.QUIET, "-y",
         *inputs,
         "-filter_complex", ";".join(branches),
-        "-map", "[bed]", "-c:a", "pcm_f32le", "-ar", str(rate), "-ac", "2",
+        "-map", result, "-c:a", "pcm_f32le", "-ar", str(rate), "-ac", "2",
         str(output),
     ]
+
+
+def measure_loudness(mix_path, folder, seconds):
+    """(integrated loudness in LUFS, loudest true peak as a multiplier) of the mix file, read with FFmpeg's ebur128.
+
+    One run with its working folder set to `folder`, the readings printed to the fixed name loud.txt there, so no name
+    of the user's is ever in a filter. The last reading printed is the whole mix's. Either value is None when it is
+    not a number. Raises subprocess.CalledProcessError or TimeoutExpired when FFmpeg fails, and ValueError when it
+    printed no reading.
+    """
+    folder = Path(folder)
+    loud = folder / measure.LOUD_FILE
+    loud.unlink(missing_ok=True)
+    command = [
+        *video.QUIET, "-y", "-i", str(Path(mix_path).resolve()),
+        "-af", f"ebur128=peak=true:metadata=1,ametadata=mode=print:file={measure.LOUD_FILE}", "-f", "null", "-",
+    ]
+    subprocess.run(
+        command, cwd=folder, capture_output=True, text=True, check=True, timeout=normalize.ffmpeg_timeout(seconds))
+    blocks = measure.parse_metadata(loud) if loud.is_file() else []
+    loud.unlink(missing_ok=True)
+    if not blocks:
+        raise ValueError("FFmpeg printed no loudness reading.")
+    last = blocks[-1]
+    return measure.finite(last.get("lavfi.r128.I")), measure.finite(last.get("lavfi.r128.true_peak"))
