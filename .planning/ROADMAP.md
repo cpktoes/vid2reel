@@ -159,36 +159,40 @@ Plans:
   4. Each segment's own sound can be kept or dropped, music sits underneath, and the finished mix is normalized to a stated loudness
   5. The output is an H.264/AAC fast-start MP4 under the send-back limit with a contact sheet and cover still alongside, and golden renders in both shapes prove the same cut list always makes the same video
 
-**Plans**: 10 plans
+**Plans**: 11 plans
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Tracer: a two-shot cut list through check and render to a reel that fills the canvas, fits the limit and has its proof sheet, in both shapes; doctor and settings.py know every piece and number of the stage (wave 1)
+- [ ] 04-01-PLAN.md — Tracer: a two-shot cut list through check and render to a reel that fills the canvas, fits the limit and has its proof sheet, in both shapes; check reads a list strictly and refuses a clips block that does not match the work folder (wave 1)
 - [ ] 04-02-PLAN.md — User checks, then installs, jsonschema; requirements.txt and docs/licenses.md (wave 1, checkpoint)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-03-PLAN.md — The rulebook schema/cutlist.schema.json, the two approved example lists, and one sentence per schema fault; accepted-but-not-built and unknown fields noted (wave 2)
-- [ ] 04-04-PLAN.md — Push-in, pull-out and pans, steady and measured smooth with the perspective filter; every photo built from its full-size copy (wave 2)
-- [ ] 04-05-PLAN.md — Sound: keep or off per shot, music from its start with fades, the drop under kept sound, the mix evened to -14 LUFS with the figure stated (wave 2)
+- [ ] 04-03-PLAN.md — Every Stage 16 number in settings.py with its unit and a guard test; doctor and render know every FFmpeg piece, and render refuses where one is missing (wave 2)
+- [ ] 04-04-PLAN.md — The rulebook schema/cutlist.schema.json, the two approved example lists, and one sentence per schema fault; accepted-but-not-built and unknown fields noted (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-06-PLAN.md — The whole rulebook against the work folder and the music, and the four notes (wave 3)
-- [ ] 04-07-PLAN.md — match writes capped per-clip touch-up numbers towards the median; render applies exactly those numbers (wave 3)
+- [ ] 04-05-PLAN.md — Push-in, pull-out and pans, steady and measured smooth with the perspective filter; every photo built from its full-size copy (wave 3)
+- [ ] 04-06-PLAN.md — Sound: keep or off per shot, music from its start with fades, the drop under kept sound, the mix evened to -14 LUFS with the figure stated (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 04-08-PLAN.md — Cover still, the size limit and failure safety, golden renders of both approved examples, the same list making the same video (wave 4)
+- [ ] 04-07-PLAN.md — The whole rulebook against the work folder and the music, and the four notes (wave 4)
+- [ ] 04-08-PLAN.md — match writes capped per-clip touch-up numbers towards the median; render applies exactly those numbers (wave 4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 04-09-PLAN.md — Stage 16 decisions in docs/decisions.md and CLAUDE.md, README commands, the last automated gates and the Watch-out answer (wave 5)
+- [ ] 04-09-PLAN.md — Cover still, the size limit and failure safety, golden renders of both approved examples, the same list making the same video (wave 5)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 04-10-PLAN.md — The user's EDITOR.md steps and choices, the push on his word, and the phone test in tall and wide (wave 6, checkpoints)
+- [ ] 04-10-PLAN.md — Stage 16 decisions in docs/decisions.md and CLAUDE.md, README commands, the last automated gates and the Watch-out answer (wave 6)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 04-11-PLAN.md — The user's EDITOR.md steps and choices, the push on his word, and the phone test in tall and wide (wave 7, checkpoints)
 
 ### Phase 5: Stage 17 – Editor's handbook
 
