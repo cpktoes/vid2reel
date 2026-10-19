@@ -129,6 +129,29 @@ RENDER_X264_CRF = 20  # x264 quality of the finished reel, lower is better; the 
 MAX_CUTLIST_BYTES = 1_000_000  # bytes: a cut list larger than this is not read
 CUTLIST_ECHO_CHARS = 40  # characters: the longest piece of the list's own text a sentence repeats; longer text is cut, so a list cannot print a long instruction
 CUTLIST_MAX_DIGITS = 15  # digits: the longest whole number a cut list may hold; a longer one is refused before Python turns it into a number
+MOVE_AMOUNT = 0.04  # share (0 to 1) of the frame every push-in, pull-out and pan moves by, used in full
+MUSIC_DROP_RAMP = 0.3  # seconds the music takes to drop before a kept-sound segment and to come back after it
+FADE_IN_SECONDS = 0.5  # seconds the music fades in over when the list states none
+FADE_OUT_SECONDS = 1.5  # seconds the music fades out over at the end when the list states none
+LOUDNESS_TARGET = -14  # LUFS, integrated: the loudness a reel is evened to when its list states none
+TRUE_PEAK_CEILING = -1  # dBTP: the evening gain stops before the loudest true peak would pass this
+MIN_REEL_SECONDS = 3  # seconds: the shortest reel the checker allows
+CROP_NOTE_SHARE = 0.5  # share (0 to 1) of a clip's picture below which the checker notes how little a crop keeps
+MAX_SEGMENTS = 120  # segments one cut list may hold: their first and last frames fill at most MAX_SHEETS_PER_RUN proof sheets
+TEST_TONE_ID = "test-tone"  # a name, not a number: the music id that stands for the generated test tone until Stage 18
+TEST_TONE_HZ = 220  # hertz: the test tone's pitch
+TEST_TONE_SECONDS = 300  # seconds the test tone lasts, as a track's length does
+COVER_JPEG_QUALITY = 92  # JPEG quality (1 to 100) of the cover still
+LUMA_RANGE = (16, 235)  # 8-bit code values of video black and white (a fact of the format): the touch-up's limits
+CHROMA_RANGE = (16, 240)  # 8-bit code values of the legal colour range (a fact of the format)
+
+# match: the touch-up's caps (D-23). They only ever nudge; halve them on sight if a touch-up reads as a filter.
+TOUCH_UP_MAX_BRIGHTNESS = 8  # 8-bit code values: the most match moves a clip's brightness either way
+TOUCH_UP_MAX_COLOUR = 4  # 8-bit code values: the most match moves a clip's blue or red either way
+TOUCH_UP_SATURATION_MIN = 0.92  # multiplier: the least colour match leaves
+TOUCH_UP_SATURATION_MAX = 1.08  # multiplier: the most colour match adds
+TOUCH_UP_DECIMALS = 1  # decimal places of the brightness, blue and red numbers match writes
+SATURATION_DECIMALS = 2  # decimal places of the saturation multiplier match writes
 
 # Phone limits, measured in Claude's cloud workspace on 2026-10-12 (see docs/phone-limits.md)
 MAX_ATTACHMENT_BYTES = 400 * 1000**2  # one attached file: the app warns above this, but a 408.7 MB file still arrived
