@@ -1,6 +1,8 @@
 import errno
 import json
 import subprocess
+import time
+from pathlib import Path
 
 import pytest
 from media import make_clip, make_manifest, sha256
@@ -53,7 +55,7 @@ def test_tracer_cli_one_clip_to_sheet_and_look_json(shape, tmp_path, capsys):
     assert {still["sheet"] for still in clip["stills"]} == {"sheets/sheet-01.jpg"}
 
     with Image.open(work / "sheets" / "sheet-01.jpg") as sheet:
-        assert sheet.size == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
+        assert sheet.size == (settings.SHEET_WIDTH[shape], sheets.sheet_height(shape))
         rgb = sheet.convert("RGB")
         left, top, _, _ = clip["stills"][0]["box"]
         assert all(channel < 40 for channel in rgb.getpixel((left + 2, top + 2)))  # the dark label box
@@ -196,12 +198,23 @@ def test_run_second_run_replaces_last_look(shape, tmp_path):
     (work / "sheets" / "sheet-05.jpg").write_bytes(b"old sheet")
     (work / "sheets" / "keep.txt").write_text("mine", encoding="utf-8")
     (work / "notes.txt").write_text("mine too", encoding="utf-8")
-    kept = ["manifest.json", "A.mp4", "notes.txt", "sheets/keep.txt"]
+    (work / ".v2r-look-old_1").mkdir()  # what a stopped run left behind
+    (work / ".v2r-look-old_1" / "stats.txt").write_text("leftover", encoding="utf-8")
+    (work / ".mine").mkdir()  # the user's own hidden folder
+    (work / ".mine" / "x.txt").write_text("mine three", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("not look's", encoding="utf-8")
+    (work / ".v2r-look-link").symlink_to(outside, target_is_directory=True)  # a name look might use, but a link
+    kept = ["manifest.json", "A.mp4", "notes.txt", "sheets/keep.txt", ".mine/x.txt"]
     before = {name: sha256(work / name) for name in kept}
+    outside_before = sha256(outside / "keep.txt")
 
     assert main(["look", str(work)]) == 0
 
     assert not (work / "sheets" / "sheet-05.jpg").exists()
+    assert not (work / ".v2r-look-old_1").exists()
+    assert sha256(outside / "keep.txt") == outside_before
     assert not (work / "look.json.tmp").exists()
     assert read_look(work)["version"] == 1
     assert {name: sha256(work / name) for name in kept} == before
@@ -341,8 +354,8 @@ def test_run_survives_a_clip_whose_numbers_are_not_finite(shape, tmp_path, monke
     make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2), clip_in(work, "B.mp4", shape, 2)])
     real = measure.measure_clip
 
-    def poisoned(path, entry, have, folder, seconds=None):
-        measured = real(path, entry, have, folder, seconds)
+    def poisoned(path, entry, have, folder, seconds=None, deadline=None):
+        measured = real(path, entry, have, folder, seconds, deadline)
         if entry["letter"] == "A":
             measured["overall"]["brightness"] = float("nan")  # whatever the source, a NaN must not reach look.json
         return measured
@@ -391,10 +404,10 @@ def test_run_measuring_and_stills_both_failed_skips_the_clip(shape, tmp_path, mo
     real_video = measure.measure_video
     real_stills = sheets.grab_stills
 
-    def fails_for_a(path, seconds, have, folder):
+    def fails_for_a(path, seconds, have, folder, *rest):
         if path.name == "A.mp4":
             raise subprocess.CalledProcessError(1, "ffmpeg")
-        return real_video(path, seconds, have, folder)
+        return real_video(path, seconds, have, folder, *rest)
 
     def stills_fail_for_a(path, *args):
         if path.name == "A.mp4":
@@ -491,7 +504,7 @@ def test_run_without_ffmpeg(shape, tmp_path, monkeypatch, capsys):
 
 
 LOOK_SETTINGS = [
-    "LOOK_WIDTH", "LOOK_FPS", "SUMMARY_SECONDS", "STILL_INTERVAL_STEPS", "MAX_SHEETS_PER_RUN", "MAX_CLIP_SECONDS", "SHEET_GRID",
+    "LOOK_WIDTH", "LOOK_FPS", "SUMMARY_SECONDS", "STILL_INTERVAL_STEPS", "MAX_SHEETS_PER_RUN", "MAX_CLIP_SECONDS", "LOOK_RUN_SECONDS", "SHEET_GRID",
     "CELL_ASPECT", "SHEET_WIDTH", "SHEET_PADDING", "SHEET_BACKGROUND", "SHEET_JPEG_QUALITY", "LABEL_FONT_SHARE",
     "LABEL_PADDING", "LABEL_BOX_COLOUR", "LABEL_TEXT_COLOUR", "LABEL_DECIMALS", "LOOK_DECIMALS",
     "SHEET_JPEG_QUALITY_STEP", "SHEET_JPEG_QUALITY_MIN", "SHEET_MAX_BYTES", "EXTRAS_SHARE", "EXTRA_MIN_GAP",
@@ -515,7 +528,7 @@ def look_block_lines():
 def test_look_settings_have_unit_comments():
     import re
 
-    assert len(LOOK_SETTINGS) == 44
+    assert len(LOOK_SETTINGS) == 45
     for name in LOOK_SETTINGS:
         assert hasattr(settings, name), f"{name} is not in v2r/settings.py"
     block = look_block_lines()
@@ -559,3 +572,79 @@ def test_run_measuring_command_that_hangs_still_takes_the_stills(shape, tmp_path
     assert all(half["movement"] is None for half in clip["halves"])
     assert clip["candidates"] == []  # nothing was measured, so no order is offered
     assert [still["sheet"] for still in clip["stills"]] == ["sheets/sheet-01.jpg"] * 3  # the stills went ahead
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_keeps_its_temporary_files_in_a_hidden_folder_inside_the_work_folder(shape, tmp_path, monkeypatch):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    real = measure.measure_video
+    seen = []
+
+    def spy(path, seconds, have, folder, *rest):
+        seen.append((Path(folder), Path(folder).is_dir()))
+        return real(path, seconds, have, folder, *rest)
+
+    monkeypatch.setattr(measure, "measure_video", spy)
+
+    assert main(["look", str(work)]) == 0
+
+    ((folder, existed),) = seen
+    assert existed and folder.parent == work.resolve() and folder.name.startswith(".v2r-look-")
+    assert not [entry for entry in work.iterdir() if entry.name.startswith(".v2r-look-")]
+
+
+def test_run_timeout_is_the_allowance_cut_to_the_time_the_run_has_left():
+    assert measure.run_timeout(50, None) == 50
+    assert measure.run_timeout(5, time.monotonic() + 100) == 5
+    assert 0 < measure.run_timeout(50, time.monotonic() + 10) <= 10
+    with pytest.raises(subprocess.TimeoutExpired):
+        measure.run_timeout(50, time.monotonic() - 1)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_that_reaches_its_time_limit_skips_the_clips_not_started(shape, tmp_path, monkeypatch, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, name, shape, 2) for name in ("A.mp4", "B.mp4", "C.mp4")])
+    real = v2r.look.look_at_clip
+
+    def then_time_runs_out(*args):
+        clip = real(*args)
+        monkeypatch.setattr(settings, "LOOK_RUN_SECONDS", 0)
+        return clip
+
+    monkeypatch.setattr(v2r.look, "look_at_clip", then_time_runs_out)
+
+    assert main(["look", str(work)]) == 0
+
+    document = read_look(work)
+    first, second, third = document["clips"]
+    assert first["status"] == "done"
+    assert (second["status"], second["sentence"]) == (
+        "skipped", "Clip B was not looked at because look reached its time limit.")
+    assert (third["status"], third["sentence"]) == (
+        "skipped", "Clip C was not looked at because look reached its time limit.")
+    sentence = "look reached its time limit, so clip B and any clips after it were not looked at."
+    assert document["missing"] == [sentence]
+    assert capsys.readouterr().out.count(sentence) == 1
+    assert document["finished"] is True and document["stopped"] is None
+    assert document["sheets"] == ["sheets/sheet-01.jpg"]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_every_ffmpeg_command_is_held_to_the_runs_deadline(shape, tmp_path, monkeypatch):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    real = measure.run_timeout
+    calls = []
+
+    def spy(allowance, deadline):
+        calls.append(deadline)
+        return real(allowance, deadline)
+
+    monkeypatch.setattr(measure, "run_timeout", spy)
+
+    assert main(["look", str(work)]) == 0
+
+    assert len(calls) == 3  # the picture pass, the sound pass and the stills
+    assert len(set(calls)) == 1 and isinstance(calls[0], float)

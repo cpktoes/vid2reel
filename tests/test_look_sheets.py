@@ -9,12 +9,12 @@ from v2r.__main__ import main
 from v2r.look import pick, sheets
 
 SHAPES = ["tall", "wide"]
-TALL_SIZE = {"tall": (360, 640), "wide": (640, 360)}  # the job's own orientation: portrait in a tall job, landscape in a wide one
+CLIP_SIZE = {"tall": (360, 640), "wide": (640, 360)}  # the job's own orientation: portrait in a tall job, landscape in a wide one
 
 
 def other_size(shape):
     """The clip size of the other orientation: sideways in a tall job, upright in a wide one."""
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     return height, width
 
 
@@ -67,7 +67,7 @@ def sheet_size(path):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_sheets_short_clips_share_a_sheet(shape, tmp_path):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 5), (width, height, 5)])
 
     look = run_look(work)
@@ -81,7 +81,7 @@ def test_sheets_short_clips_share_a_sheet(shape, tmp_path):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_sheets_new_sheet_when_orientation_changes(shape, tmp_path):
-    upright = TALL_SIZE[shape]
+    upright = CLIP_SIZE[shape]
     sideways = other_size(shape)
     work = make_job(tmp_path, shape, [(*upright, 3), (*sideways, 3), (*upright, 3)])
 
@@ -93,13 +93,13 @@ def test_sheets_new_sheet_when_orientation_changes(shape, tmp_path):
     assert [clip["stills"][0]["sheet"] for clip in look["clips"]] == look["sheets"]
     assert [clip["stills"][0]["cell"] for clip in look["clips"]] == [1, 1, 1]
     for name, orientation in zip(look["sheets"], [here, there, here]):
-        assert sheet_size(work / name) == (settings.SHEET_WIDTH, sheets.sheet_height(orientation))
+        assert sheet_size(work / name) == (settings.SHEET_WIDTH[orientation], sheets.sheet_height(orientation))
     assert sheets.sheet_height(here) != sheets.sheet_height(there)
 
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_sheets_exact_fill_then_next_sheet(shape, tmp_path):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     columns, rows = settings.SHEET_GRID[shape]
     full = columns * rows
     first = tmp_path / "exact"
@@ -126,7 +126,7 @@ def test_sheets_exact_fill_then_next_sheet(shape, tmp_path):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_sheets_order(shape, tmp_path):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 5), (width, height, 4), (width, height, 6)])
 
     look = run_look(work)
@@ -170,7 +170,7 @@ def test_sheets_square_follows_job_shape(shape, tmp_path):
 
     (clip,) = look["clips"]
     assert clip["orientation"] == shape
-    assert sheet_size(work / look["sheets"][0]) == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
+    assert sheet_size(work / look["sheets"][0]) == (settings.SHEET_WIDTH[shape], sheets.sheet_height(shape))
     left, top, right, bottom = clip["stills"][0]["box"]
     assert right - left == bottom - top
 
@@ -179,7 +179,7 @@ def test_sheets_square_follows_job_shape(shape, tmp_path):
 def test_sheet_bytes_guard(shape, tmp_path, monkeypatch):
     from PIL import Image
 
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     plain = tmp_path / "plain"
     plain.mkdir()
     roomy = run_look(make_job(plain, shape, [(width, height, 4)]))
@@ -195,14 +195,14 @@ def test_sheet_bytes_guard(shape, tmp_path, monkeypatch):
     assert (work / name).stat().st_size < normal_bytes  # saved again at lower quality, and still kept
     with Image.open(work / name) as sheet:
         sheet.load()
-        assert sheet.size == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
+        assert sheet.size == (settings.SHEET_WIDTH[shape], sheets.sheet_height(shape))
     assert [still["sheet"] for still in look["clips"][0]["stills"]] == [name] * 4
     assert list((work / "sheets").glob("*.part.jpg")) == []
 
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_no_pillow_still_measures(shape, tmp_path, monkeypatch, capsys):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 3)])
 
     def no_pillow():
@@ -224,7 +224,7 @@ def test_no_pillow_still_measures(shape, tmp_path, monkeypatch, capsys):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_no_select_filter(shape, tmp_path, monkeypatch, capsys):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 3)])
     real = doctor.ffmpeg_names("-filters")
     monkeypatch.setattr(doctor, "ffmpeg_names", lambda option: real - {"select"})
@@ -247,7 +247,7 @@ def test_no_select_filter(shape, tmp_path, monkeypatch, capsys):
 def test_no_scalable_font_sentence(shape, tmp_path, monkeypatch, capsys):
     from PIL import features
 
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 3)])
     real_check = features.check
     monkeypatch.setattr(features, "check", lambda name, *rest: False if name == "freetype2" else real_check(name, *rest))
@@ -258,12 +258,12 @@ def test_no_scalable_font_sentence(shape, tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().out.count(sheets.NO_SCALABLE_FONT) == 1
     assert look["sheets"] == ["sheets/sheet-01.jpg"]  # the sheets are still drawn
     assert [s["cell"] for s in look["clips"][0]["stills"]] == [1, 2, 3]
-    assert sheet_size(work / look["sheets"][0]) == (settings.SHEET_WIDTH, sheets.sheet_height(shape))
+    assert sheet_size(work / look["sheets"][0]) == (settings.SHEET_WIDTH[shape], sheets.sheet_height(shape))
 
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_out_of_room_stops_run(shape, tmp_path, monkeypatch, capsys):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 3)])
 
     def no_room(self):
@@ -286,7 +286,7 @@ def test_out_of_room_stops_run(shape, tmp_path, monkeypatch, capsys):
 def test_grab_stills_streams_in_order(shape, tmp_path):
     import inspect
 
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 4)])
     fitted = sheets.fit_size(width, height, *sheets.cell_size(shape))
 
@@ -305,16 +305,16 @@ def test_grab_stills_streams_in_order(shape, tmp_path):
 @pytest.mark.parametrize("shape", SHAPES)
 def test_only_the_stills_that_fit_are_read(shape, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 1)
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     columns, rows = settings.SHEET_GRID[shape]
     cells = columns * rows
     work = make_job(tmp_path, shape, [(width, height, 31)])  # 16 stills even at the widest rhythm: more than a sheet holds
     asked = []
     real = sheets.grab_stills
 
-    def spy(path, numbers, size, seconds):
+    def spy(path, numbers, size, seconds, *rest):
         asked.append(len(numbers))
-        return real(path, numbers, size, seconds)
+        return real(path, numbers, size, seconds, *rest)
 
     monkeypatch.setattr(sheets, "grab_stills", spy)
 
@@ -332,7 +332,7 @@ def test_only_the_stills_that_fit_are_read(shape, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_failed_save_leaves_the_book_as_it_was(shape, tmp_path, monkeypatch):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 3), (width, height, 3), (width, height, 2)])
     real = sheets.SheetBook.save_current
     calls = []
@@ -359,7 +359,7 @@ def test_failed_save_leaves_the_book_as_it_was(shape, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_failed_save_after_a_sheet_was_filled_removes_its_files(shape, tmp_path, monkeypatch):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     columns, rows = settings.SHEET_GRID[shape]
     work = make_job(tmp_path, shape, [(width, height, columns * rows + 2)])  # runs onto a second sheet
     real = sheets.SheetBook.save_current
@@ -385,7 +385,7 @@ def test_failed_save_after_a_sheet_was_filled_removes_its_files(shape, tmp_path,
 def test_stills_command_that_hangs_keeps_the_measurements(shape, tmp_path, monkeypatch):
     import types
 
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     work = make_job(tmp_path, shape, [(width, height, 3)])
     monkeypatch.setattr(sheets, "normalize", types.SimpleNamespace(ffmpeg_timeout=lambda seconds: 0.001))
 
@@ -457,7 +457,7 @@ def test_run_interval_mixed_orientations_and_a_photo(monkeypatch):
 @pytest.mark.parametrize("shape", SHAPES)
 def test_the_up_front_count_agrees_with_the_sheets_actually_made(shape, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "EXTRAS_SHARE", 0)  # plain clips add no extras, so the plan is exactly the stills
-    here, there = TALL_SIZE[shape], other_size(shape)
+    here, there = CLIP_SIZE[shape], other_size(shape)
     specs = [(*here, 5), (*there, 14), (*there, 2, "photo"), (*here, 13), (*here, 1, "photo"), (*there, 3)]
     work = make_job(tmp_path, shape, specs)
     manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
@@ -472,7 +472,7 @@ def test_the_up_front_count_agrees_with_the_sheets_actually_made(shape, tmp_path
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_a_thinned_run_takes_its_stills_further_apart(shape, tmp_path, monkeypatch, capsys):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 2)  # 20 s at one a second needs 3 sheets; at 1.5 s it needs 2
     work = make_job(tmp_path, shape, [(width, height, 20)])
 
@@ -490,7 +490,7 @@ def test_a_thinned_run_takes_its_stills_further_apart(shape, tmp_path, monkeypat
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_a_run_that_fits_is_not_thinned(shape, tmp_path, monkeypatch):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 3)
     work = make_job(tmp_path, shape, [(width, height, 20)])
 
@@ -502,7 +502,7 @@ def test_a_run_that_fits_is_not_thinned(shape, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_nothing_fits_the_cap_and_the_rest_are_listed_but_not_drawn(shape, tmp_path, monkeypatch, capsys):
-    width, height = TALL_SIZE[shape]
+    width, height = CLIP_SIZE[shape]
     columns, rows = settings.SHEET_GRID[shape]
     cells = columns * rows
     monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 1)
@@ -510,9 +510,9 @@ def test_nothing_fits_the_cap_and_the_rest_are_listed_but_not_drawn(shape, tmp_p
     asked = []
     real = sheets.grab_stills
 
-    def spy(path, numbers, size, seconds):
+    def spy(path, numbers, size, seconds, *rest):
         asked.append((path.name, len(numbers)))
-        return real(path, numbers, size, seconds)
+        return real(path, numbers, size, seconds, *rest)
 
     monkeypatch.setattr(sheets, "grab_stills", spy)
 
@@ -536,7 +536,7 @@ def test_nothing_fits_the_cap_and_the_rest_are_listed_but_not_drawn(shape, tmp_p
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_tall_and_wide_alternating_hit_the_cap_one_sheet_each(shape, tmp_path, monkeypatch):
-    here, there = TALL_SIZE[shape], other_size(shape)
+    here, there = CLIP_SIZE[shape], other_size(shape)
     monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 2)
     work = make_job(tmp_path, shape, [(*here, 3), (*there, 3), (*here, 3)])
 
@@ -547,3 +547,24 @@ def test_tall_and_wide_alternating_hit_the_cap_one_sheet_each(shape, tmp_path, m
     assert all(still["sheet"] is None for still in c["stills"])  # a third sheet would pass the cap
     assert len(look["sheets"]) == 2
     assert any("the stills from clip C on" in sentence for sentence in look["missing"])
+
+
+def test_a_tall_sheet_is_about_as_big_as_claudes_viewer_shows():
+    assert settings.SHEET_WIDTH == {"tall": 1192, "wide": 1950}
+    assert sheets.cell_size("tall") == (288, 512)
+    assert (settings.SHEET_WIDTH["tall"], sheets.sheet_height("tall")) == (1192, 1568)
+    assert 1500 <= max(settings.SHEET_WIDTH["tall"], sheets.sheet_height("tall")) <= 1568
+    assert (settings.SHEET_WIDTH["wide"], sheets.sheet_height("wide")) == (1950, 1476)  # wide sheets are unchanged
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_sheet_file_has_the_size_the_settings_give(shape, tmp_path):
+    width, height = CLIP_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3)])
+
+    look = run_look(work)
+
+    size = sheet_size(work / look["sheets"][0])
+    assert size == (settings.SHEET_WIDTH[shape], sheets.sheet_height(shape))
+    if shape == "tall":
+        assert max(size) <= 1568
