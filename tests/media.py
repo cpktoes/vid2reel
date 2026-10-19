@@ -68,7 +68,8 @@ def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, 
     picture left to right between `start` and `end` seconds); "cut" (bars, then at `start` the same bars negated and
     turned in hue); "jitter" (the whole picture shaken by random offsets of up to 12 pixels each way every frame);
     "pan" (a steady sideways drift of the camera, 40 pixels a second for a 360-wide clip, faster in proportion for a
-    wider one); "blur" (bars blurred between `start` and `end`); "grey" (one flat grey at `level`, such as "0x303030");
+    wider one); "pan-cut" (the same detailed picture drifting, by default at 112 pixels a second for a 360-wide clip,
+    until `start`, then a cut to the plain bars standing still); "blur" (bars blurred between `start` and `end`); "grey" (one flat grey at `level`, such as "0x303030");
     "cast" (bars with a red-and-yellow cast). `beep` is (from, to) seconds of a 1 kHz tone; otherwise the sound is
     digital silence, so every clip has a sound track as working copies do.
     """
@@ -89,6 +90,17 @@ def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, 
         second = BARS.format(w=width, h=height, fps=LOOK_FPS, s=round(seconds - start, 3))
         command += ["-f", "lavfi", "-i", first, "-f", "lavfi", "-i", second]
         complex_graph = "[1]negate,hue=h=90[b];[0][b]concat=n=2:v=1:a=0[v]"
+    elif pattern == "pan-cut":
+        speed = speed or 112 * width / 360  # about 10 pixels per analysed frame at the measuring width, inside deshake's search
+        k = width / 360
+        source = DETAIL.format(
+            w=width + 400 + int(speed * start), h=height + 400, s=start,
+            g1=round(40 * k), t1=round(2 * k), g2=round(130 * k), g3=round(90 * k), t2=round(3 * k))
+        after = BARS.format(w=width, h=height, fps=LOOK_FPS, s=round(seconds - start, 3))
+        command += ["-f", "lavfi", "-i", source, "-f", "lavfi", "-i", after]
+        complex_graph = (
+            f"[0]crop={width}:{height}:x='20+t*{speed}':y=100,setsar=1,format=yuv420p[a];"
+            "[1]setsar=1,format=yuv420p[b];[a][b]concat=n=2:v=1:a=0[v]")
     elif pattern in ("jitter", "pan"):
         speed = speed or 40 * width / 360  # pixels a second of the pan; the picture is wide enough for the whole drift
         k = width / 360

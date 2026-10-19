@@ -77,6 +77,42 @@ def test_shot_change_at_cut(shape, tmp_path):
     assert cut_frames[0]["camera"] is None and cut_frames[0]["shake"] is None
 
 
+def motion_rows(shifts):
+    """Motion rows of 12 numbers, as deshake writes them; only Ori x (column 0) is set, from `shifts`."""
+    return [[shift] + [0.0] * 11 for shift in shifts]
+
+
+def test_shake_is_averaged_within_one_shot():
+    # rows 1-9 are a steady pan of 6 pixels a frame, row 10 is the cut, rows 11-19 are a still shot
+    rows = motion_rows([0.0] + [6.0] * 9 + [50.0] + [0.0] * 9)
+    skip = [index in (0, 10) for index in range(20)]
+    camera, shake = measure.camera_and_shake(rows, skip)
+    for index in list(range(1, 10)) + list(range(11, 20)):
+        assert shake[index] == pytest.approx(0.0), (index, shake[index])
+    assert shake[0] is None and shake[10] is None
+    assert camera[0] is None and camera[10] is None
+    assert camera[1] == pytest.approx(6.0)
+
+
+def test_a_shot_one_frame_long_has_no_shake():
+    rows = motion_rows([0.0, 5.0, 40.0, 3.0, 40.0, 5.0, 5.0])
+    skip = [index in (0, 2, 4) for index in range(7)]
+    camera, shake = measure.camera_and_shake(rows, skip)
+    assert shake[1] == pytest.approx(0.0) and shake[3] == pytest.approx(0.0)
+    assert camera[1] == pytest.approx(5.0) and camera[3] == pytest.approx(3.0)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_a_steady_shot_after_a_pan_is_not_shaky(shape, tmp_path):
+    result = measured(tmp_path, shape, "pan-cut", start=4.0)
+    assert len(result["shot_changes"]) == 1
+    assert result["shot_changes"][0] == pytest.approx(4.0, abs=0.1)
+    assert all(half["camera_state"] != "shaky" for half in result["halves"]), result["halves"]
+    assert [half["camera_state"] for half in halves_where(result, 4.0, 99)] == ["still"] * len(halves_where(result, 4.0, 99))
+    inside = halves_where(result, 1.0, 3.51)
+    assert [half["camera_state"] for half in inside] == ["panning"] * len(inside), inside
+
+
 def test_parse_motion_header_and_rows(tmp_path):
     header = "Ori x, Avg x, Fin x, Ori y, Avg y, Fin y, Ori angle, Avg angle, Fin angle, Ori zoom, Avg zoom, Fin zoom"
     path = tmp_path / "motion.txt"
