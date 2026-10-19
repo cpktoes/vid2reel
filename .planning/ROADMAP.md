@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Skeleton** - Doctor check, join command, the skill and the phone route's measured limits, done by hand (completed 2026-10-12)
 - [x] **Phase 2: Stage 14 – Normalize** - Any clip or photo becomes one working format, with a manifest naming every clip (completed 2026-10-14)
-- [ ] **Phase 3: Stage 15 – Seeing the footage** - Contact sheets and measurements good enough for Claude to pick the best moment unseen
+- [x] **Phase 3: Stage 15 – Seeing the footage** - Contact sheets and measurements good enough for Claude to pick the best moment unseen (completed 2026-10-18)
 - [ ] **Phase 4: Stage 16 – Cut list and renderer** - A checked cut list renders to exactly that video in either shape
 - [ ] **Phase 5: Stage 17 – Editor's handbook** - EDITOR.md becomes the complete handbook, with taste kept in per-account profiles
 - [ ] **Phase 6: Stage 18 – Music** - A small public-domain music library, chosen with her, mixed under the reel
@@ -317,7 +317,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|-----------|----------------|--------|-----------|
 | 1. Skeleton | M1: A reel from a phone | done by hand | Complete | 2026-10-12 |
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
-| 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | In Progress|  |
+| 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | Complete    | 2026-10-18 |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 0/TBD | Not started | - |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 0/TBD | Not started | - |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
