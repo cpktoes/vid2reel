@@ -12,14 +12,20 @@ from pathlib import Path
 
 from v2r import ROOT, settings
 
-ENCODERS = {"libx264": "H.264 video encoder", "aac": "AAC audio encoder"}
+ENCODERS = {"libx264": "H.264 video encoder", "aac": "AAC audio encoder", "pcm_f32le": "32-bit float WAV sound encoder"}
 FILTERS = [
     "scale", "crop", "zscale", "tonemap", "loudnorm", "drawtext",
     "format", "fps", "setsar", "setpts", "loop", "transpose", "hflip", "vflip", "aresample", "apad", "anullsrc",
     # the filters `v2r look` measures with (fps and scale are listed above)
     "select", "signalstats", "blurdetect", "scdet", "deshake", "ebur128", "metadata", "ametadata",
+    # the filters `v2r render` builds with (the others it uses are listed above)
+    "trim", "atrim", "asetpts", "aformat", "perspective", "lutyuv", "setparams", "concat", "sine", "afade", "aevalsrc",
+    "amultiply", "amix", "volume",
 ]
-DECODERS = ["hevc", "h264", "aac", "mjpeg", "png"]
+DECODERS = ["hevc", "h264", "aac", "mjpeg", "png", "pcm_f32le"]
+# names exactly as FFmpeg's -muxers and -demuxers lists print them
+MUXERS = ["mp4", "matroska", "wav"]
+DEMUXERS = ["concat", "matroska,webm", "wav", "image2", "mov,mp4,m4a,3gp,3g2,mj2"]
 HOSTS = ["github.com", "pypi.org"]
 GB = 1e9
 
@@ -41,8 +47,14 @@ def run():
         decoders = ffmpeg_names("-decoders")
         for name in DECODERS:
             print(f"The {name} decoder is {'available' if name in decoders else 'MISSING'}.")
+        muxers = ffmpeg_names("-muxers")
+        for name in MUXERS:
+            print(f"The {name} muxer is {'available' if name in muxers else 'MISSING'}.")
+        demuxers = ffmpeg_names("-demuxers")
+        for name in DEMUXERS:
+            print(f"The {name} demuxer is {'available' if name in demuxers else 'MISSING'}.")
     else:
-        print("Encoders, filters and decoders can't be checked without FFmpeg.")
+        print("Encoders, filters, decoders, muxers and demuxers can't be checked without FFmpeg.")
 
     print(f"Python is version {platform.python_version()}.")
     cpus = os.process_cpu_count()
@@ -66,25 +78,29 @@ def tool_version(tool):
 
 
 def ffmpeg_names(option):
-    """The names in FFmpeg's `-encoders`, `-decoders` or `-filters` list."""
+    """The names in FFmpeg's `-encoders`, `-decoders`, `-filters`, `-muxers` or `-demuxers` list."""
     out = subprocess.run(["ffmpeg", "-hide_banner", option], capture_output=True, text=True).stdout
     return {line.split()[1] for line in out.splitlines() if len(line.split()) > 1}
 
 
-def missing_ffmpeg_features(encoders=None, filters=None, decoders=None):
+def missing_ffmpeg_features(encoders=None, filters=None, decoders=None, *, muxers=None, demuxers=None):
     """Plain phrases for every FFmpeg piece named that this computer lacks; empty if none.
 
-    Each argument is a list of names to check. A list left out (None) means all of doctor's own: ENCODERS, FILTERS and
-    DECODERS, read at call time. A caller that only uses some pieces (normalize) passes just those.
-    Three local FFmpeg calls, no network.
+    Each argument is a list of names to check. When the caller names no list at all, all of doctor's own are checked:
+    ENCODERS, FILTERS, DECODERS, MUXERS and DEMUXERS, read at call time. When the caller names any encoder, filter or
+    decoder list (normalize does), a muxer or demuxer list left out means none, so a caller that never asked for muxers
+    is never held to them. Up to five local FFmpeg calls, no network.
     """
     if shutil.which("ffmpeg") is None:
         return ["FFmpeg"]
     if shutil.which("ffprobe") is None:
         return ["ffprobe"]
+    everything = encoders is None and filters is None and decoders is None and muxers is None and demuxers is None
     encoders = list(ENCODERS) if encoders is None else encoders
     filters = FILTERS if filters is None else filters
     decoders = DECODERS if decoders is None else decoders
+    muxers = (MUXERS if everything else []) if muxers is None else muxers
+    demuxers = (DEMUXERS if everything else []) if demuxers is None else demuxers
     have_encoders = ffmpeg_names("-encoders")
     have_filters = ffmpeg_names("-filters")
     have_decoders = ffmpeg_names("-decoders")
@@ -94,6 +110,12 @@ def missing_ffmpeg_features(encoders=None, filters=None, decoders=None):
     ]
     missing += [f"the {name} filter" for name in filters if name not in have_filters]
     missing += [f"the {name} decoder" for name in decoders if name not in have_decoders]
+    if muxers:
+        have_muxers = ffmpeg_names("-muxers")
+        missing += [f"the {name} muxer" for name in muxers if name not in have_muxers]
+    if demuxers:
+        have_demuxers = ffmpeg_names("-demuxers")
+        missing += [f"the {name} demuxer" for name in demuxers if name not in have_demuxers]
     return missing
 
 

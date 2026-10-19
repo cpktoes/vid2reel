@@ -1,6 +1,6 @@
 """Tests for `v2r doctor`: the FFmpeg lists and the fast check normalize can call."""
 
-from v2r import doctor, normalize
+from v2r import doctor, normalize, render
 
 OLD_FILTERS = ["scale", "crop", "zscale", "tonemap", "loudnorm", "drawtext"]
 NEW_FILTERS = ["format", "fps", "setsar", "setpts", "loop", "transpose", "hflip", "vflip", "aresample", "apad", "anullsrc"]
@@ -61,3 +61,35 @@ def test_doctor_reports_look_filters(capsys, monkeypatch):
 def test_normalize_needs_no_look_filter():
     for name in ["select", "signalstats", "blurdetect", "scdet", "deshake", "ebur128", "metadata", "ametadata"]:
         assert name not in normalize.NEEDED_FILTERS
+
+
+RENDER_PIECES = [
+    (render.RENDER_ENCODERS, doctor.ENCODERS), (render.RENDER_FILTERS, doctor.FILTERS),
+    (render.RENDER_DECODERS, doctor.DECODERS), (render.RENDER_MUXERS, doctor.MUXERS),
+    (render.RENDER_DEMUXERS, doctor.DEMUXERS),
+]
+
+
+def test_doctor_lists_every_render_piece():
+    for needed, listed in RENDER_PIECES:
+        for name in needed:
+            assert name in listed, name
+
+
+def test_doctor_reports_render_pieces(capsys, monkeypatch):
+    monkeypatch.setattr(doctor, "reach", lambda host: None)  # never use the network
+    doctor.run()
+    out = capsys.readouterr().out
+    for line in ["The perspective filter is available.", "The lutyuv filter is available.",
+                 "The matroska muxer is available.", "The concat demuxer is available."]:
+        assert line in out
+    assert "MISSING" not in out
+
+
+def test_doctor_missing_muxers_are_named_only_when_asked_for(monkeypatch):
+    monkeypatch.setattr(doctor, "MUXERS", doctor.MUXERS + ["nosuchmuxer"])
+    monkeypatch.setattr(doctor, "DEMUXERS", doctor.DEMUXERS + ["nosuchdemuxer"])
+    assert doctor.missing_ffmpeg_features() == ["the nosuchmuxer muxer", "the nosuchdemuxer demuxer"]
+    assert doctor.missing_ffmpeg_features(["libx264"], ["scale"], ["h264"]) == []  # normalize's call checks none
+    assert doctor.missing_ffmpeg_features(muxers=["nosuchmuxer"]) == ["the nosuchmuxer muxer"]
+    assert normalize.check_ffmpeg() is None

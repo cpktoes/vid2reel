@@ -306,3 +306,17 @@ def test_touching_shots_of_one_clip_cut_cleanly(shape, tmp_path, capsys):
     assert index_luma(44) == 168 and index_luma(45) == 176
     assert patch_yuv(reel, 29, *centre)[0] == pytest.approx(168, abs=TOLERANCE)
     assert patch_yuv(reel, 30, *centre)[0] == pytest.approx(176, abs=TOLERANCE)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_render_refuses_on_a_missing_ffmpeg_piece(shape, tmp_path, capsys, monkeypatch):
+    from v2r import render
+
+    work = tracer_work(tmp_path, shape)
+    monkeypatch.setattr(render, "RENDER_FILTERS", render.RENDER_FILTERS + ["nosuchfilter"])
+    before = listing(work)
+
+    assert main(["render", "--work", str(work)]) == 1
+    err = capsys.readouterr().err
+    assert "lacks the nosuchfilter filter, so nothing was built" in err
+    assert listing(work) == before

@@ -18,9 +18,19 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from v2r import WORK_DIR, join, normalize, settings
+from v2r import WORK_DIR, doctor, join, normalize, settings
 from v2r.render import check, plan, proof, sound, video
 
+# every piece of FFmpeg the stage's chains use; render refuses up front, in one sentence, when this computer lacks one
+RENDER_ENCODERS = ["libx264", "aac", "pcm_f32le"]
+RENDER_FILTERS = [
+    "trim", "setpts", "crop", "scale", "setsar", "format", "setparams", "loop", "perspective", "lutyuv",
+    "atrim", "asetpts", "aformat", "anullsrc", "apad", "concat", "sine", "afade", "aevalsrc", "amultiply", "amix",
+    "volume", "ebur128", "ametadata", "select",
+]
+RENDER_DECODERS = ["h264", "aac", "mjpeg", "pcm_f32le"]
+RENDER_MUXERS = ["mp4", "matroska", "wav"]
+RENDER_DEMUXERS = ["concat", "matroska,webm", "wav", "image2", "mov,mp4,m4a,3gp,3g2,mj2"]
 RENDER_TEMP_PREFIX = ".v2r-render-"  # a hidden folder in the work folder holds the pieces and the sound bed
 NO_FFMPEG = "FFmpeg is not installed here, so nothing was built."
 OUT_OF_ROOM = "The work folder ran out of room, so the reel was not built."
@@ -111,6 +121,13 @@ def render(cutlist_path=None, work_dir=None):
     work_dir = Path(WORK_DIR if work_dir is None else work_dir)
     if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
         raise RenderError(NO_FFMPEG)
+    missing = doctor.missing_ffmpeg_features(
+        RENDER_ENCODERS, RENDER_FILTERS, RENDER_DECODERS, muxers=RENDER_MUXERS, demuxers=RENDER_DEMUXERS)
+    if missing:
+        if "FFmpeg" in missing or "ffprobe" in missing:
+            raise RenderError(NO_FFMPEG)
+        names = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " and " + missing[-1]
+        raise RenderError(f"This computer's FFmpeg lacks {names}, so nothing was built.")
     checked = check.check(cutlist_path, work_dir)
     for note in checked.notes:
         print(f"Note: {note}", flush=True)
