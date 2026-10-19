@@ -442,7 +442,7 @@ def clips_problem(letter, record, manifest, work_dir):
 def clips_problems(data, manifest, work_dir):
     """The list's clips block must be the work folder's clips: same letters, files and lengths, one sentence per clip (D-04)."""
     problems = []
-    for letter, record in data["clips"].items():
+    for letter, record in sorted(data["clips"].items()):  # letter order, so the order the list wrote them in changes nothing
         problem = clips_problem(letter, record, manifest, work_dir)
         if problem:
             problems.append(problem)
@@ -486,6 +486,84 @@ def segment_problems(data, manifest, work_dir):
     return problems
 
 
+def count_problems(data):
+    """A reel can hold at most settings.MAX_SEGMENTS segments, so the proof sheets and the plan stay small (T-4-03)."""
+    count = len(data["segments"])
+    if count > settings.MAX_SEGMENTS:
+        return [f"The list has {count} segments; one reel can have at most {settings.MAX_SEGMENTS}."]
+    return []
+
+
+def look_problems(data):
+    """Each touch-up must be for a clip of the list and stay within its caps; a number exactly at a cap is allowed (D-06, D-23)."""
+    touch_ups = (data.get("look") or {}).get("touch_up") or {}
+    problems = []
+    for letter, record in sorted(touch_ups.items()):  # letter order, as for the clips
+        name = shown(letter)
+        if letter not in data["clips"]:
+            problems.append(f"The touch-up names clip {name}, which is not in the list's clips.")
+        for field_name, cap in (
+                ("brightness", settings.TOUCH_UP_MAX_BRIGHTNESS), ("blue", settings.TOUCH_UP_MAX_COLOUR),
+                ("red", settings.TOUCH_UP_MAX_COLOUR)):
+            value = record[field_name]
+            if abs(value) > cap:
+                problems.append(f"Clip {name}'s touch-up {field_name} is {value:g}; it can be at most {cap:g} either way.")
+        low, high = settings.TOUCH_UP_SATURATION_MIN, settings.TOUCH_UP_SATURATION_MAX
+        value = record["saturation"]
+        if not low <= value <= high:
+            problems.append(f"Clip {name}'s touch-up saturation is {value:g}; it must be between {low:g} and {high:g}.")
+    return problems
+
+
+def segment_lengths(data):
+    """The frames each segment covers, in the list's order, or None when any segment lasts less than a frame.
+
+    A segment that is not a real stretch (it ends before it starts, or lasts under a frame) has its own sentence, and
+    a sentence about the whole reel's length would rest on it, so the rules about the whole reel wait for it to be fixed.
+    """
+    counts = [plan.segment_frames(segment)[1] for segment in data["segments"]]
+    return None if any(count < 1 for count in counts) else counts
+
+
+def cover_problems(data):
+    """The cover must name a segment of the list and a moment inside it (D-09)."""
+    cover = data.get("cover")
+    if not isinstance(cover, dict):
+        return []
+    number, at = cover["segment"], cover["at"]
+    total = len(data["segments"])
+    if number > total:
+        return [f"The cover names segment {number}, but the list has only {total} segments."]
+    count = plan.segment_frames(data["segments"][number - 1])[1]
+    if count < 1:  # that segment's own sentence says what is wrong with it
+        return []
+    seconds = count / settings.OUTPUT_FPS
+    if at >= seconds:
+        return [
+            f"The cover is at {at:.1f} seconds into segment {number}, but segment {number} is only {seconds:.1f} seconds long."]
+    return []
+
+
+def seconds_pair(smaller, larger):
+    """Two lengths as text, to one decimal place unless that would make two different lengths read the same."""
+    for places in (1, 2, 3):
+        first, second = f"{smaller:.{places}f}", f"{larger:.{places}f}"
+        if first != second:
+            break
+    return first, second
+
+
+def length_problems(data):
+    """The reel must last at least settings.MIN_REEL_SECONDS: a shorter one is a mistake, not a reel."""
+    counts = segment_lengths(data)
+    if counts is None:
+        return []
+    if sum(counts) < plan.frames(settings.MIN_REEL_SECONDS):
+        reel, _ = seconds_pair(sum(counts) / settings.OUTPUT_FPS, settings.MIN_REEL_SECONDS)
+        return [f"The reel is {reel} seconds long; it must be at least {settings.MIN_REEL_SECONDS:g} seconds."]
+    return []
+
+
 def fit_problems(data):
     """The whole reel must be short enough to come back under the limit: join's own rule, one rule for both (CUT-07)."""
     canvas = data["canvas"]
@@ -527,12 +605,12 @@ def check(cutlist_path=None, work_dir=None):
     if checked.problems:
         return checked
     manifest = checked.manifest
-    # Each rule runs only when the ones before it found nothing, so a sentence never rests on something already wrong.
-    checked.problems = canvas_problems(data, manifest)
-    if not checked.problems:
-        checked.problems = clips_problems(data, manifest, work_dir)
-    if not checked.problems:
-        checked.problems = segment_problems(data, manifest, work_dir)
+    # The rules run in a stated order and every one of them reports, so a list with several faults gets all its
+    # sentences at once. The fit is the exception: it measures the reel, so it waits until nothing before it failed.
+    checked.problems = (
+        canvas_problems(data, manifest) + clips_problems(data, manifest, work_dir) + count_problems(data)
+        + segment_problems(data, manifest, work_dir) + look_problems(data)
+        + cover_problems(data) + length_problems(data))
     if not checked.problems:
         checked.problems = fit_problems(data)
     return checked

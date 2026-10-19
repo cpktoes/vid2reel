@@ -4,13 +4,15 @@ import copy
 import json
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from cutlists import EXAMPLES, clips_block, placeholder_work, segment, write_list
+from cutlists import EXAMPLES, clips_block, placeholder_work, segment, touch_up, write_list
 from jsonschema import Draft202012Validator
 
-from v2r import settings
+from v2r import join, settings
 from v2r.__main__ import main
 from v2r.render import check
 
@@ -478,3 +480,375 @@ def test_every_schema_keyword_has_a_sentence():
     text = SCHEMA_PATH.read_text(encoding="utf-8")
     assert "oneOf" not in text and "anyOf" not in text
     assert '"additionalProperties": false' not in text
+
+
+# ---- every rule of the work folder, one sentence each, in both shapes (D-10) ----
+
+OTHER = {"tall": "wide", "wide": "tall"}
+INFO = {  # per shape: what the approved example holds, so each row can name the numbers it breaks
+    "tall": {
+        "letters": "A, B, C, D and E", "last": "E", "b_name": "IMG_4412.MOV", "a_seconds": 12.0, "b_seconds": 10.0,
+        "a_from": 1.0, "a_to": 4.0, "unused": (4, "D"), "photo": (5, "E"), "second_seconds": 2.5, "segments": 7,
+    },
+    "wide": {
+        "letters": "A, B and C", "last": "C", "b_name": "IMG_5003.MOV", "a_seconds": 40.0, "b_seconds": 8.0,
+        "a_from": 0.0, "a_to": 10.0, "unused": (2, "B"), "photo": (4, "C"), "second_seconds": 3.0, "segments": 5,
+    },
+}
+
+
+def edit_manifest(work, apply):
+    path = work / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    apply(manifest)
+    path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def a_segment(c, start, end):
+    c.data["segments"][0]["from"], c.data["segments"][0]["to"] = start, end
+
+
+def make_canvas_square(c):
+    c.data["canvas"].update(width=1000, height=1000)
+
+
+def make_canvas_other(c):
+    width, height = settings.SHAPES[OTHER[c.shape]]
+    c.data["canvas"].update(width=width, height=height)
+
+
+def add_unknown_clip(c):
+    c.data["clips"]["Z"] = {"file": "Z.mov", "seconds": 1.0}
+
+
+def skip_last_clip(c):
+    def apply(manifest):
+        manifest["clips"][-1]["status"] = "skipped"
+    edit_manifest(c.work, apply)
+
+
+def make_b_fps(c):
+    def apply(manifest):
+        manifest["clips"][1]["working"]["fps"] = 25.0
+    edit_manifest(c.work, apply)
+
+
+def drop_unused_clip(c):
+    _, letter = c.info["unused"]
+    del c.data["clips"][letter]
+    del c.data["look"]["touch_up"][letter]
+
+
+def make_one_frame_short(c):
+    a_segment(c, c.info["a_from"], c.info["a_from"] + 0.01)
+
+
+def make_start_past_clip(c):
+    a_segment(c, c.info["a_seconds"] + 1.0, c.info["a_seconds"] + 2.0)
+
+
+def make_end_past_clip(c):
+    a_segment(c, c.info["a_from"], c.info["a_seconds"] + 2.0)
+
+
+def make_end_past_once_rounded(c):
+    a_segment(c, round(c.info["a_seconds"] - 2.983, 3), round(c.info["a_seconds"] + 0.01, 3))
+
+
+def make_photo_too_long(c):
+    c.data["segments"][c.info["photo"][0] - 1]["to"] = 5.0
+
+
+def many_short_segments(count):
+    def apply(c):
+        c.data["segments"] = [segment("A", 1.0, 1.1, "off", "A 01.0 to A 01.1: a blink") for _ in range(count)]
+        c.data["cover"] = {"segment": 1, "at": 0.05}
+    return apply
+
+
+def make_too_big(c):
+    c.patch.setattr(settings, "MAX_RESULT_BYTES", 200 * 1024)
+
+
+def touch_up_value(letter, name, value):
+    def apply(c):
+        c.data["look"]["touch_up"][letter][name] = value
+    return apply
+
+
+def add_touch_up_for_f(c):
+    c.data["look"]["touch_up"]["F"] = touch_up(0.0, 0.0, 0.0, 1.0)
+
+
+def cover_on(number, at):
+    def apply(c):
+        c.data["cover"] = {"segment": number, "at": at}
+    return apply
+
+
+def cover_past_second_segment(c):
+    c.data["cover"] = {"segment": 2, "at": 3.0}
+
+
+def make_two_seconds(c):
+    c.data["segments"] = [segment("A", c.info["a_from"], c.info["a_from"] + 2.0, "off", "A: a short one")]
+    c.data.pop("cover", None)
+
+
+def fit_sentence(c):
+    total = sum(c.plan.segment_frames(item)[1] for item in c.data["segments"])
+    try:
+        join.fit(c.shape, total / settings.OUTPUT_FPS)
+    except join.JoinError as error:
+        return str(error)
+    raise AssertionError("the monkeypatched limit did not make the reel too long")
+
+
+def delete_in_work(name_of):
+    def apply(c):
+        (c.work / name_of(c)).unlink()
+    return apply
+
+
+def start_of(c):
+    return c.info["a_from"]
+
+
+RULES = [  # (id, edit of a valid list, the one sentence it must give as a function of the shape's numbers)
+    ("canvas size", make_canvas_square,
+     lambda c: "The canvas is 1000x1000 at 30 frames a second; it must be 1080x1920 (tall) or 1920x1080 (wide) at 30."),
+    ("canvas shape", make_canvas_other,
+     lambda c: f"The canvas is {OTHER[c.shape]} but the clips were normalized for a {c.shape} reel; "
+               f"normalize them again with --shape {OTHER[c.shape]} to render this list {OTHER[c.shape]}."),
+    ("clip not in the manifest", add_unknown_clip,
+     lambda c: f"Clip Z in this list is not in the work folder, which has clips {c.info['letters']}."),
+    ("skipped clip", skip_last_clip,
+     lambda c: f"Clip {c.info['last']} was skipped when the clips were converted, so it cannot be in the list."),
+    ("different file", lambda c: c.data["clips"]["B"].update(file="other.mov"),
+     lambda c: f"Clip B in this list was other.mov, but B in the work folder is {c.info['b_name']}."),
+    ("different length", lambda c: c.data["clips"]["B"].update(seconds=2.0),
+     lambda c: f"Clip B in this list is 2.00 seconds long, but B in the work folder is {c.info['b_seconds']:.2f} seconds long."),
+    ("missing working copy", delete_in_work(lambda c: "B.mp4"),
+     lambda c: "The working copy of clip B is missing or not in the work folder, so it cannot be built."),
+    ("working copy not at 30", make_b_fps,
+     lambda c: "The working copy of clip B is not at 30 frames a second, so normalize has to make it again."),
+    ("missing photo copy", delete_in_work(lambda c: f"{c.info['photo'][1]}-photo.jpg"),
+     lambda c: f"The full-size copy of photo {c.info['photo'][1]} is missing from the work folder, so it cannot be built."),
+    ("segment clip not in clips", drop_unused_clip,
+     lambda c: f"Segment {c.info['unused'][0]} uses clip {c.info['unused'][1]}, which is not in the list's clips."),
+    ("from at to", lambda c: a_segment(c, c.info["a_to"], c.info["a_to"]),
+     lambda c: f"Segment 1 starts at {c.info['a_to']:g} seconds and ends at {c.info['a_to']:g}; it must end after it starts."),
+    ("under one frame", make_one_frame_short,
+     lambda c: "Segment 1 lasts less than one frame (1/30 of a second)."),
+    ("starts past the clip", make_start_past_clip,
+     lambda c: f"Segment 1 starts at {c.info['a_seconds'] + 1:.1f} seconds but clip A is only {c.info['a_seconds']:.1f} seconds long."),
+    ("ends past the clip", make_end_past_clip,
+     lambda c: f"Segment 1 ends at {c.info['a_seconds'] + 2:.1f} seconds but clip A is only {c.info['a_seconds']:.1f} seconds long."),
+    ("ends past it once rounded", make_end_past_once_rounded,
+     lambda c: f"Segment 1 ends at {c.info['a_seconds'] + 0.03:.2f} seconds once rounded to whole frames, "
+               f"but clip A is only {c.info['a_seconds']:.2f} seconds long."),
+    ("photo past its still", make_photo_too_long,
+     lambda c: f"Segment {c.info['photo'][0]} ends at 5.0 seconds but {c.info['photo'][1]} is a photo, "
+               "and a photo's still lasts 4 seconds."),
+    ("too long to fit", make_too_big, fit_sentence),
+    ("121 segments", many_short_segments(121),
+     lambda c: "The list has 121 segments; one reel can have at most 120."),
+    ("brightness over", touch_up_value("A", "brightness", 8.1),
+     lambda c: "Clip A's touch-up brightness is 8.1; it can be at most 8 either way."),
+    ("brightness under", touch_up_value("A", "brightness", -8.1),
+     lambda c: "Clip A's touch-up brightness is -8.1; it can be at most 8 either way."),
+    ("blue over", touch_up_value("A", "blue", -4.5),
+     lambda c: "Clip A's touch-up blue is -4.5; it can be at most 4 either way."),
+    ("red over", touch_up_value("A", "red", 4.5),
+     lambda c: "Clip A's touch-up red is 4.5; it can be at most 4 either way."),
+    ("saturation over", touch_up_value("A", "saturation", 1.09),
+     lambda c: "Clip A's touch-up saturation is 1.09; it must be between 0.92 and 1.08."),
+    ("saturation under", touch_up_value("A", "saturation", 0.91),
+     lambda c: "Clip A's touch-up saturation is 0.91; it must be between 0.92 and 1.08."),
+    ("touch-up for a clip not in the list", add_touch_up_for_f,
+     lambda c: "The touch-up names clip F, which is not in the list's clips."),
+    ("cover segment too high", lambda c: cover_on(9, 1.0)(c),
+     lambda c: f"The cover names segment 9, but the list has only {c.info['segments']} segments."),
+    ("cover past its segment", cover_past_second_segment,
+     lambda c: f"The cover is at 3.0 seconds into segment 2, but segment 2 is only {c.info['second_seconds']:.1f} seconds long."),
+    ("reel under three seconds", make_two_seconds,
+     lambda c: "The reel is 2.0 seconds long; it must be at least 3 seconds."),
+]
+
+
+def context(shape, tmp_path, patch):
+    from v2r.render import plan
+
+    work, manifest = placeholder_work(tmp_path, shape)
+    data = EXAMPLES[shape](clips_block(manifest))
+    return SimpleNamespace(
+        shape=shape, work=work, manifest=manifest, data=data, patch=patch, info=INFO[shape], plan=plan)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("row", RULES, ids=[row[0] for row in RULES])
+def test_every_rule_gives_its_own_sentence(row, shape, tmp_path, capsys, monkeypatch):
+    _, edit, sentence = row
+    c = context(shape, tmp_path, monkeypatch)
+    edit(c)
+
+    code, problems, _ = run_check(c.work, c.data, capsys)
+
+    assert code == 1
+    assert problems == [sentence(c)]  # run_check also proves the list's bytes and the folder are unchanged
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_list_that_breaks_a_rule_is_not_changed_or_built(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    make_end_past_clip(c)
+    write_list(c.work, c.data)
+    before = listing(c.work)
+
+    assert main(["render", "--work", str(c.work)]) == 1
+    assert "Problem: Segment 1 ends at" in capsys.readouterr().out
+    assert listing(c.work) == before  # nothing is clamped, trimmed or dropped to make it fit
+
+
+def break_everything(c, with_count):
+    """Break every rule that can be broken beside the others: the problems must come in the stated order."""
+    seconds = c.info["a_seconds"]
+    make_canvas_square(c)
+    c.data["clips"]["B"]["file"] = "other.mov"
+    c.data["look"]["touch_up"]["A"]["brightness"] = 9.0
+    if with_count:
+        many_short_segments(121)(c)
+        c.data["segments"][3] = segment("A", seconds + 1.0, seconds + 2.0, "off", "A: past the end")
+        c.data["cover"] = {"segment": 200, "at": 1.0}
+    else:
+        c.data["segments"] = [
+            segment("A", 1.0, 1.5, "off", "A 01.0 to A 01.5: a blink"),
+            segment("A", seconds + 1.0, seconds + 2.0, "off", "A: past the end"),
+        ]
+        c.data["cover"] = {"segment": 1, "at": 0.5}
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_all_rules_broken_at_once_come_in_order(shape, tmp_path, capsys):
+    canvas = "The canvas is 1000x1000 at 30 frames a second; it must be 1080x1920 (tall) or 1920x1080 (wide) at 30."
+    clips = f"Clip B in this list was other.mov, but B in the work folder is {INFO[shape]['b_name']}."
+    look = "Clip A's touch-up brightness is 9; it can be at most 8 either way."
+    past = INFO[shape]["a_seconds"] + 1.0
+    segments = f"Segment {{n}} starts at {past:.1f} seconds but clip A is only {INFO[shape]['a_seconds']:.1f} seconds long."
+
+    (tmp_path / "short").mkdir()
+    short = context(shape, tmp_path / "short", None)
+    break_everything(short, with_count=False)
+    _, problems, _ = run_check(short.work, short.data, capsys)
+    assert problems == [
+        canvas, clips, segments.format(n=2), look,
+        "The cover is at 0.5 seconds into segment 1, but segment 1 is only 0.5 seconds long.",
+        "The reel is 1.5 seconds long; it must be at least 3 seconds.",
+    ]
+
+    (tmp_path / "many").mkdir()
+    many = context(shape, tmp_path / "many", None)
+    break_everything(many, with_count=True)
+    _, problems, _ = run_check(many.work, many.data, capsys)
+    assert problems == [
+        canvas, clips, "The list has 121 segments; one reel can have at most 120.", segments.format(n=4), look,
+        "The cover names segment 200, but the list has only 121 segments.",
+    ]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_same_list_same_sentences(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    break_everything(c, with_count=False)
+    path = write_list(c.work, c.data)
+
+    outputs = []
+    for _ in range(2):
+        assert main(["check", str(path), "--work", str(c.work)]) == 1
+        outputs.append(capsys.readouterr().out)
+
+    assert outputs[0] == outputs[1] and outputs[0].count("Problem: ") == 6
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_key_order_changes_nothing(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    c.data["clips"]["A"]["file"] = "first.mov"
+    c.data["clips"]["B"]["file"] = "second.mov"
+    c.data["look"]["touch_up"]["A"]["red"] = 5.0
+    c.data["look"]["touch_up"]["B"]["red"] = -5.0
+    forward = run_check(c.work, c.data, capsys)
+
+    c.data["clips"] = dict(reversed(c.data["clips"].items()))
+    c.data["look"]["touch_up"] = dict(reversed(c.data["look"]["touch_up"].items()))
+    assert list(c.data["clips"])[0] != "A"
+    backward = run_check(c.work, c.data, capsys)
+
+    assert forward == backward and len(forward[1]) == 4
+    assert forward[1][0].startswith("Clip A in this list was first.mov")
+    assert forward[1][2].startswith("Clip A's touch-up red is 5")
+
+    clean = EXAMPLES[shape](clips_block(c.manifest))
+    clean["clips"] = dict(reversed(clean["clips"].items()))
+    clean["look"]["touch_up"] = dict(reversed(clean["look"]["touch_up"].items()))
+    assert run_check(c.work, clean, capsys)[:2] == (0, [])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_repeated_and_touching_segments_pass(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    first = c.data["segments"][0]
+    c.data["segments"].append(copy.deepcopy(first))  # word for word, built twice
+    c.data["segments"].append(segment("A", first["to"], first["to"] + 1.0, "off", "A: right after the first"))
+    c.data["segments"].append(segment("A", first["to"] + 1.0, first["to"] + 2.0, "off", "A: and on"))
+
+    code, problems, _ = run_check(c.work, c.data, capsys)
+
+    assert (code, problems) == (0, [])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_caps_are_inclusive(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    c.data["look"]["touch_up"]["A"] = touch_up(8.0, -4.0, 4.0, 1.08)
+    c.data["look"]["touch_up"]["B"] = touch_up(-8.0, 4.0, -4.0, 0.92)
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+
+    many_short_segments(120)(c)  # exactly the most
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+
+    c.data["segments"] = [segment("A", 0.0, 3.0, "off", "A: exactly the shortest reel")]
+    c.data.pop("cover")
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+    c.data["segments"][0]["to"] = 2.967  # 89 frames
+    _, problems, _ = run_check(c.work, c.data, capsys)
+    assert problems == ["The reel is 2.97 seconds long; it must be at least 3 seconds."]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_cover_just_inside_passes(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    length = INFO[shape]["second_seconds"]
+    c.data["cover"] = {"segment": 2, "at": length - 0.01}
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+
+    c.data["cover"]["at"] = length
+    _, problems, _ = run_check(c.work, c.data, capsys)
+    assert problems == [f"The cover is at {length:.1f} seconds into segment 2, but segment 2 is only {length:.1f} seconds long."]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_nfc_and_case_in_file_names(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    cafe = "Caf\u00e9.MOV"
+
+    def name_it(manifest):
+        manifest["clips"][1]["original"]["name"] = unicodedata.normalize("NFD", cafe)
+
+    edit_manifest(c.work, name_it)
+    c.data["clips"]["B"]["file"] = unicodedata.normalize("NFC", cafe)
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+
+    c.data["clips"]["B"]["file"] = cafe.lower().replace("mov", "MOV").replace("caf", "CAF")
+    _, problems, _ = run_check(c.work, c.data, capsys)
+    assert len(problems) == 1 and problems[0].startswith("Clip B in this list was CAF")
