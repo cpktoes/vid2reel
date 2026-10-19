@@ -396,3 +396,154 @@ def test_stills_command_that_hangs_keeps_the_measurements(shape, tmp_path, monke
     assert clip["notes"] == ["The stills of clip A could not be taken, so it is not on the sheets."]
     assert len(clip["halves"]) == 6 and clip["halves"][1]["movement"] is not None
     assert look["sheets"] == []
+
+
+# ---- the sheet cap: how many sheets a run needs, how the rhythm is thinned, what happens when nothing fits ----
+
+
+def manifest_clip(kind, seconds, size, status="done"):
+    """A manifest entry with only what the sheet arithmetic reads."""
+    return {"status": status, "kind": kind, "working": {"seconds": seconds, "fps": 30.0, "size": list(size)}}
+
+
+TALL, WIDE = (360, 640), (640, 360)
+
+
+def test_sheets_needed_counts_cells_and_changes_of_orientation():
+    assert pick.sheets_needed([]) == 0
+    assert pick.sheets_needed([("tall", 1)]) == 1
+    assert pick.sheets_needed([("tall", 12)]) == 1
+    assert pick.sheets_needed([("tall", 13)]) == 2
+    assert pick.sheets_needed([("wide", 24)]) == 2
+    assert pick.sheets_needed([("tall", 5), ("tall", 7)]) == 1  # the same orientation shares a sheet
+    assert pick.sheets_needed([("tall", 5), ("wide", 1)]) == 2  # a change of orientation starts a sheet
+    assert pick.sheets_needed([("tall", 5), ("wide", 1), ("tall", 5)]) == 3  # tall and wide alternating
+    assert pick.sheets_needed([("tall", 40), ("wide", 1), ("tall", 40)]) == 4 + 1 + 4  # a photo between two videos
+
+
+def test_still_plan_counts_base_and_full_extras():
+    clips = [
+        manifest_clip("video", 10.0, TALL),
+        manifest_clip("photo", 4.0, WIDE),
+        manifest_clip("video", 5.0, TALL, status="skipped"),
+        {"status": "done", "kind": "video"},  # no working copy: counts nothing
+        manifest_clip("video", 10.0, (500, 500)),  # a square follows the job's shape
+    ]
+    # ten seconds at one a second is 10 base stills and a third of them as extras: 13; at two seconds 5 and 1
+    assert pick.still_plan(clips, "wide", 1.0) == [("tall", 13), ("wide", 1), ("wide", 13)]
+    assert pick.still_plan(clips, "tall", 2.0) == [("tall", 6), ("wide", 1), ("tall", 6)]
+
+
+@pytest.mark.parametrize("limit, expected", [
+    (4, (1.0, False)),  # 30 s at one a second: 30 + 10 = 40 stills, 4 sheets
+    (3, (1.5, True)),  # at 1.5 s: 20 + 6 = 26 stills, 3 sheets
+    (2, (2.0, True)),  # at 2 s: 15 + 5 = 20 stills, 2 sheets
+    (1, (2.0, True)),  # nothing fits: the widest rhythm, still thinned
+])
+def test_run_interval_thins_until_the_run_fits(limit, expected, monkeypatch):
+    monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", limit)
+    assert pick.run_interval([manifest_clip("video", 30.0, TALL)], "tall") == expected
+
+
+def test_run_interval_mixed_orientations_and_a_photo(monkeypatch):
+    clips = [manifest_clip("video", 30.0, TALL), manifest_clip("video", 30.0, WIDE), manifest_clip("photo", 1.0, TALL)]
+    # 4 + 4 + 1 sheets at one a second; 3 + 3 + 1 at 1.5; 2 + 2 + 1 at 2
+    for limit, expected in [(9, (1.0, False)), (8, (1.5, True)), (7, (1.5, True)), (6, (2.0, True)), (5, (2.0, True)),
+                            (4, (2.0, True))]:
+        monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", limit)
+        assert pick.run_interval(clips, "tall") == expected, limit
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_up_front_count_agrees_with_the_sheets_actually_made(shape, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "EXTRAS_SHARE", 0)  # plain clips add no extras, so the plan is exactly the stills
+    here, there = TALL_SIZE[shape], other_size(shape)
+    specs = [(*here, 5), (*there, 14), (*there, 2, "photo"), (*here, 13), (*here, 1, "photo"), (*there, 3)]
+    work = make_job(tmp_path, shape, specs)
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+    planned = pick.sheets_needed(pick.still_plan(manifest["clips"], shape, 1.0))
+
+    look = run_look(work)
+
+    # one sheet for the 5 stills of the first clip; 14 + 1 stills of the other orientation fill two; 13 + 1 stills of
+    # the first orientation again fill two; the last clip's 3 stills start a sixth
+    assert len(look["sheets"]) == planned == 1 + 2 + 2 + 1
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_thinned_run_takes_its_stills_further_apart(shape, tmp_path, monkeypatch, capsys):
+    width, height = TALL_SIZE[shape]
+    monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 2)  # 20 s at one a second needs 3 sheets; at 1.5 s it needs 2
+    work = make_job(tmp_path, shape, [(width, height, 20)])
+
+    look = run_look(work)
+
+    assert (look["rhythm"], look["rhythm_thinned"]) == (1.5, True)
+    sentence = "There are too many stills for 2 sheets, so a still is taken every 1.5 seconds instead of every second."
+    assert sentence in look["missing"]
+    assert capsys.readouterr().out.count(sentence) == 1
+    (clip,) = look["clips"]
+    assert [still["t"] for still in clip["stills"] if still["why"] == "rhythm"][:4] == [0.0, 1.5, 3.0, 4.5]
+    assert all(still["sheet"] is not None for still in clip["stills"])  # thinned enough to fit: all are drawn
+    assert len(look["sheets"]) <= 2
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_run_that_fits_is_not_thinned(shape, tmp_path, monkeypatch):
+    width, height = TALL_SIZE[shape]
+    monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 3)
+    work = make_job(tmp_path, shape, [(width, height, 20)])
+
+    look = run_look(work)
+
+    assert (look["rhythm"], look["rhythm_thinned"]) == (1.0, False)
+    assert look["missing"] == []
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_nothing_fits_the_cap_and_the_rest_are_listed_but_not_drawn(shape, tmp_path, monkeypatch, capsys):
+    width, height = TALL_SIZE[shape]
+    columns, rows = settings.SHEET_GRID[shape]
+    cells = columns * rows
+    monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 1)
+    work = make_job(tmp_path, shape, [(width, height, 20), (width, height, 5), (width, height, 2)])
+    asked = []
+    real = sheets.grab_stills
+
+    def spy(path, numbers, size, seconds):
+        asked.append((path.name, len(numbers)))
+        return real(path, numbers, size, seconds)
+
+    monkeypatch.setattr(sheets, "grab_stills", spy)
+
+    look = run_look(work)
+
+    assert (look["rhythm"], look["rhythm_thinned"]) == (2.0, True)
+    a, b, c = look["clips"]
+    assert [still["cell"] for still in a["stills"]] == list(range(1, 11))  # ten stills, two seconds apart
+    assert [still["cell"] for still in b["stills"]] == [11, 12, None]  # the sheet is full after two
+    assert all(still["sheet"] is None and still["box"] is None for still in c["stills"])
+    assert len(c["stills"]) == 1 and c["status"] == "done"  # still listed, still measured
+    assert len(c["halves"]) == 4
+    assert asked == [("A.mp4", 10), ("B.mp4", 2)]  # nothing was read for C, and only two pictures for B
+    assert look["sheets"] == ["sheets/sheet-01.jpg"]
+    sentence = (
+        "Even with fewer stills the run needs more than 1 sheets, so the stills from clip B on are listed in "
+        "look.json but not on a sheet.")
+    assert look["missing"].count(sentence) == 1
+    assert capsys.readouterr().out.count(sentence) == 1
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_tall_and_wide_alternating_hit_the_cap_one_sheet_each(shape, tmp_path, monkeypatch):
+    here, there = TALL_SIZE[shape], other_size(shape)
+    monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 2)
+    work = make_job(tmp_path, shape, [(*here, 3), (*there, 3), (*here, 3)])
+
+    look = run_look(work)
+
+    a, b, c = look["clips"]
+    assert a["stills"][0]["sheet"] == "sheets/sheet-01.jpg" and b["stills"][0]["sheet"] == "sheets/sheet-02.jpg"
+    assert all(still["sheet"] is None for still in c["stills"])  # a third sheet would pass the cap
+    assert len(look["sheets"]) == 2
+    assert any("the stills from clip C on" in sentence for sentence in look["missing"])
