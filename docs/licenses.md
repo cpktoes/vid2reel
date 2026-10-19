@@ -6,9 +6,12 @@ These are the libraries v2r uses beyond Python and FFmpeg. In the sandbox, pip d
 | --- | --- | --- | --- | --- |
 | Pillow | 12.3.0 | MIT-CMU | Opening photos, turning them upright and saving the full-size copy | https://github.com/python-pillow/Pillow |
 | pillow-heif | 1.8.1 | BSD-3-Clause | Lets Pillow open iPhone HEIC photos | https://github.com/bigcat88/pillow_heif |
+| jsonschema | 4.26.0 | MIT | Checking a cut list against schema/cutlist.schema.json and reporting every problem it finds | https://github.com/python-jsonschema/jsonschema |
 | pytest | 9.1.1 | MIT | Tests, on the Mac only (never installed in the sandbox) | https://github.com/pytest-dev/pytest |
 
 pillow-heif's downloads include libheif and libde265 (LGPL-3.0) and x265 (GPL-2.0); this repo does not include or redistribute them.
+
+jsonschema brings four small libraries with it, all MIT: attrs, referencing, jsonschema-specifications and rpds-py (rpds-py is compiled; pip downloads a ready-made wheel, so the sandbox needs no compiler).
 
 ## Checked and not added
 
