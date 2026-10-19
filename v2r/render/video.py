@@ -13,21 +13,63 @@ from v2r.render import plan
 QUIET = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin"]
 
 
+def perspective_filter(start, end, frames):
+    """The slow move of a shot, drawn with FFmpeg's perspective filter; "" when there is nothing to move.
+
+    `start` and `end` are the picture windows [left, top, width, height] in canvas pixels the shot begins and ends on.
+    The four corners of the window are each one straight line in the frame number, from the start window's corner on
+    the first frame to the end window's on the last, so the speed never changes (D-20). With sense=source the filter
+    reads those four points of the picture and stretches them onto the four corners of the frame, which is the zoom.
+    This is the only way a move is drawn: FFmpeg's zoom-and-pan filter and a moving crop both land on whole pixels and
+    visibly tick by about two pixels a frame on a canvas-sized picture, while this draws between pixels. Its small
+    constant sub-pixel offset (up to 0.6 pixel) is the same on every frame and is left alone.
+    A shot of one frame, or a move whose two windows are equal, gets no filter at all.
+    """
+    if frames <= 1 or list(start) == list(end):
+        return ""
+    corners = (
+        (start[0], end[0], start[1], end[1]),  # top-left
+        (start[0] + start[2], end[0] + end[2], start[1], end[1]),  # top-right
+        (start[0], end[0], start[1] + start[3], end[1] + end[3]),  # bottom-left
+        (start[0] + start[2], end[0] + end[2], start[1] + start[3], end[1] + end[3]),  # bottom-right
+    )
+    parts = []
+    for index, (x_from, x_to, y_from, y_to) in enumerate(corners):
+        for axis, first, last in (("x", x_from, x_to), ("y", y_from, y_to)):
+            parts.append(f"{axis}{index}='({first:.6f}+({last - first:.6f})*in/{frames - 1})'")
+    return "perspective=" + ":".join(parts) + ":sense=source:eval=frame:interpolation=cubic"
+
+
+FINISH = "format=yuv420p,setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709[v]"
+
+
 def video_chain(segment, the_plan):
     """The filter chain that turns one shot into exactly its frames, filling the canvas, in the label [v].
 
-    Exact frames (the trim counts frames, not seconds), then the region around the focus point cut in whole even
-    pixels, then scaled to the canvas. Plans for a move and for the touch-up add their steps here, in this one place.
+    A shot from a working copy: exact frames (the trim counts frames, not seconds), then the region around the focus
+    point cut in whole even pixels, then scaled to the canvas, then the slow move if the list named one.
+    A photo (D-21): the region is cut from the full-size upright picture, scaled to the canvas once, and that one
+    frame is repeated for the length of the shot before the move, so a photo is as sharp as the picture allows. The
+    JPEG is full range and needs the explicit conversion to the limited range of video.
+    The touch-up adds its step here, in this one place.
     """
     canvas_w, canvas_h = the_plan["canvas"]
     crop_w, crop_h, crop_x, crop_y = segment["crop"]
+    move = perspective_filter(segment["window_start"], segment["window_end"], segment["frames"])
+    move = f"{move}," if move else ""
+    if segment["kind"] == "photo":
+        return (
+            f"[0:v]crop={crop_w}:{crop_h}:{crop_x}:{crop_y}:exact=1,"
+            f"scale={canvas_w}:{canvas_h}:flags=bicubic+accurate_rnd:out_color_matrix=bt709:out_range=tv,"
+            f"format=yuv420p,setsar=1,loop=loop={segment['frames'] - 1}:size=1:start=0,"
+            f"setpts=N/({the_plan['fps']}*TB),{move}{FINISH}"
+        )
     _, skip = plan.seek(segment["start_frame"])
     end = skip + segment["frames"]
     return (
         f"[0:v]trim=start_frame={skip}:end_frame={end},setpts=N/({the_plan['fps']}*TB),"
         f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
-        f"scale={canvas_w}:{canvas_h}:flags=bicubic+accurate_rnd,setsar=1,format=yuv420p,"
-        "setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709[v]"
+        f"scale={canvas_w}:{canvas_h}:flags=bicubic+accurate_rnd,setsar=1,{move}{FINISH}"
     )
 
 
@@ -38,15 +80,31 @@ def source_window(segment, the_plan):
     return pre / fps, (skip + segment["frames"] + settings.RENDER_TAIL_FRAMES) / fps
 
 
+def photo_path(segment, work_dir):
+    """The full-size copy of a photo shot: a plain file name directly in the work folder, else ValueError."""
+    folder = Path(work_dir).resolve()
+    name = segment["photo"]
+    path = (folder / name).resolve() if isinstance(name, str) and name else None
+    if path is None or path.parent != folder or Path(name).name != name:
+        raise ValueError(f"The full-size copy of photo {segment['clip']} is missing from the work folder, so it cannot be built.")
+    return path
+
+
 def piece_command(segment, the_plan, work_dir, output):
     """The FFmpeg command that builds one shot's picture (no sound) into the scratch piece `output`."""
-    seek, length = source_window(segment, the_plan)
-    source = Path(work_dir).resolve() / segment["working"]
+    if segment["kind"] == "photo":
+        # -framerate: the image reader runs at 25 frames a second unless told, and would lose frames of a 30 fps shot
+        source = ["-framerate", str(the_plan["fps"]), "-i", str(photo_path(segment, work_dir))]
+        count = ["-frames:v", str(segment["frames"])]
+    else:
+        seek, length = source_window(segment, the_plan)
+        source = ["-ss", f"{seek:.6f}", "-t", f"{length:.6f}", "-i", str(Path(work_dir).resolve() / segment["working"])]
+        count = []
     return [
         *QUIET, "-y",
-        "-ss", f"{seek:.6f}", "-t", f"{length:.6f}", "-i", str(source),
+        *source,
         "-filter_complex", video_chain(segment, the_plan),
-        "-map", "[v]", "-an", "-fps_mode", "passthrough",
+        "-map", "[v]", "-an", "-fps_mode", "passthrough", *count,
         "-c:v", "libx264", "-preset", settings.RENDER_PIECE_PRESET, "-crf", str(settings.RENDER_PIECE_CRF),
         "-pix_fmt", "yuv420p",
         str(output),

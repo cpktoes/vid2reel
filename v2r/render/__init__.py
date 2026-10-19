@@ -156,7 +156,10 @@ def render(cutlist_path=None, work_dir=None):
         for segment in segments:
             name = f"piece-{segment['number']:03d}.mkv"
             final = scratch / name
-            command = video.piece_command(segment, the_plan, work_dir, normalize.part_path(final))
+            try:
+                command = video.piece_command(segment, the_plan, work_dir, normalize.part_path(final))
+            except ValueError as error:  # a photo's full-size copy that is not a plain file in the work folder
+                raise RenderError(str(error)) from error
             run_step(
                 command, f"building shot {segment['number']}", segment["frames"] / the_plan["fps"],
                 normalize.part_path(final), final)

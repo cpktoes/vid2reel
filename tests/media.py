@@ -186,6 +186,31 @@ def make_colour_clip(path, width, height, seconds, yuv=(128, 128, 128), beep=Non
     return encode_picture(path, picture, seconds, beep, width, height)
 
 
+LINE_WIDTH = 4  # pixels: how thick the white lines of make_line_clip are
+
+
+def make_line_clip(path, width, height, seconds, xs=None):
+    """A working-copy-shaped clip (30 fps, lossless H.264, silent stereo AAC at 48 kHz): black with a white vertical
+    line LINE_WIDTH pixels wide at each x of `xs` (default the centre), to measure where a move puts a feature."""
+    xs = [width // 2 - LINE_WIDTH // 2] if xs is None else xs
+    boxes = "".join(f",drawbox=x={x}:y=0:w={LINE_WIDTH}:h={height}:color=white:t=fill" for x in xs)
+    picture = f"color=black:size={width}x{height}:rate=30:duration={seconds}{boxes},format=yuv420p"
+    return encode_picture(path, picture, seconds, None, width, height)
+
+
+def make_band_photo(path, width, height, colours):
+    """A JPEG (Pillow, quality 95) of vertical bands of equal width, one per (R, G, B) colour, left to right."""
+    from PIL import Image
+
+    image = Image.new("RGB", (width, height))
+    band = width // len(colours)
+    for number, colour in enumerate(colours):
+        right = width if number == len(colours) - 1 else (number + 1) * band
+        image.paste(colour, (number * band, 0, right, height))
+    image.save(path, "JPEG", quality=95)
+    return path
+
+
 def patch_yuv(path, frame, x, y, size=40):
     """The mean (Y, U, V) of a `size` square at (x, y) of frame number `frame` of a video, as decoded."""
     data = subprocess.run(
@@ -391,7 +416,8 @@ def make_manifest(work, shape, entries):
     Each entry is a Path to a clip already saved in `work` (a done video), or a dict with `file` (Path or None),
     `kind` ("video" or "photo"), `status` ("done" or "skipped") and `sound_added` (bool); the keys left out are
     "video", "done" and False. A dict may also carry `working`, used exactly as given without probing, for a missing,
-    broken or wrongly named working copy. Letters are A, B, C in order and numbers count from 1.
+    broken or wrongly named working copy, and `photo`, used exactly as given (such as {"file": "C-photo.jpg", "size":
+    [3000, 4000]}) instead of the default photo block. Letters are A, B, C in order and numbers count from 1.
     """
     clips = []
     for number, item in enumerate(entries, start=1):
@@ -432,7 +458,8 @@ def make_manifest(work, shape, entries):
             "working": working, "convert_seconds": 0.1, "notes": [],
         }
         if kind == "photo":
-            entry["photo"] = {"file": f"{letter}-photo.jpg", "size": list(working.get("size", [0, 0]))}
+            entry["photo"] = spec.get("photo") or {
+                "file": f"{letter}-photo.jpg", "size": list(working.get("size", [0, 0]))}
         clips.append(entry)
     manifest = {"version": 1, "shape": shape, "finished": True, "stopped": None, "clips": clips}
     (work / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
