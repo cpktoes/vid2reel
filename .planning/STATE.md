@@ -6,7 +6,7 @@ current_phase: 4
 current_phase_name: Stage 16 – Cut list and renderer
 status: planning
 stopped_at: Completed 03-09-PLAN.md
-last_updated: "2026-10-19T06:38:03.264Z"
+last_updated: "2026-10-19T07:07:39.997Z"
 last_activity: 2026-10-18
 last_activity_desc: Phase 3 complete, transitioned to Phase 4
 progress:
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: 4 — Stage 16 – Cut list and renderer
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-10-18 — Phase 3 complete, transitioned to Phase 4
+Last activity: 2026-10-18 - Completed quick task 261018-wu5: the nine Stage 15 review decisions
 
 Progress: [██████████] 100% (1 of 14 phases complete)
 
@@ -130,6 +130,7 @@ None.
 | 4 | Bring the guide's Stage 14 level with the build and publish the eighteenth edition; record in docs/decisions.md that both editions were made from Claude Code | 2026-10-17 | 048423e | — |
 | 5 | Record the Stage 15 phone tests in docs/phone-limits.md and settle the Stage 15 wording in CLAUDE.md and docs/decisions.md | 2026-10-18 | 6577548 | — |
 | 6 | Bring the guide's Stage 15 level with the build and publish the nineteenth edition; record it in docs/decisions.md | 2026-10-18 | 4bdbd92 | — |
+| 7 | Apply the nine Stage 15 review decisions (WR-01, WR-02, WR-04, IN-02 to IN-07) on branch stage-15-review-fixes | 2026-10-18 | fc40d90 | [261018-wu5-apply-the-nine-stage-15-review-decisions](./quick/261018-wu5-apply-the-nine-stage-15-review-decisions/) |
 
 ## Deferred Items
 
