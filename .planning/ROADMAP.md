@@ -113,7 +113,7 @@ Plans:
   4. Tests using generated clips with a known answer prove a still lands on the moment that matters
   5. In the blind test, from the sheets and look.json alone, Claude picks the moment she would have picked in at least four clips out of five
 
-**Plans**: 8/9 plans executed
+**Plans**: 9/9 plans executed
 
 Plans:
 **Wave 1**
@@ -144,7 +144,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 03-09-PLAN.md — The user's EDITOR.md look step, pre-push checks, push with permission, phone sheet test and a reel (wave 7, checkpoints)
+- [x] 03-09-PLAN.md — The user's EDITOR.md look step, pre-push checks, push with permission, phone sheet test and a reel (wave 7, checkpoints)
 
 ### Phase 4: Stage 16 – Cut list and renderer
 
@@ -317,7 +317,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|-----------|----------------|--------|-----------|
 | 1. Skeleton | M1: A reel from a phone | done by hand | Complete | 2026-10-12 |
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
-| 3. Stage 15 – Seeing the footage | M2: It can see | 8/9 | In Progress|  |
+| 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | In Progress|  |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 0/TBD | Not started | - |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 0/TBD | Not started | - |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |

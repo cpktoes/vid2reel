@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 3
 current_phase_name: Stage 15 – Seeing the footage
-status: executing
-stopped_at: Completed 03-08-PLAN.md
-last_updated: "2026-10-18T22:03:12.961Z"
+status: verifying
+stopped_at: Completed 03-09-PLAN.md
+last_updated: "2026-10-19T04:29:18.499Z"
 last_activity: 2026-10-17
 last_activity_desc: Phase 3 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 17
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 
 Phase: 3 (Stage 15 – Seeing the footage) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-17 — Phase 3 execution started
 
-Progress: [█████████░] 94% (1 of 14 phases complete)
+Progress: [██████████] 100% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [█████████░] 94% (1 of 14 phases complete)
 | Phase 03 P06 | 35 min | 2 tasks | 4 files |
 | Phase 03 P07 | 30 min | 2 tasks | 3 files |
 | Phase 03 P08 | one checkpoint round trip | 2 tasks | 0 files |
+| Phase 03 P09 | 3 checkpoint round trips | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,9 @@ Settled decisions that shape later phases:
 - [Phase ?]: [03-07] Candidates are facts in a stated order; a still exactly at a stretch's end counts as inside it; unmeasured parts are named as not measured
 - [Phase ?]: [03-08] Blind test on the user's own footage passed 4 of 4 on four clips (user's choice of set size); no misses, no setting changes; look costs about 0.5 to 0.57 s per second of video on the Mac
 - [Phase ?]: [03-08] Observation for a later stage: two normalize runs at once make the second run's clean-up delete the first run's half-written file; a run-in-progress guard or a plainer sentence is wanted, not a Stage 15 fix
+- [Phase ?]: [Phase 3] Stage 15 phone test: look step taken from the offered draft (step 4 of EDITOR.md) at the user's word; branch pushed, main untouched at 248bec0
+- [Phase ?]: [Phase 3] DESHAKE_CONTRAST set to 20 (deshake default 125 read a panning camera as still on small tone-mapped frames); confirmed on Mac, bench clips and phone
+- [Phase ?]: [Phase 3] Handheld pan reads shaky not panning (SHAKE_LIMIT_PX 2.0): left alone, candidate for a later tuning pass
 
 ### Pending Todos
 
@@ -134,6 +138,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-18T22:03:12.930Z
-Stopped at: Completed 03-08-PLAN.md
+Last session: 2026-10-19T04:29:18.482Z
+Stopped at: Completed 03-09-PLAN.md
 Resume file: None
