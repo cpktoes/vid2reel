@@ -70,6 +70,14 @@ def test_label_format():
     assert sheets.label("C", 123.4) == "C 123.4"
 
 
+def test_label_decimals_is_a_setting(monkeypatch):
+    monkeypatch.setattr(settings, "LABEL_DECIMALS", 2)
+    assert sheets.label("A", 3.25) == "A 03.25"
+    assert pick.clock(4.5) == "04.50"
+    monkeypatch.setattr(settings, "LABEL_DECIMALS", 0)
+    assert pick.clock(4.2) == "04"
+
+
 def test_half_count():
     assert measure.half_count(4.0) == 8
     assert measure.half_count(4.02) == 8
@@ -485,7 +493,7 @@ def test_run_without_ffmpeg(shape, tmp_path, monkeypatch, capsys):
 LOOK_SETTINGS = [
     "LOOK_WIDTH", "LOOK_FPS", "SUMMARY_SECONDS", "STILL_INTERVAL_STEPS", "MAX_SHEETS_PER_RUN", "MAX_CLIP_SECONDS", "SHEET_GRID",
     "CELL_ASPECT", "SHEET_WIDTH", "SHEET_PADDING", "SHEET_BACKGROUND", "SHEET_JPEG_QUALITY", "LABEL_FONT_SHARE",
-    "LABEL_PADDING", "LABEL_BOX_COLOUR", "LABEL_TEXT_COLOUR", "LOOK_DECIMALS",
+    "LABEL_PADDING", "LABEL_BOX_COLOUR", "LABEL_TEXT_COLOUR", "LABEL_DECIMALS", "LOOK_DECIMALS",
     "SHEET_JPEG_QUALITY_STEP", "SHEET_JPEG_QUALITY_MIN", "SHEET_MAX_BYTES", "EXTRAS_SHARE", "EXTRA_MIN_GAP",
     "PEAK_SPREADS", "MOVEMENT_SPREAD_FLOOR", "LOUDNESS_SPREAD_FLOOR", "SCENE_THRESHOLD", "CUT_STILL_DELAY",
     "LOUDNESS_DELAY", "SILENCE_LUFS", "DESHAKE_RANGE", "DESHAKE_CONTRAST", "SHAKE_WINDOW_SECONDS", "CAMERA_STILL_PX", "SHAKE_LIMIT_PX",
@@ -507,7 +515,7 @@ def look_block_lines():
 def test_look_settings_have_unit_comments():
     import re
 
-    assert len(LOOK_SETTINGS) == 43
+    assert len(LOOK_SETTINGS) == 44
     for name in LOOK_SETTINGS:
         assert hasattr(settings, name), f"{name} is not in v2r/settings.py"
     block = look_block_lines()
@@ -549,4 +557,5 @@ def test_run_measuring_command_that_hangs_still_takes_the_stills(shape, tmp_path
     assert clip["status"] == "done"
     assert clip["notes"] == ["The measurements of clip A could not be made."]
     assert all(half["movement"] is None for half in clip["halves"])
+    assert clip["candidates"] == []  # nothing was measured, so no order is offered
     assert [still["sheet"] for still in clip["stills"]] == ["sheets/sheet-01.jpg"] * 3  # the stills went ahead

@@ -5,13 +5,14 @@ Candidates are an order, never a choice (D-04): no reason judges, and nothing in
 
 import json
 import re
+import subprocess
 
 import pytest
 from media import make_look_clip, make_manifest
 
 from v2r import settings
 from v2r.__main__ import main
-from v2r.look import pick
+from v2r.look import measure, pick
 
 FPS = 30
 
@@ -69,9 +70,16 @@ def test_window_exclusions():
     assert only_window == []  # strictly inside the only window
     assert pick.candidates(halves_of(4), [0.0], stills, [], 2.0, FPS) != []
     assert pick.candidates(halves_of(4), [2.0], stills, [], 2.0, FPS) != []
-    # values that were not measured never leave a window out
+    # nothing measured at all: no candidates, because an order built from no facts would read as a recommendation
     unmeasured = halves_of(16, state=None, sharp=None, movement=None)
-    assert pick.candidates(unmeasured, None, stills, [], seconds, FPS)
+    assert pick.candidates(unmeasured, None, stills, [], seconds, FPS) == []
+    assert pick.candidates([], None, stills, [], seconds, FPS) == []
+    # but a value missing in only some half seconds never leaves a window out
+    partly = halves_of(4, overrides={1: {"camera_state": None, "sharp": None, "movement": None}})
+    found = pick.candidates(partly, [], stills_of("A", [0.0, 1.0]), [], 2.0, FPS)
+    assert len(found) == 1 and spans(found) == [(0.0, 2.0)]
+    assert found[0]["reason"] == (
+        "camera not measured, no blurrier than the rest of the clip where measured, little movement; stills A 00.0, A 01.0")
 
 
 def test_merge_never_holds_a_cut_inside():
@@ -145,14 +153,14 @@ def test_reason_text_exact():
         halves[i].update(movement=3.0, subject=True)
     stills = stills_of("A", [0.0, 1.0, 2.0, 3.0, 4.0, 4.5, 5.0, 7.0])
     found = pick.candidates(halves, [], stills, [4.5], 8.0, FPS)
-    assert found[0]["reason"] == "steady camera, sharp, subject moving, sound peak at 04.5; stills A 04.0, A 04.5, A 05.0"
+    assert found[0]["reason"] == "steady camera, no blurrier than the rest of the clip, subject moving, sound peak at 04.5; stills A 04.0, A 04.5, A 05.0"
     assert found[0]["stills"] == ["A 04.0", "A 04.5", "A 05.0"]
     assert found[0]["start"] <= 4.0 and found[0]["end"] >= 5.0  # the windows around 4 to 6 s merged
     # nothing moving, and no still inside
     plain = pick.candidates(halves_of(4), [], stills_of("A", [0.0, 7.0]), [], 2.0, FPS)
-    assert plain[0]["reason"] == "steady camera, sharp, nothing moving; stills A 00.0"
+    assert plain[0]["reason"] == "steady camera, no blurrier than the rest of the clip, nothing moving; stills A 00.0"
     far = pick.candidates(halves_of(4), [], stills_of("A", [3.0]), [], 2.0, FPS)
-    assert far[0]["reason"] == "steady camera, sharp, nothing moving; no still inside, nearest A 03.0"
+    assert far[0]["reason"] == "steady camera, no blurrier than the rest of the clip, nothing moving; no still inside, nearest A 03.0"
 
 
 def test_every_window_excluded_gives_empty():
@@ -161,7 +169,7 @@ def test_every_window_excluded_gives_empty():
     assert pick.candidates(halves_of(16, state="shaky"), [], stills, [], 8.0, FPS) == []
     assert pick.candidates(halves_of(16, sharp=False), [], stills, [], 8.0, FPS) == []
     assert pick.candidates(halves_of(16), [x + 0.5 for x in range(7)], stills, [], 8.0, FPS) == []
-    assert pick.candidates([], [], stills, [], 8.0, FPS) != []  # nothing measured is not "excluded"
+    assert pick.candidates([], [], stills, [], 8.0, FPS) == []  # nothing measured: nothing to order
 
 
 def test_sound_peaks_shared_with_extras():
@@ -180,6 +188,7 @@ def test_sound_peaks_shared_with_extras():
 
 SIZE = {"tall": (360, 640), "wide": (640, 360)}  # the clip sizes swap with the shape
 CHOOSING_WORDS = re.compile(r"\b(best|use|pick|choose|chosen|recommend|should|good|great)\b", re.IGNORECASE)
+BARE_SHARP = re.compile(r"\bsharp\b")  # "sharpness not measured" is fine; "sharp" alone reads as a judgement
 
 
 def look_clips(tmp_path, shape, makers):
@@ -295,6 +304,7 @@ def test_reasons_name_facts_only(shape, tmp_path):
         for c in clip["candidates"]:
             reasons += 1
             assert not CHOOSING_WORDS.search(c["reason"]), c["reason"]
+            assert not BARE_SHARP.search(c["reason"]), c["reason"]
             assert "; stills " in c["reason"] or "; no still inside" in c["reason"], c["reason"]
     assert reasons >= 4
 
@@ -309,3 +319,16 @@ def test_reasons_name_facts_only(shape, tmp_path):
 
     for key in keys(document):
         assert not any(word in key.lower() for word in ("chosen", "selected", "pick")), key
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_clip_whose_picture_could_not_be_measured_has_no_candidates(shape, tmp_path, monkeypatch):
+    def fails(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+
+    monkeypatch.setattr(measure, "measure_video", fails)
+    clip = one_clip(tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="square", start=4.0, end=5.0))
+    assert clip["status"] == "done"
+    assert clip["notes"] == ["The measurements of clip A could not be made."]
+    assert clip["stills"] and all(still["sheet"] for still in clip["stills"])
+    assert clip["candidates"] == []
