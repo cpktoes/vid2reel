@@ -201,6 +201,19 @@ Left exactly as they are; one plain line each on what I would do.
 After you pull this branch, please run `v2r look` once from a phone on a set of clips that includes a cut and check the
 two things under CR-01 and CR-03 above, since the 6.1 FFmpeg in the sandbox has not run these changes.
 
+## Decisions taken (2026-10-18)
+
+The user chose every item under "Decisions for the user", to be done after Stage 15 merges, as the next quick task (tested from a phone before its own merge):
+
+- **WR-01:** a clip whose picture measuring failed lists no candidate stretches; the test that says "nothing measured is not excluded" changes to match.
+- **WR-02:** the reason word "sharp" becomes "no blurrier than the rest of the clip".
+- **IN-03:** the one-second shake average stops at a cut.
+- **IN-05:** tall sheets are sized so their long edge is about 1568 pixels, and a proposed EDITOR.md sentence asks Claude to send a few sheets at a time (the user pastes it).
+- **WR-04:** look's temporary files live inside the work folder under a hidden name, cleared by the next run.
+- **IN-02, IN-04, IN-07:** the `MOTION_FILE` name in the deshake piece, the `DESHAKE_CONTRAST` comment corrected to 1 to 255, a setting for the label's decimals, and the two docstrings corrected.
+- **IN-06:** one setting for a whole look run's time limit; the unused `candidate_reason` parameters removed; the test constant renamed.
+- **IN-01:** CLAUDE.md's settled line gains "and sound peaks"; docs/decisions.md gains the sheet-cap thinning and the candidate rules. This part goes into the quick task that records the Stage 15 phone test in docs/phone-limits.md.
+
 ---
 
 _Fixed: 2026-10-18_
