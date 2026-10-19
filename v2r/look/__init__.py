@@ -311,6 +311,8 @@ def look(work_dir=None):
                 print(
                     f"{letter} looked at in {round(clip['look_seconds'])} s, "
                     f"{plural(len(result['sheets']), 'sheet')} so far", flush=True)
+                for note in clip["notes"]:  # anything that could not be measured or drawn is said, not only written
+                    print(note, flush=True)
     except OSError as error:
         if error.errno != errno.ENOSPC:
             raise
@@ -324,7 +326,8 @@ def look(work_dir=None):
     result["finished"] = True
     write_look(work_dir, result)
     done = sum(1 for clip in result["clips"] if clip["status"] == "done")
-    print(
-        f"{done} of {len(manifest['clips'])} clips looked at; the sheets are in {work_dir / 'sheets'} "
-        f"and the measurements in {work_dir / 'look.json'}.", flush=True)
+    where = f"the measurements are in {work_dir / 'look.json'}"
+    if result["sheets"]:  # say where the sheets are only when there are some
+        where = f"the sheets are in {work_dir / 'sheets'} and the measurements in {work_dir / 'look.json'}"
+    print(f"{done} of {len(manifest['clips'])} clips looked at; {where}.", flush=True)
     return result

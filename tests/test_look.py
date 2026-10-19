@@ -344,6 +344,38 @@ def test_run_measuring_and_stills_both_failed_skips_the_clip(shape, tmp_path, mo
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_prints_each_clips_notes(shape, tmp_path, monkeypatch, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+
+    def no_loudness(*args):
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+
+    monkeypatch.setattr(measure, "measure_loudness", no_loudness)
+
+    assert main(["look", str(work)]) == 0
+
+    out = capsys.readouterr().out
+    assert "The loudness of clip A could not be measured." in out
+    assert out.index("A looked at in") < out.index("The loudness of clip A")
+    assert f"the sheets are in {work / 'sheets'}" in out
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_does_not_point_to_sheets_when_there_are_none(shape, tmp_path, monkeypatch, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    monkeypatch.setattr(sheets, "picture_problem", lambda: "The picture library is not installed here.")
+
+    assert main(["look", str(work)]) == 0
+
+    out = capsys.readouterr().out
+    assert "The stills of clip A could not be taken, so it is not on the sheets." in out
+    assert "the sheets are in" not in out
+    assert f"the measurements are in {work / 'look.json'}" in out
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
 def test_run_without_picture_library_still_measures(shape, tmp_path, monkeypatch):
     work = make_work(tmp_path)
     make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
