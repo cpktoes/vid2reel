@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 import subprocess
 import sys
 import unicodedata
@@ -14,7 +15,7 @@ from jsonschema import Draft202012Validator
 
 from v2r import join, settings
 from v2r.__main__ import main
-from v2r.render import check
+from v2r.render import check, sound
 
 SHAPES = ["tall", "wide"]
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "cutlist.schema.json"
@@ -70,8 +71,17 @@ def test_schema_leaves_unknown_fields_open(shape, tmp_path):
 # ---- check's sentences about the rulebook ----
 
 
-def run_check(work, data, capsys, name="cutlist.json"):
-    """Write the list, run `check`, and return (exit code, problem sentences, note sentences, the file's bytes before)."""
+RULE_NOTE = re.compile(
+    r"There is no touch-up in the list|Segment \d+: \w+ is a photo with no move|(Clip|Photo) \w+ is (sideways|upright) in a "
+    r"(tall|wide) frame|This reel has no sound at all")
+
+
+def run_check(work, data, capsys, name="cutlist.json", all_notes=False):
+    """Write the list, run `check`, and return (exit code, problem sentences, note sentences).
+
+    The notes about the rules (no touch-up, a photo with no move, a crop that keeps little, no sound) are left out
+    unless `all_notes` is true, so the tests of the field notes read the same for every list.
+    """
     path = write_list(work, data, name)
     before, files = path.read_bytes(), listing(work)
     code = main(["check", str(path), "--work", str(work)])
@@ -80,7 +90,7 @@ def run_check(work, data, capsys, name="cutlist.json"):
     assert listing(work) == files  # and writes nothing anywhere
     problems = [line.removeprefix("Problem: ") for line in lines if line.startswith("Problem: ")]
     notes = [line.removeprefix("Note: ") for line in lines if line.startswith("Note: ")]
-    return code, problems, notes
+    return code, problems, notes if all_notes else [note for note in notes if not RULE_NOTE.match(note)]
 
 
 def listing(work):
@@ -241,19 +251,10 @@ def test_a_list_with_one_segment_and_nothing_else_is_ready(shape, tmp_path, caps
         "segments": [segment("A", 0.0, 3.0, "keep", "A 00.0 to A 03.0: the start")],
     }
 
-    code, problems, notes = run_check(work, data, capsys)
+    code, problems, notes = run_check(work, data, capsys, all_notes=True)
 
-    assert (code, problems, notes) == (0, [], [])
-
-
-@pytest.mark.parametrize("shape", SHAPES)
-def test_the_approved_examples_are_ready_to_render(shape, tmp_path, capsys):
-    work, manifest = placeholder_work(tmp_path, shape)
-    data = EXAMPLES[shape](clips_block(manifest))
-
-    code, problems, notes = run_check(work, data, capsys)
-
-    assert (code, problems, notes) == (0, [], [])
+    assert (code, problems, notes) == (
+        0, [], ["There is no touch-up in the list; run match if the clips should match."])
 
 
 # ---- a missing, empty or bare list ----
@@ -488,11 +489,11 @@ OTHER = {"tall": "wide", "wide": "tall"}
 INFO = {  # per shape: what the approved example holds, so each row can name the numbers it breaks
     "tall": {
         "letters": "A, B, C, D and E", "last": "E", "b_name": "IMG_4412.MOV", "a_seconds": 12.0, "b_seconds": 10.0,
-        "a_from": 1.0, "a_to": 4.0, "unused": (4, "D"), "photo": (5, "E"), "second_seconds": 2.5, "segments": 7,
+        "a_from": 1.0, "a_to": 4.0, "unused": (4, "D"), "photo": (5, "E"), "second_seconds": 2.5, "segments": 7, "reel": 20.0,
     },
     "wide": {
         "letters": "A, B and C", "last": "C", "b_name": "IMG_5003.MOV", "a_seconds": 40.0, "b_seconds": 8.0,
-        "a_from": 0.0, "a_to": 10.0, "unused": (2, "B"), "photo": (4, "C"), "second_seconds": 3.0, "segments": 5,
+        "a_from": 0.0, "a_to": 10.0, "unused": (2, "B"), "photo": (4, "C"), "second_seconds": 3.0, "segments": 5, "reel": 38.0,
     },
 }
 
@@ -610,9 +611,37 @@ def delete_in_work(name_of):
     return apply
 
 
-def start_of(c):
-    return c.info["a_from"]
+def music_folder(tracks=None, files=(), raw=None):
+    """An edit that points the music folder at an empty tmp one, with a library.json of `tracks` (or `raw` text) in it."""
+    def apply(c):
+        folder = c.work.parent / "music"
+        folder.mkdir()
+        for name in files:
+            (folder / name).write_bytes(b"")
+        if raw is not None:
+            (folder / "library.json").write_text(raw, encoding="utf-8")
+        elif tracks is not None:
+            (folder / "library.json").write_text(json.dumps({"tracks": tracks}), encoding="utf-8")
+        c.patch.setattr(sound, "MUSIC_DIR", folder)
+    return apply
 
+
+def play(track, start=None):
+    def apply(c):
+        c.data["sound"]["music"] = track
+        if start is not None:
+            c.data["sound"]["music_from"] = start
+    return apply
+
+
+def both(*edits):
+    def apply(c):
+        for edit in edits:
+            edit(c)
+    return apply
+
+
+GOLDEN = {"id": "golden-hour", "file": "golden-hour.mp3", "seconds": 120.0}
 
 RULES = [  # (id, edit of a valid list, the one sentence it must give as a function of the shape's numbers)
     ("canvas size", make_canvas_square,
@@ -673,6 +702,26 @@ RULES = [  # (id, edit of a valid list, the one sentence it must give as a funct
      lambda c: f"The cover is at 3.0 seconds into segment 2, but segment 2 is only {c.info['second_seconds']:.1f} seconds long."),
     ("reel under three seconds", make_two_seconds,
      lambda c: "The reel is 2.0 seconds long; it must be at least 3 seconds."),
+    ("music runs out", play("test-tone", 286.0),
+     lambda c: f"The music runs out at 14.0 seconds but the reel is {c.info['reel']:.1f} seconds long."),
+    ("music cannot start there", play("test-tone", 310.0),
+     lambda c: 'The music track "test-tone" is 300.0 seconds long, so it cannot start at 310.0 seconds.'),
+    ("music starts at the end of the track", play("test-tone", 300.0),
+     lambda c: 'The music track "test-tone" is 300.0 seconds long, so it cannot start at 300.0 seconds.'),
+    ("music not in a library that is not there", both(music_folder(), play("golden-hour", 0.0)),
+     lambda c: 'The music track "golden-hour" is not in music/library.json; there is no music/library.json yet, '
+               'so only "test-tone" can be used.'),
+    ("music not in the library", both(music_folder([GOLDEN], ["golden-hour.mp3"]), play("sunrise", 0.0)),
+     lambda c: 'The music track "sunrise" is not in music/library.json.'),
+    ("music file missing", both(music_folder([GOLDEN]), play("golden-hour", 0.0)),
+     lambda c: 'The music file for "golden-hour" is missing from music/.'),
+    ("music library broken", both(music_folder(raw="{not json"), play("golden-hour", 0.0)),
+     lambda c: "music/library.json could not be read, so the music cannot be checked."),
+    ("music file outside the folder", both(
+        music_folder([{**GOLDEN, "file": "../golden-hour.mp3"}], ["golden-hour.mp3"]), play("golden-hour", 0.0)),
+     lambda c: "music/library.json could not be read, so the music cannot be checked."),
+    ("library track too short", both(music_folder([GOLDEN], ["golden-hour.mp3"]), play("golden-hour", 110.0)),
+     lambda c: f"The music runs out at 10.0 seconds but the reel is {c.info['reel']:.1f} seconds long."),
 ]
 
 
@@ -716,6 +765,7 @@ def break_everything(c, with_count):
     make_canvas_square(c)
     c.data["clips"]["B"]["file"] = "other.mov"
     c.data["look"]["touch_up"]["A"]["brightness"] = 9.0
+    c.data["sound"]["music_from"] = 295.0 if with_count else 299.0
     if with_count:
         many_short_segments(121)(c)
         c.data["segments"][3] = segment("A", seconds + 1.0, seconds + 2.0, "off", "A: past the end")
@@ -742,6 +792,7 @@ def test_all_rules_broken_at_once_come_in_order(shape, tmp_path, capsys):
     _, problems, _ = run_check(short.work, short.data, capsys)
     assert problems == [
         canvas, clips, segments.format(n=2), look,
+        "The music runs out at 1.0 seconds but the reel is 1.5 seconds long.",
         "The cover is at 0.5 seconds into segment 1, but segment 1 is only 0.5 seconds long.",
         "The reel is 1.5 seconds long; it must be at least 3 seconds.",
     ]
@@ -752,6 +803,7 @@ def test_all_rules_broken_at_once_come_in_order(shape, tmp_path, capsys):
     _, problems, _ = run_check(many.work, many.data, capsys)
     assert problems == [
         canvas, clips, "The list has 121 segments; one reel can have at most 120.", segments.format(n=4), look,
+        "The music runs out at 5.0 seconds but the reel is 13.0 seconds long.",
         "The cover names segment 200, but the list has only 121 segments.",
     ]
 
@@ -767,7 +819,7 @@ def test_same_list_same_sentences(shape, tmp_path, capsys):
         assert main(["check", str(path), "--work", str(c.work)]) == 1
         outputs.append(capsys.readouterr().out)
 
-    assert outputs[0] == outputs[1] and outputs[0].count("Problem: ") == 6
+    assert outputs[0] == outputs[1] and outputs[0].count("Problem: ") == 7
 
 
 @pytest.mark.parametrize("shape", SHAPES)
@@ -852,3 +904,157 @@ def test_nfc_and_case_in_file_names(shape, tmp_path, capsys):
     c.data["clips"]["B"]["file"] = cafe.lower().replace("mov", "MOV").replace("caf", "CAF")
     _, problems, _ = run_check(c.work, c.data, capsys)
     assert len(problems) == 1 and problems[0].startswith("Clip B in this list was CAF")
+
+
+# ---- the music that is long enough, and the notes that never refuse (D-06, D-10, D-17, D-21) ----
+
+NO_TOUCH_UP = "There is no touch-up in the list; run match if the clips should match."
+NO_SOUND = "This reel has no sound at all."
+EXAMPLE_NOTES = {  # what the approved examples say about their sideways and upright clips
+    "tall": ["Clip B is sideways in a tall frame, so the frame keeps only 32 percent of its picture."],
+    "wide": [
+        "Clip B is upright in a wide frame, so the frame keeps only 32 percent of its picture.",
+        "Photo C is upright in a wide frame, so the frame keeps only 42 percent of its picture.",
+    ],
+}
+PHOTO_SEGMENT = {"tall": (5, "E"), "wide": (4, "C")}
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_examples_pass_with_their_notes(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+
+    code, problems, notes = run_check(c.work, c.data, capsys, all_notes=True)
+
+    assert (code, problems) == (0, [])
+    assert notes == EXAMPLE_NOTES[shape]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_lower_crop_share_gives_no_crop_note(shape, tmp_path, capsys, monkeypatch):
+    c = context(shape, tmp_path, None)
+    monkeypatch.setattr(settings, "CROP_NOTE_SHARE", 0.3)  # read when used, never when loaded
+
+    assert run_check(c.work, c.data, capsys, all_notes=True) == (0, [], [])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_square_or_matching_clip_gets_no_crop_note(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+
+    def square(manifest):
+        for entry in manifest["clips"]:
+            entry["working"]["size"] = [1500, 1500]
+    edit_manifest(c.work, square)
+    c.data["segments"] = [segment("A", 0.0, 3.0, "keep", "A: a square clip")]
+    c.data["look"] = {"filter": "none", "touch_up": {"A": touch_up(0.0, 0.0, 0.0, 1.0)}}
+    c.data.pop("cover", None)
+
+    assert run_check(c.work, c.data, capsys, all_notes=True) == (0, [], [])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_photo_with_no_move_gives_its_note(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    number, letter = PHOTO_SEGMENT[shape]
+    c.data["segments"][number - 1]["move"] = "none"
+
+    code, problems, notes = run_check(c.work, c.data, capsys, all_notes=True)
+
+    assert (code, problems) == (0, [])
+    assert notes == [f"Segment {number}: {letter} is a photo with no move."] + EXAMPLE_NOTES[shape]
+
+    del c.data["segments"][number - 1]["move"]  # a move left out is no move
+    assert run_check(c.work, c.data, capsys, all_notes=True)[2] == notes
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("how", ["absent", "empty"])
+def test_no_touch_up_gives_its_note(how, shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    if how == "absent":
+        del c.data["look"]["touch_up"]
+    else:
+        c.data["look"]["touch_up"] = {}
+
+    code, problems, notes = run_check(c.work, c.data, capsys, all_notes=True)
+
+    assert (code, problems) == (0, [])
+    assert notes == [NO_TOUCH_UP] + EXAMPLE_NOTES[shape]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_silent_reel_says_so(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    c.data["sound"]["music"] = None
+    for item in c.data["segments"]:
+        item["sound"] = "off"
+
+    code, problems, notes = run_check(c.work, c.data, capsys, all_notes=True)
+
+    assert (code, problems) == (0, [])
+    assert notes == EXAMPLE_NOTES[shape] + [NO_SOUND]
+
+    c.data["segments"][0]["sound"] = "keep"  # one shot with its sound is not silence
+    assert NO_SOUND not in run_check(c.work, c.data, capsys, all_notes=True)[2]
+    c.data["segments"][0]["sound"] = "off"
+    c.data["sound"]["music"] = "test-tone"  # and neither is music
+    assert NO_SOUND not in run_check(c.work, c.data, capsys, all_notes=True)[2]
+    del c.data["sound"]  # no sound block and every shot off is silence
+    assert NO_SOUND in run_check(c.work, c.data, capsys, all_notes=True)[2]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_notes_never_refuse(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    number, _ = PHOTO_SEGMENT[shape]
+    c.data["segments"][number - 1]["move"] = "none"
+    del c.data["look"]
+    c.data["sound"]["music"] = None
+    for item in c.data["segments"]:
+        item["sound"] = "off"
+    add_accepted(c.data)
+    path = write_list(c.work, c.data)
+
+    assert main(["check", str(path), "--work", str(c.work)]) == 0
+    out = capsys.readouterr().out
+    notes = [line.removeprefix("Note: ") for line in out.splitlines() if line.startswith("Note: ")]
+    assert "Problem:" not in out and "ready to render" in out
+    assert notes == ACCEPTED_NOTES + [
+        NO_TOUCH_UP, f"Segment {number}: {PHOTO_SEGMENT[shape][1]} is a photo with no move.",
+        *EXAMPLE_NOTES[shape], NO_SOUND]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_library_track_that_is_long_enough_passes(shape, tmp_path, capsys, monkeypatch):
+    c = context(shape, tmp_path, None)
+    music_folder([GOLDEN], ["golden-hour.mp3"])(SimpleNamespace(work=c.work, patch=monkeypatch))
+    c.data["sound"]["music"] = "golden-hour"
+
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+    c.data["sound"]["music"] = None  # no music asks nothing of the library
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_music_exactly_as_long_as_the_reel_passes(shape, tmp_path, capsys, monkeypatch):
+    c = context(shape, tmp_path, None)
+    reel = INFO[shape]["reel"]
+    track = {"id": "exact", "file": "exact.mp3", "seconds": reel + 5.0}
+    music_folder([track], ["exact.mp3"])(SimpleNamespace(work=c.work, patch=monkeypatch))
+    c.data["sound"].update(music="exact", music_from=5.0)
+    assert run_check(c.work, c.data, capsys)[:2] == (0, [])
+
+    c.data["sound"]["music_from"] = 5.5  # half a second short
+    _, problems, _ = run_check(c.work, c.data, capsys)
+    assert problems == [f"The music runs out at {reel - 0.5:.1f} seconds but the reel is {reel:.1f} seconds long."]
+
+
+def test_a_music_name_cannot_fake_a_line(tmp_path, capsys, monkeypatch):
+    c = context("tall", tmp_path, monkeypatch)
+    music_folder([])(c)
+    c.data["sound"]["music"] = "x\nProblem: all is well" + "z" * 100
+
+    _, problems, _ = run_check(c.work, c.data, capsys)
+
+    assert len(problems) == 1 and "\n" not in problems[0] and "z" * 60 not in problems[0]

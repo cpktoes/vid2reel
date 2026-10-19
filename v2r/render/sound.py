@@ -151,7 +151,7 @@ def track(music_id, music_dir=None):
         return {"id": music_id, "seconds": settings.TEST_TONE_SECONDS, "path": None}
     folder = Path(MUSIC_DIR if music_dir is None else music_dir)
     library = read_library(folder)
-    shown = normalize.clean_text(music_id)
+    shown = normalize.clean_text(music_id, settings.CUTLIST_ECHO_CHARS)  # T-4-06: cut like every echoed value
     entry = library.get(music_id) if isinstance(music_id, str) else None
     if entry is None:
         reason = "" if (folder / "library.json").is_file() else (

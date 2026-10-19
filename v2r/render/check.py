@@ -4,7 +4,9 @@ check changes nothing. `render` runs it first and builds nothing when it reports
 against its rulebook, schema/cutlist.schema.json, and every way it breaks the rulebook is one plain sentence; fields
 that are accepted but not built yet, and fields the rulebook does not name, each get a note. The rules after that are
 the ones the cut list cannot state about itself: whether its canvas suits the work folder, whether its clips are the
-work folder's clips, whether each shot lies inside its clip, and whether the whole reel can come back under the limit.
+work folder's clips, whether each shot lies inside its clip, whether the touch-up, music, cover and length keep to
+their limits, and whether the whole reel can come back under the limit. Problems come in that order, one sentence each,
+and refuse the list; notes (a photo with no move, no touch-up, a crop that keeps little, a silent reel) never refuse.
 Every sentence that repeats text from the list or the work folder passes it through `normalize.clean_text` first.
 """
 
@@ -15,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from v2r import ROOT, WORK_DIR, join, look, normalize, settings
-from v2r.render import plan
+from v2r.render import plan, sound
 
 SCHEMA_PATH = ROOT / "schema" / "cutlist.schema.json"  # the cut list's rulebook; read when check runs, so tests can point elsewhere
 NOT_TEXT = "The cut list is not plain text (UTF-8), so it was not read."
@@ -564,6 +566,34 @@ def length_problems(data):
     return []
 
 
+def sound_problems(data):
+    """The music must be a track the library holds, and long enough from where it starts to the end of the reel (D-07, D-15).
+
+    Nothing is looped and nothing is cut: a track that is too short is refused, and the sentence says the reel needs an
+    earlier start or another track.
+    """
+    chosen = sound.sound_settings(data)
+    if chosen["music"] is None:
+        return []
+    try:
+        found = sound.track(chosen["music"], sound.MUSIC_DIR)
+    except sound.LibraryError as error:
+        return [str(error)]
+    start, seconds = chosen["music_from"], found["seconds"]
+    name = shown(found["id"])
+    if start >= seconds:
+        return [f'The music track "{name}" is {seconds:.1f} seconds long, so it cannot start at {start:.1f} seconds.']
+    counts = segment_lengths(data)
+    if counts is None:
+        return []
+    reel = sum(counts) / settings.OUTPUT_FPS
+    remaining = seconds - start
+    if round(remaining, 6) < round(reel, 6):
+        ends, lasts = seconds_pair(remaining, reel)
+        return [f"The music runs out at {ends} seconds but the reel is {lasts} seconds long."]
+    return []
+
+
 def fit_problems(data):
     """The whole reel must be short enough to come back under the limit: join's own rule, one rule for both (CUT-07)."""
     canvas = data["canvas"]
@@ -574,6 +604,55 @@ def fit_problems(data):
     except join.JoinError as error:
         return [str(error)]
     return []
+
+
+def crop_notes(data, manifest):
+    """A note for each clip, in letter order, that is turned the other way from the canvas and keeps little of its picture.
+
+    Wider than high in a tall frame is "sideways", higher than wide in a wide frame is "upright"; a square is neither.
+    The share kept is plan.fill_region's, the one the renderer crops by, and a photo's is over its full-size copy.
+    """
+    canvas = data["canvas"]
+    shape = plan.shape_of([canvas["width"], canvas["height"]])
+    notes = []
+    for letter in sorted({segment["clip"] for segment in data["segments"]}):
+        entry = manifest_entry(manifest, letter)
+        if entry is None or shape is None:
+            continue
+        photo = entry["kind"] == "photo"
+        size = (entry.get("photo") or {}).get("size") if photo else entry["working"].get("size")
+        if not (isinstance(size, list) and len(size) == 2 and all(isinstance(side, int) and side > 0 for side in size)):
+            continue
+        width, height = size
+        turned = "sideways" if width > height and shape == "tall" else "upright" if height > width and shape == "wide" else None
+        if turned is None:
+            continue
+        share = plan.fill_region(size, [canvas["width"], canvas["height"]])["share"]
+        if share < settings.CROP_NOTE_SHARE:
+            subject = f"Photo {shown(letter)}" if photo else f"Clip {shown(letter)}"
+            notes.append(
+                f"{subject} is {turned} in a {shape} frame, so the frame keeps only {round(share * 100)} percent of its picture.")
+    return notes
+
+
+def rule_notes(data, manifest):
+    """Notes that are worth saying but never refuse: no touch-up, a photo with no move, a crop that keeps little, no sound.
+
+    In this order: the missing touch-up (D-06), photos with no move in segment order (D-21), crops in letter order
+    (D-10), and a reel with no sound at all (D-17). The handbook asks for a push-in on a photo and for match to run;
+    the checker only says so and the renderer builds the list as it stands.
+    """
+    notes = []
+    if not (data.get("look") or {}).get("touch_up"):
+        notes.append("There is no touch-up in the list; run match if the clips should match.")
+    for number, segment in enumerate(data["segments"], start=1):
+        entry = manifest_entry(manifest, segment["clip"])
+        if entry is not None and entry["kind"] == "photo" and segment.get("move", "none") == "none":
+            notes.append(f"Segment {number}: {shown(segment['clip'])} is a photo with no move.")
+    notes += crop_notes(data, manifest)
+    if sound.sound_settings(data)["music"] is None and all(segment["sound"] == "off" for segment in data["segments"]):
+        notes.append("This reel has no sound at all.")
+    return notes
 
 
 def check(cutlist_path=None, work_dir=None):
@@ -609,10 +688,11 @@ def check(cutlist_path=None, work_dir=None):
     # sentences at once. The fit is the exception: it measures the reel, so it waits until nothing before it failed.
     checked.problems = (
         canvas_problems(data, manifest) + clips_problems(data, manifest, work_dir) + count_problems(data)
-        + segment_problems(data, manifest, work_dir) + look_problems(data)
+        + segment_problems(data, manifest, work_dir) + look_problems(data) + sound_problems(data)
         + cover_problems(data) + length_problems(data))
     if not checked.problems:
         checked.problems = fit_problems(data)
+    checked.notes += rule_notes(data, manifest)
     return checked
 
 
