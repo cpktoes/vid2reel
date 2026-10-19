@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: stage-16-cut-list-and-renderer
 status: executing
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-10-19T22:22:08.752Z"
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-10-19T22:40:11.930Z"
 last_activity: 2026-10-19
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 28
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 04 (stage-16-cut-list-and-renderer) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 Status: Ready to execute
 Last activity: 2026-10-19 — Phase 04 execution started
 
-Progress: [████████░░] 79% (1 of 14 phases complete)
+Progress: [████████░░] 82% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -82,6 +82,7 @@ Progress: [████████░░] 79% (1 of 14 phases complete)
 | Phase 04 P03 | 25 min plus 11 min 40 s suite | 2 tasks | 6 files |
 | Phase 4 P04 | 75min | 2 tasks | 4 files |
 | Phase 04 P05 | 50min | 2 tasks | 6 files |
+| Phase 04 P06 | 45min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: 04-03: render's FFmpeg piece check runs right after the FFmpeg-present check and before check, building and touching nothing
 - [Phase ?]: 04-04: clips and look.touch_up are objects keyed by letter; why is required and non-empty; when the rulebook finds a problem the work-folder rules wait and one note says so
 - [Phase ?]: 04-05: moves are drawn with the perspective filter only; a one-frame shot is its fitted crop; every photo shot is built from the full-size copy
+- [Phase ?]: [Phase 4] Plan 06: loudness is one measured ebur128 gain (never loudnorm); closing sentence states the real figure and says when the -1 dBTP ceiling stopped it
+- [Phase ?]: [Phase 4] Plan 06: music/library.json read as {tracks:[{id,file,seconds}]}; test-tone is 220 Hz for 300 s; a fade longer than the reel covers the reel
 
 ### Pending Todos
 
@@ -153,6 +156,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-19T22:22:08.728Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-10-19T22:40:11.894Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None
