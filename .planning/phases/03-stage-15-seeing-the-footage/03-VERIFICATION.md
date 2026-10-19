@@ -1,11 +1,12 @@
 ---
 phase: 03-stage-15-seeing-the-footage
 verified: 2026-10-18T22:30:00Z
-status: human_needed
+status: passed
 score: 6/7 requirements verified in code and tests; LOOK-07 (human-checked) recorded as passed with two caveats the user should decide on
 behavior_unverified: 0
 overrides_applied: 0
 behavior_unverified_items: []
+human_verification_result: "passed 2026-10-18: the blind test was re-run on the fixed output (after commits f0d290f and the review fixes through 86250fd), four clips, approved 4 of 4; four clips rather than five stands as the user's decision"
 human_verification:
   - test: "Decide whether LOOK-07 stands as recorded, or re-run the blind test once on the current (post-fix) look output"
     expected: "Claude, from the sheets and look.json alone, names the moment you would have picked in at least 4 clips of 5 (the requirement's wording). Recorded so far: 4 of 4 approved, on four clips, before the deshake contrast fix."
