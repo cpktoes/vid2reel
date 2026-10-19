@@ -64,7 +64,7 @@ def still_plan(clips, shape, interval):
         usable = all(
             isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number) and number > 0
             for number in (seconds, fps))
-        if not usable:
+        if not usable or seconds > settings.MAX_CLIP_SECONDS:
             continue
         base = len(base_times(seconds, fps, interval))
         plan.append((orientation(size, shape), base + extras_allowance(base)))

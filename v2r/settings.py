@@ -65,6 +65,7 @@ SUMMARY_SECONDS = 0.5  # seconds each summary entry in look.json covers
 # seconds between the base stills; the first step that keeps a run within MAX_SHEETS_PER_RUN is used
 STILL_INTERVAL_STEPS = [1.0, 1.5, 2.0]
 MAX_SHEETS_PER_RUN = 20  # contact sheets one look run may make
+MAX_CLIP_SECONDS = 3 * 60 * 60  # seconds: the longest working copy look reads; a manifest that claims more is not believed
 SHEET_GRID = {"tall": (4, 3), "wide": (3, 4)}  # (columns, rows) of cells on a sheet: 12 stills per sheet
 CELL_ASPECT = {"tall": (9, 16), "wide": (16, 9)}  # (width, height) proportion of one cell
 SHEET_WIDTH = 1950  # pixels wide a sheet is; Claude's viewer shrinks the long edge to about 1,568

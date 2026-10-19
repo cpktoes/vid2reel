@@ -53,7 +53,7 @@ UNREADABLE_MANIFEST = "The work folder's manifest.json could not be read, so not
 NO_FFMPEG = "FFmpeg is not installed here, so nothing was looked at."
 OUT_OF_ROOM = "The work folder ran out of room, so look stopped; the clips looked at so far are in look.json."
 LAST_LOOK_SHEETS = re.compile(r"^sheet-\d+(\.part)?\.jpg$")  # the last run's sheets, and only those
-LETTER = re.compile(r"^[A-Z]{1,3}$")  # what normalize's letters look like
+LETTER = re.compile(r"[A-Z]{1,3}")  # what normalize's letters look like; used whole (fullmatch), never with $
 
 
 class LookError(Exception):
@@ -103,9 +103,9 @@ def read_manifest(work_dir):
     clips = manifest.get("clips") if isinstance(manifest, dict) else None
     usable = (
         isinstance(clips, list)
-        and manifest.get("shape") in settings.SHAPES
+        and isinstance(manifest.get("shape"), str) and manifest["shape"] in settings.SHAPES
         and all(
-            isinstance(clip, dict) and isinstance(clip.get("letter"), str) and LETTER.match(clip["letter"])
+            isinstance(clip, dict) and isinstance(clip.get("letter"), str) and LETTER.fullmatch(clip["letter"])
             and isinstance(clip.get("number"), int) for clip in clips)
     )
     if not usable:
@@ -161,7 +161,7 @@ def working_facts(entry, work_dir):
     sizes_ok = (
         isinstance(size, list) and len(size) == 2
         and all(isinstance(side, int) and not isinstance(side, bool) and side > 0 for side in size))
-    if not seconds or seconds <= 0 or not fps or fps <= 0 or not sizes_ok:
+    if not seconds or not 0 < seconds <= settings.MAX_CLIP_SECONDS or not fps or fps <= 0 or not sizes_ok:
         return could_not
     return path, seconds, fps, size
 
@@ -173,7 +173,7 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
     orientation = pick.orientation(size, shape)
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="v2r-look-") as folder:
-        measured = measure.measure_clip(path, entry, have, folder)
+        measured = measure.measure_clip(path, entry, have, folder, seconds)  # the cleaned seconds, not the raw text
     # A photo is one still, labelled 00.0 (D-14); a video gets the base rhythm and the extras where a measurement
     # says something happened (D-01, D-17), all in time order.
     if entry["kind"] == "photo":

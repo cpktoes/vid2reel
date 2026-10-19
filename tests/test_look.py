@@ -223,6 +223,66 @@ def test_run_manifest_that_cannot_be_read(shape, tmp_path, capsys):
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
+@pytest.mark.parametrize("bad", [["tall"], {"tall": 1}, 7, None, "square"])
+def test_run_manifest_with_a_shape_that_is_not_tall_or_wide(shape, bad, tmp_path, capsys):
+    work = make_work(tmp_path)
+    manifest = make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    manifest["shape"] = bad
+    (work / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert main(["look", str(work)]) == 1  # a plain sentence, not a traceback
+
+    assert "manifest.json could not be read" in capsys.readouterr().err
+    assert not (work / "look.json").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_manifest_letter_with_a_line_break(shape, tmp_path, capsys):
+    work = make_work(tmp_path)
+    manifest = make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+    manifest["clips"][0]["letter"] = "A\n"
+    (work / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert main(["look", str(work)]) == 1
+
+    assert "manifest.json could not be read" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_seconds_written_as_text_are_used_as_a_number(shape, tmp_path):
+    work = make_work(tmp_path)
+    width, height = CLIP_SIZE[shape]
+    working = {"file": "A.mp4", "size": [width, height], "fps": 30.0, "seconds": "3.0", "bytes": 1,
+               "sound_added": False, "colour_converted": False}
+    clip_in(work, "A.mp4", shape, 3)
+    make_manifest(work, shape, [{"file": None, "working": working}])
+
+    assert main(["look", str(work)]) == 0
+
+    (clip,) = read_look(work)["clips"]
+    assert clip["status"] == "done" and clip["seconds"] == 3.0
+    assert len(clip["halves"]) == 6 and clip["notes"] == []
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_absurd_length_in_the_manifest_is_not_believed(shape, tmp_path):
+    work = make_work(tmp_path)
+    width, height = CLIP_SIZE[shape]
+    working = {"file": "A.mp4", "size": [width, height], "fps": 30.0, "seconds": 1e12, "bytes": 1,
+               "sound_added": False, "colour_converted": False}
+    clip_in(work, "A.mp4", shape, 2)
+    make_manifest(work, shape, [{"file": None, "working": working}, clip_in(work, "B.mp4", shape, 2)])
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+
+    assert pick.still_plan(manifest["clips"], shape, 1.0) == [(shape, 2)]  # only B counts (two stills); A would loop for ever
+    assert main(["look", str(work)]) == 0
+
+    first, second = read_look(work)["clips"]
+    assert (first["status"], first["sentence"]) == ("skipped", "Clip A could not be looked at.")
+    assert second["status"] == "done"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
 def test_run_every_entry_skipped(shape, tmp_path):
     work = make_work(tmp_path)
     make_manifest(work, shape, [{"status": "skipped"}, {"status": "skipped"}])
@@ -273,8 +333,8 @@ def test_run_survives_a_clip_whose_numbers_are_not_finite(shape, tmp_path, monke
     make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2), clip_in(work, "B.mp4", shape, 2)])
     real = measure.measure_clip
 
-    def poisoned(path, entry, have, folder):
-        measured = real(path, entry, have, folder)
+    def poisoned(path, entry, have, folder, seconds=None):
+        measured = real(path, entry, have, folder, seconds)
         if entry["letter"] == "A":
             measured["overall"]["brightness"] = float("nan")  # whatever the source, a NaN must not reach look.json
         return measured
@@ -423,7 +483,7 @@ def test_run_without_ffmpeg(shape, tmp_path, monkeypatch, capsys):
 
 
 LOOK_SETTINGS = [
-    "LOOK_WIDTH", "LOOK_FPS", "SUMMARY_SECONDS", "STILL_INTERVAL_STEPS", "MAX_SHEETS_PER_RUN", "SHEET_GRID",
+    "LOOK_WIDTH", "LOOK_FPS", "SUMMARY_SECONDS", "STILL_INTERVAL_STEPS", "MAX_SHEETS_PER_RUN", "MAX_CLIP_SECONDS", "SHEET_GRID",
     "CELL_ASPECT", "SHEET_WIDTH", "SHEET_PADDING", "SHEET_BACKGROUND", "SHEET_JPEG_QUALITY", "LABEL_FONT_SHARE",
     "LABEL_PADDING", "LABEL_BOX_COLOUR", "LABEL_TEXT_COLOUR", "LOOK_DECIMALS",
     "SHEET_JPEG_QUALITY_STEP", "SHEET_JPEG_QUALITY_MIN", "SHEET_MAX_BYTES", "EXTRAS_SHARE", "EXTRA_MIN_GAP",
@@ -447,7 +507,7 @@ def look_block_lines():
 def test_look_settings_have_unit_comments():
     import re
 
-    assert len(LOOK_SETTINGS) == 42
+    assert len(LOOK_SETTINGS) == 43
     for name in LOOK_SETTINGS:
         assert hasattr(settings, name), f"{name} is not in v2r/settings.py"
     block = look_block_lines()

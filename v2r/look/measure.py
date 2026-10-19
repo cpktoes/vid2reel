@@ -341,15 +341,17 @@ def summarise(frames, sound, seconds):
     return halves
 
 
-def measure_clip(path, entry, have, folder):
+def measure_clip(path, entry, have, folder, seconds=None):
     """Everything look measures about one working copy.
 
     Returns {"halves", "overall", "shot_changes", "frames", "sound", "notes", "measured"}. If FFmpeg fails or runs too
     long every measurement is None and a note says so; the stills still go ahead (D-21). `measured` is true when the
     picture measuring pass ran and finished; it is false when it could not run or failed. A note about something
-    smaller (camera movement, loudness) does not make it false.
+    smaller (camera movement, loudness) does not make it false. `seconds` is the clip's length as a number; look passes
+    the one it has already checked, and when it is not given the manifest's own is used.
     """
-    seconds = entry["working"]["seconds"]
+    if seconds is None:
+        seconds = entry["working"]["seconds"]
     notes = []
     frames = []
     sound = []
