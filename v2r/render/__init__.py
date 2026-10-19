@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 
 from v2r import WORK_DIR, doctor, join, normalize, settings
-from v2r.render import check, plan, proof, sound, video
+from v2r.render import check, match, plan, proof, sound, video
 
 # every piece of FFmpeg the stage's chains use; render refuses up front, in one sentence, when this computer lacks one
 RENDER_ENCODERS = ["libx264", "aac", "pcm_f32le"]

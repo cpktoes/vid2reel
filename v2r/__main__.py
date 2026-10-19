@@ -54,6 +54,16 @@ def main(argv=None):
             "--work", type=Path, default=None,
             help="the work folder that holds manifest.json; leave out for work/ in this repo",
         )
+    match_parser = commands.add_parser(
+        "match", help="write a mild touch-up for each clip into the cut list, from look.json", allow_abbrev=False)
+    match_parser.add_argument(
+        "cutlist", nargs="?", type=Path, default=None,
+        help="the cut list; leave out for cutlist.json in the work folder",
+    )
+    match_parser.add_argument(
+        "--work", type=Path, default=None,
+        help="the work folder that holds manifest.json and look.json; leave out for work/ in this repo",
+    )
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
 
@@ -98,6 +108,14 @@ def main(argv=None):
         for sentence in sentences:
             print(sentence)
         print(reel)
+    elif args.command == "match":
+        try:
+            _, lines = render.match.match(args.cutlist, args.work)
+        except render.match.MatchError as error:
+            print(f"v2r match: {error}", file=sys.stderr)
+            return 1
+        for line in lines:
+            print(line)
     elif args.command == "build-skill":
         print(build_skill.build())
     else:
