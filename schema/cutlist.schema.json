@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vid2Reel cut list",
+  "description": "Version 1 of the cut list: the one place where every edit decision lives. The chat's Claude writes it and render builds exactly what it says. Every time in it is in seconds on a clip's working copy. This file holds structure only; the numbers that control behaviour (the two canvas sizes, the frame rate, the touch-up limits, the shortest reel) live in v2r/settings.py and are checked by `v2r check`, not here. No object is closed to extra fields: an unknown field is reported by check as a note, not as a problem.",
+  "type": "object",
+  "required": ["version", "canvas", "clips", "segments"],
+  "properties": {
+    "version": {
+      "description": "The layout of the list. This is version 1; a later layout gets a new number and old lists must still render.",
+      "const": 1
+    },
+    "canvas": {
+      "description": "The size and frame rate of the finished reel. check compares it with the allowed shapes and with the clips in the work folder.",
+      "type": "object",
+      "required": ["width", "height", "fps"],
+      "properties": {
+        "width": {"description": "Pixels across.", "type": "integer", "exclusiveMinimum": 0},
+        "height": {"description": "Pixels down.", "type": "integer", "exclusiveMinimum": 0},
+        "fps": {"description": "Frames a second.", "type": "integer", "exclusiveMinimum": 0}
+      }
+    },
+    "clips": {
+      "description": "One record per clip, keyed by the clip's capital letter, copied from the work folder's manifest. The key is checked as a whole by check as well as by this pattern, because the pattern's end-of-text sign also matches before a final line break.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[A-Z]{1,3}$"},
+      "additionalProperties": {"$ref": "#/$defs/clip"}
+    },
+    "segments": {
+      "description": "The shots, in the order they play. Segment numbers count from 1.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/segment"}
+    },
+    "look": {
+      "description": "The mild touch-up that makes the clips look like one shoot, and the filter choice.",
+      "type": "object",
+      "properties": {
+        "filter": {
+          "description": "A named colour look. Only none can be built until Stage 21.",
+          "enum": ["none"]
+        },
+        "touch_up": {
+          "description": "One record per clip letter. The limits on each number are in v2r/settings.py and are checked by check.",
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Z]{1,3}$"},
+          "additionalProperties": {"$ref": "#/$defs/touch_up"}
+        }
+      }
+    },
+    "sound": {
+      "description": "The reel's music and loudness.",
+      "type": "object",
+      "properties": {
+        "music": {
+          "description": "A track id from music/library.json, test-tone, or null for no music.",
+          "type": ["string", "null"]
+        },
+        "music_from": {"description": "Seconds into the track where the music starts.", "type": "number", "minimum": 0},
+        "fade_in": {"description": "Seconds the music takes to rise at the start.", "type": "number", "minimum": 0},
+        "fade_out": {"description": "Seconds the music takes to fall at the end.", "type": "number", "minimum": 0},
+        "music_under_sound": {"description": "Decibels the music drops by while a shot's own sound plays. Zero or below.", "type": "number", "maximum": 0},
+        "loudness": {"description": "The reel's target loudness in LUFS. Zero or below.", "type": "number", "maximum": 0}
+      }
+    },
+    "cover": {
+      "description": "The still picked as the reel's cover.",
+      "type": "object",
+      "required": ["segment", "at"],
+      "properties": {
+        "segment": {"description": "Which segment, counting from 1 in list order.", "type": "integer", "minimum": 1},
+        "at": {"description": "Seconds into that segment.", "type": "number", "minimum": 0}
+      }
+    },
+    "text": {"description": "Words on screen. Accepted, not built yet (Stage 21)."},
+    "voice": {"description": "A voice track. Accepted, not built yet (Stage 25)."}
+  },
+  "$defs": {
+    "clip": {
+      "description": "One clip, as the work folder's manifest records it.",
+      "type": "object",
+      "required": ["file", "seconds"],
+      "properties": {
+        "file": {"description": "The original's file name, as the manifest records it.", "type": "string", "minLength": 1},
+        "seconds": {"description": "The length of the working copy in seconds.", "type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "segment": {
+      "description": "One shot: a stretch of one clip.",
+      "type": "object",
+      "required": ["clip", "from", "to", "sound", "why"],
+      "properties": {
+        "clip": {
+          "description": "The clip's capital letter. check also tests the letter as a whole, as the pattern's end-of-text sign matches before a final line break.",
+          "type": "string",
+          "pattern": "^[A-Z]{1,3}$"
+        },
+        "from": {"description": "Seconds into the working copy where the shot starts.", "type": "number", "minimum": 0},
+        "to": {"description": "Seconds into the working copy where the shot ends.", "type": "number", "exclusiveMinimum": 0},
+        "focus_x": {"description": "Where across the picture the subject is, 0 left to 1 right. The middle (0.5) when left out.", "type": "number", "minimum": 0, "maximum": 1},
+        "focus_y": {"description": "Where down the picture the subject is, 0 top to 1 bottom. The middle (0.5) when left out.", "type": "number", "minimum": 0, "maximum": 1},
+        "move": {
+          "description": "A gentle movement over the shot. None when left out.",
+          "enum": ["none", "push-in", "pull-out", "pan-left", "pan-right"]
+        },
+        "sound": {
+          "description": "Whether the shot's own sound is kept. Required, so a reel's sound is never an accident.",
+          "enum": ["keep", "off"]
+        },
+        "why": {
+          "description": "One sentence saying why this stretch, citing the still labels it rests on, such as B 07.5.",
+          "type": "string",
+          "minLength": 1
+        },
+        "speed": {"description": "Accepted, not built yet."},
+        "transition": {"description": "Accepted, not built yet."},
+        "text": {"description": "Accepted, not built yet."}
+      }
+    },
+    "touch_up": {
+      "description": "The touch-up for one clip. Brightness, blue and red are offsets in 8-bit code values; saturation is a multiplier, 1 meaning unchanged.",
+      "type": "object",
+      "required": ["brightness", "blue", "red", "saturation"],
+      "properties": {
+        "brightness": {"description": "Offset in 8-bit code values.", "type": "number"},
+        "blue": {"description": "Offset in 8-bit code values.", "type": "number"},
+        "red": {"description": "Offset in 8-bit code values.", "type": "number"},
+        "saturation": {"description": "Multiplier.", "type": "number"}
+      }
+    }
+  }
+}
