@@ -317,7 +317,8 @@ def candidates(halves, shot_changes, stills, sound_peaks_at, seconds, fps):
     (one exactly at an edge is allowed) are left out; a value that was not measured never leaves a window out. The rest
     are put in a stated order: the camera still throughout, then panning, then not measured; then more movement
     first; then the earlier start. Windows of the same tier that overlap or touch and whose movement is alike are
-    merged into one stretch of at most CANDIDATE_MAX_SECONDS, and stretches never overlap. Each has `rank` (1 upward),
+    merged into one stretch of at most CANDIDATE_MAX_SECONDS, and stretches never overlap. Two windows that meet at a
+    shot change are never merged, so no listed stretch has a shot change strictly inside it. Each has `rank` (1 upward),
     `start`, `end`, `reason` (facts only) and `stills` (the labels of the stills inside it, from `stills`'s
     "label" and "t"). The order is not a choice: choosing is the chat's Claude's job (D-04).
     """
@@ -344,9 +345,12 @@ def candidates(halves, shot_changes, stills, sound_peaks_at, seconds, fps):
                 alike = abs(other_movement - movement) <= max(
                     settings.CANDIDATE_ALIKE_SHARE * max(other_movement, movement), settings.MOVEMENT_SPREAD_FLOOR)
                 touching = other_start <= end + 1e-9 and other_end >= start - 1e-9
-                within = max(end, other_end) - min(start, other_start) <= settings.CANDIDATE_MAX_SECONDS + 1e-9
-                if other_tier == tier and alike and touching and within:
-                    start, end = min(start, other_start), max(end, other_end)
+                union_start, union_end = min(start, other_start), max(end, other_end)
+                within = union_end - union_start <= settings.CANDIDATE_MAX_SECONDS + 1e-9
+                # two windows that meet at a cut are each fine alone, but joined they would hold the cut inside
+                cut_inside = any(round(union_start * fps) < cut < round(union_end * fps) for cut in cuts)
+                if other_tier == tier and alike and touching and within and not cut_inside:
+                    start, end = union_start, union_end
                     remaining.remove(window)
                     grown = True
         remaining = [

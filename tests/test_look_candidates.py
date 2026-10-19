@@ -74,6 +74,20 @@ def test_window_exclusions():
     assert pick.candidates(unmeasured, None, stills, [], seconds, FPS)
 
 
+def test_merge_never_holds_a_cut_inside():
+    # two windows that meet exactly at a cut are fine alone, but must not be joined into one stretch round the cut
+    for seconds, cut in ((4.0, 2.0), (8.0, 4.0), (8.0, 2.5)):
+        count = round(seconds * 2)
+        found = pick.candidates(halves_of(count), [cut], stills_of("A", range(int(seconds))), [], seconds, FPS)
+        assert found, (seconds, cut)
+        assert not [c for c in found if c["start"] < cut < c["end"]], (seconds, cut, spans(found))
+    # the two sides of the cut are both still listed, touching but not joined
+    found = pick.candidates(halves_of(8), [2.0], stills_of("A", range(4)), [], 4.0, FPS)
+    assert sorted(spans(found)) == [(0.0, 2.0), (2.0, 4.0)]
+    # with no cut the same windows do merge, so the test above is about the cut and not about the numbers
+    assert spans(pick.candidates(halves_of(8), [], stills_of("A", range(4)), [], 4.0, FPS)) == [(0.0, 4.0)]
+
+
 def test_ranking_order():
     # edge LOOK-04 ordering: tier first, then more movement, then the earlier start
     seconds = 12.0
@@ -227,6 +241,19 @@ def test_candidates_avoid_cut(shape, tmp_path):
     found = check_candidates(clip)
     assert found
     assert not [c for c in found if c["start"] < 3.4 < c["end"]], found
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+@pytest.mark.parametrize("cut_at", [2.0, 4.0])
+def test_candidates_never_span_a_cut_on_a_window_edge(shape, cut_at, tmp_path):
+    # the cut falls exactly on a half second, where two candidate windows meet (CR-01)
+    seconds = round(cut_at * 2)
+    clip = one_clip(
+        tmp_path, shape, lambda p, w, h: make_look_clip(p, w, h, pattern="cut", start=cut_at, seconds=seconds))
+    found = check_candidates(clip)
+    assert clip["shot_changes"], clip["shot_changes"]
+    for cut in clip["shot_changes"]:
+        assert not [c for c in found if c["start"] < cut < c["end"]], (cut, found)
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
