@@ -119,6 +119,14 @@ CHROMA_NEUTRAL = 128  # 8-bit code value of grey in video chroma (a fact of the 
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
 
+# render: Stage 16's numbers. The renderer builds exactly the cut list; these say how, never what.
+RENDER_PRESEEK_FRAMES = 30  # frames: a shot's fast seek lands this many frames ahead of its first frame, so the exact trim always starts on the right one
+RENDER_TAIL_FRAMES = 3  # frames read past a shot's end, so the exact trim always has its last frame
+RENDER_PIECE_PRESET = "ultrafast"  # x264 speed of each shot's scratch piece
+RENDER_PIECE_CRF = 10  # x264 quality of each scratch piece, lower is better; 10 is near lossless
+RENDER_X264_PRESET = "medium"  # x264 speed of the finished reel; join's own default
+RENDER_X264_CRF = 20  # x264 quality of the finished reel, lower is better; the bitrate ceiling from FIT_STEPS still applies
+
 # Phone limits, measured in Claude's cloud workspace on 2026-10-12 (see docs/phone-limits.md)
 MAX_ATTACHMENT_BYTES = 400 * 1000**2  # one attached file: the app warns above this, but a 408.7 MB file still arrived
 MAX_ATTACHMENTS = 10  # files in one message: the most tried, all arrived (a tested number, so no margin)

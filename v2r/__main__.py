@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from v2r import __version__, build_skill, doctor, join, look, normalize, settings
+from v2r import __version__, build_skill, doctor, join, look, normalize, render, settings
 
 
 def main(argv=None):
@@ -41,6 +41,19 @@ def main(argv=None):
         "work", nargs="?", type=Path, default=None,
         help="the work folder that holds manifest.json; leave out for work/ in this repo",
     )
+    for name, text in (
+        ("check", "check a cut list against the work folder; prints one sentence per problem"),
+        ("render", "build the reel a cut list describes, in work/"),
+    ):
+        cut_parser = commands.add_parser(name, help=text, allow_abbrev=False)
+        cut_parser.add_argument(
+            "cutlist", nargs="?", type=Path, default=None,
+            help="the cut list; leave out for cutlist.json in the work folder",
+        )
+        cut_parser.add_argument(
+            "--work", type=Path, default=None,
+            help="the work folder that holds manifest.json; leave out for work/ in this repo",
+        )
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
 
@@ -71,6 +84,20 @@ def main(argv=None):
             print(f"v2r look: {error}", file=sys.stderr)
             return 1
         return 0 if any(clip["status"] == "done" for clip in result["clips"]) else 1
+    elif args.command == "check":
+        checked = render.check.check(args.cutlist, args.work)
+        for line in render.check.report(checked):
+            print(line)
+        return 1 if checked.problems else 0
+    elif args.command == "render":
+        try:
+            reel, sentences = render.render(args.cutlist, args.work)
+        except render.RenderError as error:
+            print(f"v2r render: {error}", file=sys.stderr)
+            return 1
+        for sentence in sentences:
+            print(sentence)
+        print(reel)
     elif args.command == "build-skill":
         print(build_skill.build())
     else:

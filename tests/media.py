@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import struct
 import subprocess
 
 BARS = "smptehdbars=size={w}x{h}:rate={fps}:duration={s}"
@@ -139,6 +140,83 @@ def make_look_clip(path, width, height, pattern="plain", seconds=8, start=None, 
     command += ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "12", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-ar", "48000"]
     run([*command, str(path)])
     return path
+
+
+INDEX_STEP = 8  # luma code values between one frame of an index clip and the next
+INDEX_CYCLE = 25  # frames before an index clip's luma starts again (16 + 8 * 24 = 208 is its brightest)
+
+
+def index_luma(frame):
+    """The luma (Y) an index clip gives frame number `frame`: 16 + 8 * (frame mod 25).
+
+    The step of 8 is what lets a test see a one-frame slip: a probe allows a tolerance of 2, so a frame one too early or
+    too late (8 away) is at least 6 outside it.
+    """
+    return 16 + INDEX_STEP * (frame % INDEX_CYCLE)
+
+
+def tone_or_silence(seconds, beep):
+    """The lavfi source of a clip's stereo sound: a 1 kHz tone between `beep` (from, to) seconds, else digital silence."""
+    if beep:
+        return f"aevalsrc='0.5*sin(2*PI*1000*t)*between(t,{beep[0]},{beep[1]})':s=48000:d={seconds}"
+    return "anullsrc=channel_layout=stereo:sample_rate=48000"
+
+
+def encode_picture(path, picture, seconds, beep, width, height):
+    """Encode a lavfi `picture` source and the clip's sound as a lossless H.264 and stereo AAC (48 kHz) test clip."""
+    run(["ffmpeg", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i", picture,
+         "-f", "lavfi", "-i", tone_or_silence(seconds, beep), "-map", "0:v", "-map", "1:a", "-t", str(seconds),
+         "-c:v", "libx264", "-preset", "ultrafast", "-qp", "0", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-ac", "2", "-ar", "48000", str(path)])
+    return path
+
+
+def make_index_clip(path, width, height, seconds, beep=None):
+    """A working-copy-shaped clip (30 fps, H.264, stereo AAC at 48 kHz) whose frame k has luma 16 + 8 * (k mod 25)
+    everywhere, with grey colour (128, 128), so a frame's luma says which frame it is. `beep` is a (from, to) tone."""
+    picture = (f"color=black:size={width}x{height}:rate=30:duration={seconds},format=yuv420p,"
+               "geq=lum='16+8*mod(N,25)':cb=128:cr=128")
+    return encode_picture(path, picture, seconds, beep, width, height)
+
+
+def make_colour_clip(path, width, height, seconds, yuv=(128, 128, 128), beep=None):
+    """The same kind of clip with one constant colour, given as (Y, U, V) code values."""
+    picture = (f"color=black:size={width}x{height}:rate=30:duration={seconds},format=yuv420p,"
+               f"geq=lum={yuv[0]}:cb={yuv[1]}:cr={yuv[2]}")
+    return encode_picture(path, picture, seconds, beep, width, height)
+
+
+def patch_yuv(path, frame, x, y, size=40):
+    """The mean (Y, U, V) of a `size` square at (x, y) of frame number `frame` of a video, as decoded."""
+    data = subprocess.run(
+        ["ffmpeg", "-loglevel", "error", "-nostdin", "-i", str(path),
+         "-vf", f"select='eq(n,{frame})',crop={size}:{size}:{x}:{y}", "-frames:v", "1", "-fps_mode", "passthrough",
+         "-f", "rawvideo", "-pix_fmt", "yuv420p", "-"],
+        capture_output=True, check=True, timeout=TIMEOUT,
+    ).stdout
+    luma, chroma = size * size, (size // 2) * (size // 2)
+    assert len(data) == luma + 2 * chroma, f"no frame {frame} in {path}"
+    return tuple(sum(plane) / len(plane) for plane in (data[:luma], data[luma:luma + chroma], data[luma + chroma:]))
+
+
+def mp4_boxes(path):
+    """The types of the top-level boxes of an MP4 file, in order, such as ["ftyp", "moov", "free", "mdat"]."""
+    boxes = []
+    with open(path, "rb") as handle:
+        size_of_file = handle.seek(0, 2)
+        position = 0
+        while position + 8 <= size_of_file:
+            handle.seek(position)
+            size, kind = struct.unpack(">I4s", handle.read(8))
+            if size == 1:  # the size is in the next eight bytes
+                size = struct.unpack(">Q", handle.read(8))[0]
+            elif size == 0:  # the box runs to the end of the file
+                size = size_of_file - position
+            boxes.append(kind.decode("latin-1"))
+            if size < 8:
+                break
+            position += size
+    return boxes
 
 
 BURST_SECONDS = 0.3  # how long a burst of make_bursts_clip lasts

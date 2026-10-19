@@ -568,3 +568,22 @@ def test_the_sheet_file_has_the_size_the_settings_give(shape, tmp_path):
     assert size == (settings.SHEET_WIDTH[shape], sheets.sheet_height(shape))
     if shape == "tall":
         assert max(size) <= 1568
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_sheetbook_writes_into_its_own_folder(shape, tmp_path):
+    from PIL import Image
+
+    cell = sheets.cell_size(shape)
+    picture = Image.new("RGB", cell, (90, 90, 90))
+    book = sheets.SheetBook(tmp_path, folder="proof", stem="proof")
+    (record,) = book.add([(picture, "1 in 00.0")], shape)
+    assert book.names() == ["proof/proof-01.jpg"]
+    assert record["sheet"] == "proof/proof-01.jpg"
+    assert (tmp_path / "proof" / "proof-01.jpg").is_file()
+    assert not (tmp_path / "sheets").exists()
+
+    plain = sheets.SheetBook(tmp_path)
+    plain.add([(picture, "A 00.0")], shape)
+    assert plain.names() == ["sheets/sheet-01.jpg"]
+    assert (tmp_path / "sheets" / "sheet-01.jpg").is_file()

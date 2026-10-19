@@ -165,8 +165,9 @@ class SheetBook:
     Every sheet touched is saved whole (a temporary name, then renamed), so a reader never finds half a sheet.
     """
 
-    def __init__(self, work_dir):
-        self.folder = Path(work_dir) / "sheets"
+    def __init__(self, work_dir, folder="sheets", stem="sheet"):
+        self.folder = Path(work_dir) / folder  # where the sheets go, and the start of each file's name (sheet-01.jpg)
+        self.stem = stem
         self.count = 0  # sheets started so far
         self.current = None  # the sheet being filled: {"image", "orientation", "number", "used"}
         self.full = False  # true once a still needed a sheet beyond MAX_SHEETS_PER_RUN; nothing after it is placed
@@ -186,9 +187,8 @@ class SheetBook:
             left += columns * rows - self.current["used"]
         return left
 
-    @staticmethod
-    def name(number):
-        return f"sheets/sheet-{number:02d}.jpg"
+    def name(self, number):
+        return f"{self.folder.name}/{self.stem}-{number:02d}.jpg"
 
     def start_sheet(self, orientation):
         Image = pillow_modules()[0]
@@ -208,7 +208,7 @@ class SheetBook:
         SHEET_JPEG_QUALITY_MIN; the last save is kept whatever its size, so a sheet is never lost for being large.
         """
         self.folder.mkdir(exist_ok=True)
-        final = self.folder / f"sheet-{self.current['number']:02d}.jpg"
+        final = self.folder / f"{self.stem}-{self.current['number']:02d}.jpg"
         part = final.with_name(f"{final.stem}.part.jpg")
         quality = settings.SHEET_JPEG_QUALITY
         while True:
