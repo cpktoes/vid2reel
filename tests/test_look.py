@@ -1,5 +1,6 @@
 import errno
 import json
+import subprocess
 
 import pytest
 from media import make_clip, make_manifest, sha256
@@ -287,6 +288,59 @@ def test_run_survives_a_clip_whose_numbers_are_not_finite(shape, tmp_path, monke
     assert (first["status"], first["sentence"]) == ("skipped", "Clip A could not be looked at.")
     assert second["status"] == "done"
     assert "Clip A could not be looked at." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_partial_note_and_failed_stills_keep_the_measurements(shape, tmp_path, monkeypatch):
+    # a failed loudness pass is a note about one number; with failed stills it must not cost the whole clip (CR-03)
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])
+
+    def no_loudness(*args):
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+
+    def wrong_count(*args):
+        raise ValueError("wrong number of stills")
+
+    monkeypatch.setattr(measure, "measure_loudness", no_loudness)
+    monkeypatch.setattr(sheets, "grab_stills", wrong_count)
+
+    assert main(["look", str(work)]) == 0
+
+    (clip,) = read_look(work)["clips"]
+    assert clip["status"] == "done"
+    assert len(clip["halves"]) == 4
+    assert all(half["movement"] is not None for half in clip["halves"][1:])
+    assert clip["notes"] == [
+        "The loudness of clip A could not be measured.",
+        "The stills of clip A could not be taken, so it is not on the sheets."]
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_measuring_and_stills_both_failed_skips_the_clip(shape, tmp_path, monkeypatch):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2), clip_in(work, "B.mp4", shape, 2)])
+    real_video = measure.measure_video
+    real_stills = sheets.grab_stills
+
+    def fails_for_a(path, seconds, have, folder):
+        if path.name == "A.mp4":
+            raise subprocess.CalledProcessError(1, "ffmpeg")
+        return real_video(path, seconds, have, folder)
+
+    def stills_fail_for_a(path, *args):
+        if path.name == "A.mp4":
+            raise ValueError("wrong number of stills")
+        return real_stills(path, *args)
+
+    monkeypatch.setattr(measure, "measure_video", fails_for_a)
+    monkeypatch.setattr(sheets, "grab_stills", stills_fail_for_a)
+
+    assert main(["look", str(work)]) == 0
+
+    first, second = read_look(work)["clips"]
+    assert (first["status"], first["sentence"]) == ("skipped", "Clip A could not be looked at.")
+    assert second["status"] == "done" and len(second["halves"]) == 4
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])

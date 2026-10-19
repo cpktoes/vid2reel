@@ -202,7 +202,7 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
             pass
     if not taken:
-        if measured["notes"]:  # neither the measurements nor the stills could be made
+        if not measured["measured"]:  # neither the picture measurements nor the stills could be made
             return skipped_entry(entry, f"Clip {letter} could not be looked at.")
         notes.append(f"The stills of clip {letter} could not be taken, so it is not on the sheets.")
     stills = [
