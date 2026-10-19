@@ -473,3 +473,20 @@ def test_look_json_names_documented():
     for name in LOOK_JSON_NAMES:
         quoted = name if name == "LUFS" else f"`{name}`"  # a key is written in backticks, as in normalize's docstring
         assert quoted in v2r.look.__doc__, f"{name} is not named in the v2r.look docstring"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_measuring_command_that_hangs_still_takes_the_stills(shape, tmp_path, monkeypatch):
+    import types
+
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 3)])
+    monkeypatch.setattr(measure, "normalize", types.SimpleNamespace(ffmpeg_timeout=lambda seconds: 0.001))
+
+    assert main(["look", str(work)]) == 0
+
+    (clip,) = read_look(work)["clips"]
+    assert clip["status"] == "done"
+    assert clip["notes"] == ["The measurements of clip A could not be made."]
+    assert all(half["movement"] is None for half in clip["halves"])
+    assert [still["sheet"] for still in clip["stills"]] == ["sheets/sheet-01.jpg"] * 3  # the stills went ahead

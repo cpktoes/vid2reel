@@ -277,3 +277,71 @@ def test_out_of_room_stops_run(shape, tmp_path, monkeypatch, capsys):
     look = read_look(work)
     assert "ran out of room" in look["stopped"]
     assert look["finished"] is False
+
+
+# ---- stills arrive one at a time, only as many as fit, and a failed save leaves the book as it was ----
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_grab_stills_streams_in_order(shape, tmp_path):
+    import inspect
+
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 4)])
+    fitted = sheets.fit_size(width, height, *sheets.cell_size(shape))
+
+    stream = sheets.grab_stills(work / "A.mp4", [0, 0, 30, 60], fitted, 4.0)
+
+    assert inspect.isgenerator(stream)  # nothing is read until the first picture is asked for
+    pictures = list(stream)
+    assert len(pictures) == 4
+    assert all(picture.size == fitted for picture in pictures)
+    with pytest.raises(ValueError):  # not in time order
+        list(sheets.grab_stills(work / "A.mp4", [30, 0], fitted, 4.0))
+    with pytest.raises(ValueError):  # a frame that is not in the clip: fewer pictures than asked for
+        list(sheets.grab_stills(work / "A.mp4", [0, 5000], fitted, 4.0))
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_only_the_stills_that_fit_are_read(shape, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "MAX_SHEETS_PER_RUN", 1)
+    width, height = TALL_SIZE[shape]
+    columns, rows = settings.SHEET_GRID[shape]
+    cells = columns * rows
+    work = make_job(tmp_path, shape, [(width, height, 31)])  # 16 stills even at the widest rhythm: more than a sheet holds
+    asked = []
+    real = sheets.grab_stills
+
+    def spy(path, numbers, size, seconds):
+        asked.append(len(numbers))
+        return real(path, numbers, size, seconds)
+
+    monkeypatch.setattr(sheets, "grab_stills", spy)
+
+    look = run_look(work)
+
+    assert asked == [cells]  # not one picture more than the sheet can hold was read
+    (clip,) = look["clips"]
+    placed = [still for still in clip["stills"] if still["sheet"]]
+    assert len(placed) == cells and len(clip["stills"]) > cells
+    assert all(still["sheet"] is None and still["cell"] is None and still["box"] is None
+               for still in clip["stills"][cells:])
+    assert look["sheets"] == ["sheets/sheet-01.jpg"]
+    assert any("Even with fewer stills" in sentence for sentence in look["missing"])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_stills_command_that_hangs_keeps_the_measurements(shape, tmp_path, monkeypatch):
+    import types
+
+    width, height = TALL_SIZE[shape]
+    work = make_job(tmp_path, shape, [(width, height, 3)])
+    monkeypatch.setattr(sheets, "normalize", types.SimpleNamespace(ffmpeg_timeout=lambda seconds: 0.001))
+
+    look = run_look(work)
+
+    (clip,) = look["clips"]
+    assert clip["status"] == "done"
+    assert clip["notes"] == ["The stills of clip A could not be taken, so it is not on the sheets."]
+    assert len(clip["halves"]) == 6 and clip["halves"][1]["movement"] is not None
+    assert look["sheets"] == []

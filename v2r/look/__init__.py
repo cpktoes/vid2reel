@@ -195,9 +195,15 @@ def look_at_clip(entry, facts, shape, rhythm, have, book, picture_problem):
     elif picture_problem is None:
         cell_w, cell_h = sheets.cell_size(orientation)
         fitted = sheets.fit_size(size[0], size[1], cell_w, cell_h)
+        # Only the stills that still fit within the sheet cap are read, and they arrive one at a time, so a long
+        # clip never holds all its pictures in memory; the rest are listed but not drawn.
+        fitting = min(len(numbers), book.room(orientation))
         try:
-            pictures = sheets.grab_stills(path, numbers, fitted, seconds)
-            records = book.add(list(zip(pictures, labels)), orientation)
+            pictures = sheets.grab_stills(path, numbers[:fitting], fitted, seconds)
+            records = book.add(zip(pictures, labels[:fitting]), orientation)
+            if fitting < len(numbers):
+                book.full = True
+                records += [{"sheet": None, "cell": None, "box": None}] * (len(numbers) - fitting)
             taken = True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
             pass

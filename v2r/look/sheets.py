@@ -5,6 +5,8 @@ Pillow is imported only inside `pillow_modules`, so measuring keeps working on a
 
 import os
 import subprocess
+import tempfile
+import threading
 from pathlib import Path
 
 from v2r import normalize, settings
@@ -88,17 +90,22 @@ def fit_size(width, height, cell_w, cell_h):
 
 
 def grab_stills(path, frame_numbers, size, seconds):
-    """The pictures at `frame_numbers` of a working copy, each scaled to `size`, as Pillow RGB images.
+    """The pictures at `frame_numbers` of a working copy, each scaled to `size`, one at a time as Pillow RGB images.
 
-    One FFmpeg run reads them all (a `select` filter and a raw pipe). The images come back in the order asked for;
-    a frame number given twice is read once. Raises ValueError when FFmpeg gave a different number of pictures than
-    were asked for, and subprocess.CalledProcessError or TimeoutExpired when FFmpeg failed.
+    A generator: one FFmpeg run reads them all (a `select` filter and a raw pipe), and each picture is handed on as soon
+    as it has arrived, so a long clip's stills are never all held in memory together. `frame_numbers` must not go
+    backwards (time order); a number given twice gives the same picture twice and is read once. The generator raises
+    ValueError when FFmpeg gave a different number of pictures than were asked for, and subprocess.CalledProcessError
+    or TimeoutExpired when FFmpeg failed; FFmpeg is stopped if the caller stops asking for pictures.
     """
     Image = pillow_modules()[0]
 
-    wanted = sorted(set(frame_numbers))
+    numbers = list(frame_numbers)
+    if numbers != sorted(numbers):
+        raise ValueError("frame numbers out of order")
+    wanted = sorted(set(numbers))
     if not wanted:
-        return []
+        return
     width, height = size
     chooser = "+".join(f"eq(n,{number})" for number in wanted)
     command = [
@@ -107,16 +114,44 @@ def grab_stills(path, frame_numbers, size, seconds):
         "-an", "-vf", f"select='{chooser}',scale={width}:{height}:flags=area",
         "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
     ]
-    data = subprocess.run(
-        command, capture_output=True, check=True, timeout=normalize.ffmpeg_timeout(seconds)).stdout
+    timeout = normalize.ffmpeg_timeout(seconds)
     frame_bytes = width * height * 3
-    if len(data) != frame_bytes * len(wanted):
-        raise ValueError("wrong number of stills")
-    pictures = {
-        number: Image.frombytes("RGB", (width, height), data[index * frame_bytes:(index + 1) * frame_bytes])
-        for index, number in enumerate(wanted)
-    }
-    return [pictures[number] for number in frame_numbers]
+    timed_out = threading.Event()
+    with tempfile.TemporaryFile() as errors:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=errors)
+
+        def stop():
+            timed_out.set()
+            process.kill()
+
+        timer = threading.Timer(timeout, stop)
+        timer.start()
+        try:
+            previous, picture, complete = None, None, True
+            for number in numbers:
+                if number != previous:
+                    data = process.stdout.read(frame_bytes)
+                    if len(data) != frame_bytes:
+                        complete = False
+                        break
+                    picture = Image.frombytes("RGB", (width, height), data)
+                    previous = number
+                yield picture
+            extra = process.stdout.read(1) if complete else b""  # more pictures than asked for is as wrong as fewer
+            returncode = process.wait()
+            if timed_out.is_set():
+                raise subprocess.TimeoutExpired(command, timeout)
+            if returncode != 0:
+                errors.seek(0)
+                raise subprocess.CalledProcessError(returncode, command, stderr=errors.read())
+            if not complete or extra:
+                raise ValueError("wrong number of stills")
+        finally:
+            timer.cancel()
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            process.stdout.close()
 
 
 class SheetBook:
@@ -135,6 +170,16 @@ class SheetBook:
     def names(self):
         """The sheet names made so far, in order, relative to the work folder, such as "sheets/sheet-01.jpg"."""
         return [self.name(number) for number in range(1, self.count + 1)]
+
+    def room(self, orientation):
+        """How many more stills of this orientation fit before the run's sheet cap is reached; 0 once `full`."""
+        if self.full:
+            return 0
+        columns, rows = settings.SHEET_GRID[orientation]
+        left = (settings.MAX_SHEETS_PER_RUN - self.count) * columns * rows
+        if self.current is not None and self.current["orientation"] == orientation:
+            left += columns * rows - self.current["used"]
+        return left
 
     @staticmethod
     def name(number):
@@ -169,7 +214,7 @@ class SheetBook:
         os.replace(part, final)
 
     def add(self, stills, orientation):
-        """Put `stills`, a list of (image, label) pairs, on the sheets in order.
+        """Put `stills`, pairs of (image, label), on the sheets in order; any iterable of pairs will do.
 
         Returns one record per still: {"sheet": "sheets/sheet-NN.jpg", "cell": 1-based place on the sheet,
         "box": [left, top, right, bottom] of the picture on the sheet, in pixels}.
