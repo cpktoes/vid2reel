@@ -4,8 +4,9 @@ This measures and reports; it decides nothing. A measurement that cannot be made
 
 What the numbers in a clip's `overall` mean (Stage 16's `match` reads them to make clips sit together):
 - `brightness`: the average brightness of the whole clip in 8-bit code values; 16 is black, 235 is white.
-- `brightness_low` and `brightness_high`: how dark the dark parts and how bright the bright parts are (the average of
-  each picture's darkest tenth and brightest tenth), same scale; far apart means a wide range of light and dark.
+- `brightness_low` and `brightness_high`: the brightness below which the darkest tenth of each picture falls and above
+  which the brightest tenth falls (FFmpeg's 10th and 90th percentile), averaged over the clip, same scale; far apart
+  means a wide range of light and dark.
 - `blue_shift`: above 0 the clip leans blue, below 0 it leans yellow (0 is neutral).
 - `red_shift`: above 0 the clip leans red, below 0 it leans green (0 is neutral).
 - `saturation`: how strong the colour is; 0 is grey, bright bars are about 40, a very vivid clip is higher.
@@ -24,7 +25,7 @@ from v2r import normalize, settings
 NEEDED_FOR_ANY = ["fps", "scale", "metadata"]
 STATS_FILE = "stats.txt"  # a fixed plain name inside the temporary folder: no file name of the user's is ever in a filter
 LOUD_FILE = "loud.txt"  # the loudness readings, written beside the others
-MOTION_FILE = "motion.txt"  # deshake's own record of the camera's shift; its name is also written in MEASURES below
+MOTION_FILE = "motion.txt"  # deshake's own record of the camera's shift; MEASURES builds deshake's piece from this name
 HEADER = re.compile(r"frame:(\d+)\s+pts:(-?\d+)\s+pts_time:(\S+)")
 
 SOUND_FILTERS = ["ebur128", "ametadata"]  # the pieces of the separate pass over the sound alone
@@ -37,7 +38,7 @@ MEASURES = [
     ("scdet", "shot changes", lambda: f"scdet=threshold={settings.SCENE_THRESHOLD}"),
     # deshake goes last because nothing uses its steadied picture; it is in the chain only to write its motion file.
     ("deshake", "camera movement and shake",
-     lambda: f"deshake=rx={settings.DESHAKE_RANGE}:ry={settings.DESHAKE_RANGE}:contrast={settings.DESHAKE_CONTRAST}:filename=motion.txt"),
+     lambda: f"deshake=rx={settings.DESHAKE_RANGE}:ry={settings.DESHAKE_RANGE}:contrast={settings.DESHAKE_CONTRAST}:filename={MOTION_FILE}"),
 ]
 
 
@@ -128,8 +129,9 @@ def camera_and_shake(rows, skip):
     """(camera, shake) per analysed frame, each a list; None where `skip[i]` is true (a cut, or no earlier frame).
 
     camera is the length of the frame's shift (Ori x, Ori y); shake is how far that shift is from the centred moving
-    average of the shifts around it, so a smooth pan is taken out and only jitter is left. Frames to skip are also
-    left out of the average.
+    average of the shifts around it, so a smooth pan is taken out and only jitter is left. The average uses only
+    frames of the frame's own shot: it stops at a cut (or at the first frame) on each side, so a pan before a cut never
+    makes the steady shot after it read shaky, and the reverse. Frames to skip are never in it.
     """
     width = max(1, round(settings.SHAKE_WINDOW_SECONDS * settings.LOOK_FPS))
     reach = width // 2
@@ -139,7 +141,13 @@ def camera_and_shake(rows, skip):
             camera.append(None)
             shake.append(None)
             continue
-        near = [rows[i] for i in range(max(0, index - reach), min(len(rows), index + reach + 1)) if not skip[i]]
+        first = index
+        while first > max(0, index - reach) and not skip[first - 1]:
+            first -= 1
+        last = index
+        while last < min(len(rows) - 1, index + reach) and not skip[last + 1]:
+            last += 1
+        near = rows[first:last + 1]
         mean_x = statistics.fmean(r[0] for r in near)
         mean_y = statistics.fmean(r[3] for r in near)
         camera.append(math.hypot(row[0], row[3]))

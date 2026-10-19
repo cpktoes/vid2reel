@@ -91,7 +91,7 @@ CUT_STILL_DELAY = 0.1  # seconds after a new shot's first frame that its still i
 LOUDNESS_DELAY = 0.1  # seconds the momentary loudness reading lags the sound
 SILENCE_LUFS = -70  # LUFS: sound quieter than this counts as silence and is written null
 DESHAKE_RANGE = 16  # pixels, a multiple of 16: how far deshake searches between analysed frames
-DESHAKE_CONTRAST = 20  # 0-255: the contrast an 8-pixel block needs before deshake tracks it; FFmpeg's default of 125 ignores
+DESHAKE_CONTRAST = 20  # 1-255: the contrast an 8-pixel block needs before deshake tracks it; FFmpeg's default of 125 ignores
 # most of a 320-pixel tone-mapped picture and read a pan as a still camera on real clips (2026-10-18), so 20 tracks the pan
 SHAKE_WINDOW_SECONDS = 1.0  # seconds: the centred average that separates a smooth pan from jitter
 CAMERA_STILL_PX = 1.5  # pixels per analysed frame at LOOK_WIDTH: mean camera movement below this is a still camera
