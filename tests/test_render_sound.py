@@ -87,7 +87,7 @@ def test_drop_expression_is_built_from_formatted_numbers_only():
     assert "max(" not in one
     two = sound.drop_expression(RUNS, -12, 0.3)
     assert two.count("clip(") == 2 and two.count("max(") == 1
-    assert set(two) <= set("pow(10,-.0123456789)*/tmincl ")
+    assert set(two) <= set("pow(10,-.0123456789)*/tmaxincl ")
 
 
 def test_gain_for_raises_to_the_target_without_a_cap():
