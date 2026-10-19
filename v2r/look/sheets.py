@@ -10,11 +10,12 @@ import threading
 from pathlib import Path
 
 from v2r import normalize, settings
+from v2r.look import pick
 
 
 def label(letter, t):
     """The words printed on a still: its clip letter and time, such as "A 03.0" or "B 07.5" (D-02)."""
-    return f"{letter} {t:04.1f}"
+    return f"{letter} {pick.clock(t)}"
 
 
 NO_PICTURE_LIBRARY = (

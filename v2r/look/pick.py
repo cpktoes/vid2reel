@@ -271,20 +271,22 @@ def window_movement(inside):
 
 
 def clock(t):
-    """A time as a label writes it, such as 04.5."""
-    return f"{t:04.1f}"
+    """A time as a label writes it, such as 04.5: two digits of whole seconds, then LABEL_DECIMALS decimals."""
+    decimals = settings.LABEL_DECIMALS
+    width = 3 + decimals if decimals > 0 else 2
+    return f"{t:0{width}.{decimals}f}"
 
 
-def candidate_reason(inside, tier, start, end, sound_peaks_in, labels, nearest):
+def candidate_reason(inside, tier, sound_peaks_in, labels, nearest):
     """The facts about a stretch in words, joined with commas, then its stills: never a verdict (D-04)."""
     parts = [{1: "steady camera", 2: "camera panning", 3: "camera not measured"}[tier]]
     sharp = [half.get("sharp") for half in inside]
     if all(value is None for value in sharp):
         parts.append("sharpness not measured")
     elif all(value is True for value in sharp):
-        parts.append("sharp")
+        parts.append("no blurrier than the rest of the clip")
     else:
-        parts.append("sharp where measured")
+        parts.append("no blurrier than the rest of the clip where measured")
     if tier == 1:
         subject = [half.get("subject") for half in inside]
         if any(value is True for value in subject):
@@ -313,9 +315,11 @@ def candidate_reason(inside, tier, start, end, sound_peaks_in, labels, nearest):
 def candidates(halves, shot_changes, stills, sound_peaks_at, seconds, fps):
     """The candidate moments of one video clip (D-18): up to MAX_CANDIDATES stretches, as a list of dictionaries.
 
-    Windows (see `windows`) with a shaky half second, a half that is not sharp, or a shot change strictly inside them
-    (one exactly at an edge is allowed) are left out; a value that was not measured never leaves a window out. The rest
-    are put in a stated order: the camera still throughout, then panning, then not measured; then more movement
+    When nothing about the picture was measured (no half second has a camera state, a movement or a sharpness), there
+    are no candidates: an order built from no facts would read as a recommendation (D-04). Windows (see `windows`)
+    with a shaky half second, a half blurrier than the rest of the clip (`sharp` false), or a shot change strictly
+    inside them (one exactly at an edge is allowed) are left out; a value missing in only some half seconds never
+    leaves a window out. The rest are put in a stated order: the camera still throughout, then panning, then not measured; then more movement
     first; then the earlier start. Windows of the same tier that overlap or touch and whose movement is alike are
     merged into one stretch of at most CANDIDATE_MAX_SECONDS, and stretches never overlap. Two windows that meet at a
     shot change are never merged, so no listed stretch has a shot change strictly inside it. Each has `rank` (1 upward),
@@ -323,6 +327,8 @@ def candidates(halves, shot_changes, stills, sound_peaks_at, seconds, fps):
     "label" and "t"). The order is not a choice: choosing is the chat's Claude's job (D-04).
     """
     halves = halves or []
+    if not any(half.get(name) is not None for half in halves for name in ("camera_state", "movement", "sharp")):
+        return []
     cuts = [round(change * fps) for change in (shot_changes or [])]
     ok = []  # (tier, movement, start, end)
     for start, end in windows(seconds, fps):
@@ -371,7 +377,7 @@ def candidates(halves, shot_changes, stills, sound_peaks_at, seconds, fps):
             "rank": rank,
             "start": round(start, settings.LOOK_DECIMALS),
             "end": round(end, settings.LOOK_DECIMALS),
-            "reason": candidate_reason(inside, tier, start, end, peaks_in, labels, nearest),
+            "reason": candidate_reason(inside, tier, peaks_in, labels, nearest),
             "stills": labels,
         })
     return result

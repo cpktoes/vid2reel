@@ -27,9 +27,13 @@ Each `stills` entry: `label` (such as "A 03.0": the letter and the time, written
 not be taken), `cell` (1-based place on the sheet, left to right then top to bottom) and `box` ([left, top, right,
 bottom] of the still on its sheet, in pixels).
 Each `candidates` entry: `rank`, `start`, `end` (seconds), `reason` (facts in words) and `stills` (their labels).
-A video has up to MAX_CANDIDATES of them, a photo and a skipped entry none. Rank 1 is first in a stated order (steady
-camera, then sharp picture, then movement) and is not a choice: choosing what goes in a reel is the chat's Claude's
-job, following the handbook (decision D-04). A stretch with a shaky camera, a blurred picture or a cut is never listed.
+A video has up to MAX_CANDIDATES of them; a photo, a skipped entry and a video whose picture could not be measured
+have none. Rank 1 is first in a stated order: the camera still throughout, then panning, then not measured; then more
+movement first; then the earlier start. Sharpness is not part of the order, it only leaves stretches out. The order is
+not a choice: choosing what goes in a reel is the chat's Claude's job, following the handbook (decision D-04). A
+stretch with a shaky camera, a half second blurrier than the rest of the clip or a cut is never listed. `sharp` in a
+half-second entry is true when that half second is no blurrier than the rest of the clip, judged against the clip's
+own median blur, so a clip that is out of focus all the way through is still true.
 Units: brightness in 8-bit code values (16 is black, 235 is white); movement as the mean frame difference, 0-255,
 between analysed frames; camera and shake in pixels per analysed frame at LOOK_WIDTH; blur as edge width in pixels
 (lower is sharper); loudness in LUFS; times in seconds. Every number is rounded to LOOK_DECIMALS places.

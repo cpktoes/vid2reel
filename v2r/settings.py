@@ -76,6 +76,7 @@ LABEL_FONT_SHARE = 0.07  # label text size as a share (0 to 1) of a cell's width
 LABEL_PADDING = 8  # pixels of dark box round the label text
 LABEL_BOX_COLOUR = (0, 0, 0)  # RGB, 0-255 per channel: the box behind a label
 LABEL_TEXT_COLOUR = (255, 255, 255)  # RGB, 0-255 per channel: the label text
+LABEL_DECIMALS = 1  # decimal places of seconds on a still's label and in a "sound peak at" time, such as A 03.0 (D-02)
 LOOK_DECIMALS = 2  # decimal places kept for numbers in look.json
 SHEET_JPEG_QUALITY_STEP = 10  # JPEG quality points taken off each time a sheet larger than SHEET_MAX_BYTES is saved again
 SHEET_JPEG_QUALITY_MIN = 65  # JPEG quality, 1-100: the lowest a sheet is saved at; it is kept whatever its size
