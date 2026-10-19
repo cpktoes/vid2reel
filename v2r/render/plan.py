@@ -94,13 +94,39 @@ def fill_region(source_size, canvas_size, focus_x=0.5, focus_y=0.5):
     return {"crop": [crop_w, crop_h, crop_x, crop_y], "share": share, "focus": focus}
 
 
+def move_windows(move, canvas_size, focus, amount=None):
+    """(start, end): the picture window a shot begins and ends on, each [left, top, width, height] in canvas pixels.
+
+    The window is the part of the fitted picture the viewer sees, so the full canvas shows all of it and a window of
+    (1 - amount) of the canvas shows the middle part enlarged. `amount` is settings.MOVE_AMOUNT, read now (D-18); the
+    cut list never carries one. A push-in goes from the full canvas to the tight window around the focus point, a
+    pull-out is the same in reverse, and a pan holds the tight size and travels exactly `amount` of the canvas across
+    the room that cropping in leaves (D-19): pan-right's window runs from the left edge to the right one, so the
+    picture slides left, the way a camera turning right looks; pan-left is the other way. Nothing is eased (D-20).
+    """
+    amount = settings.MOVE_AMOUNT if amount is None else amount
+    canvas_w, canvas_h = canvas_size
+    focus_x, focus_y = focus
+    full = [0.0, 0.0, float(canvas_w), float(canvas_h)]
+    tight_w, tight_h = canvas_w * (1 - amount), canvas_h * (1 - amount)
+    top = clamp(focus_y - tight_h / 2, 0.0, canvas_h - tight_h)
+    if move == "push-in" or move == "pull-out":
+        tight = [clamp(focus_x - tight_w / 2, 0.0, canvas_w - tight_w), top, tight_w, tight_h]
+        return (full, tight) if move == "push-in" else (tight, full)
+    if move == "pan-right":
+        return [0.0, top, tight_w, tight_h], [canvas_w - tight_w, top, tight_w, tight_h]
+    if move == "pan-left":
+        return [canvas_w - tight_w, top, tight_w, tight_h], [0.0, top, tight_w, tight_h]
+    return full, list(full)
+
+
 def plan(cutlist, manifest):
     """What `render` will build, for a cut list that has passed `check`; segments stay in the list's order (D-13).
 
     Returns {"shape", "canvas", "fps", "segments": [...], "total_frames", "seconds", "sound_block"}. Each segment
     holds `number` (1-based), `clip`, `kind`, `working` (the working copy's file name), `photo` (the full-size copy's
     file name, or None), `source_size`, `start_frame`, `frames`, `reel_start`, `crop`, `share`, `focus`, `move`,
-    `window_start`, `window_end` (canvas rectangles [x, y, w, h]; a move is added by a later plan), `sound`
+    `window_start`, `window_end` (canvas rectangles [x, y, w, h] the move runs between; equal when it does not move), `sound`
     ("keep" or "off") and `touch_up` (the list's record for the clip, or None).
     """
     canvas = [cutlist["canvas"]["width"], cutlist["canvas"]["height"]]
@@ -113,14 +139,19 @@ def plan(cutlist, manifest):
         entry = entries[segment["clip"]]
         working = entry["working"]
         start, count = segment_frames(segment)
-        size = tuple(working["size"])
+        photo = entry.get("photo") if entry["kind"] == "photo" else None
+        size = tuple(photo["size"]) if photo else tuple(working["size"])  # a photo is built from its full-size copy (D-21)
         region = fill_region(size, canvas, segment.get("focus_x", 0.5), segment.get("focus_y", 0.5))
+        move = segment.get("move", "none")
+        window_start, window_end = move_windows(move, canvas, region["focus"])
+        if count == 1:  # one frame has no time to move: it is the fitted crop, whatever the move
+            window_start, window_end = move_windows("none", canvas, region["focus"])
         segments.append({
             "number": number,
             "clip": segment["clip"],
             "kind": entry["kind"],
             "working": working["file"],
-            "photo": (entry.get("photo") or {}).get("file"),
+            "photo": photo["file"] if photo else None,
             "source_size": list(size),
             "start_frame": start,
             "frames": count,
@@ -128,9 +159,9 @@ def plan(cutlist, manifest):
             "crop": region["crop"],
             "share": region["share"],
             "focus": region["focus"],
-            "move": segment.get("move", "none"),
-            "window_start": [0, 0, canvas[0], canvas[1]],
-            "window_end": [0, 0, canvas[0], canvas[1]],
+            "move": move,
+            "window_start": window_start,
+            "window_end": window_end,
             "sound": segment["sound"],
             "touch_up": touch_ups.get(segment["clip"]),
         })
