@@ -17,10 +17,10 @@ A reel worth posting, made entirely from her phone. Everything else can fail; th
 - ✓ The vid2reel skill clones `main` (or a named branch), installs requirements, reads EDITOR.md and follows it; reels have been made from both phones — Phase 1 (Stage 11)
 - ✓ The phone route's real limits are measured and recorded in docs/phone-limits.md — Phase 1 (Stage 11)
 - ✓ `python -m v2r normalize --shape tall|wide` turns every clip or photo into one working format: upright, sized for the shape, steady 30 fps, HDR tone-mapped to ordinary colour, sound on every clip, photos as 4-second stills, letters A, B, C and work/manifest.json; bad files get one plain sentence and originals are never written to; verified from a phone on FFmpeg 6.1 with a tall and a wide reel — Phase 2 (Stage 14)
+- ✓ `python -m v2r look` turns the working copies into contact sheets (a still every second plus extras at cuts, movement bursts and sound peaks, each labelled like "B 07.5") and work/look.json (half-second measurements, each clip's exposure and colour, ranked candidate stretches whose reasons cite stills); the blind test on real footage was approved 4 of 4 and the sheets, a wide pass and a reel were checked from a phone on FFmpeg 6.1 — Phase 3 (Stage 15)
 
 ### Active
 
-- [ ] Contact sheets and measurements good enough that a Claude which never saw the clip can say what happens and pick the best two seconds (Stage 15)
 - [ ] A cut list, checked against a schema, renders to exactly that video in either shape, with a mild touch-up, gentle movement and a proof sheet (Stage 16)
 - [ ] EDITOR.md is the complete handbook; one taste profile per social account lives in that account's Claude Project (Stage 17)
 - [ ] A small public-domain music library, chosen with her, mixed under the reel at a steady loudness (Stage 18)
@@ -77,6 +77,9 @@ A reel worth posting, made entirely from her phone. Everything else can fail; th
 | Photos, HEIC included, are read with Pillow and pillow-heif, lazily imported (Stage 14) | The sandbox's FFmpeg cannot open HEIC; video keeps working if pip fails | ✓ Good — a HEIC became a still from the phone |
 | The handbook joins the working copies in letter order, not the originals (Stage 14) | Only the working copies share one format and all have sound; the join failed on a photo otherwise | ✓ Good — reels made in both shapes |
 | A slow-motion clip attached from the phone arrives pre-rendered at a steady 30 fps (Stage 14) | Measured on the phone; the 120/240 fps flag stays correct but does not fire from a phone | ✓ Noted |
+| Every look measurement comes from FFmpeg's own filters (signalstats, blurdetect, scdet, deshake, ebur128); no NumPy, OpenCV or PySceneDetect (Stage 15) | Every chat pip-installs requirements.txt before the first reel, so each dependency is paid for on every reel; the built-in scene filter does the same job | ✓ Good — all eight filters present on the phone's FFmpeg 6.1 |
+| Camera motion from deshake with a block-contrast threshold of 20, and "subject moving" judged only while the camera is still (Stage 15) | The default threshold of 125 read a pan as a still camera on real footage; the steadied picture does not separate subject from camera | ✓ Good — a pan reads as panning on the Mac and the phone; a handheld pan reads "shaky", left for a later tuning pass |
+| Sound peaks earn extra stills alongside movement peaks and cuts; short clips share a sheet; 20 sheets a run, thinning the rhythm first (Stage 15) | A laugh or a splash shows in the loudness curve; ten short clips should not cost ten sheets of her allowance | ✓ Good — blind test 4 of 4 |
 
 ## Evolution
 
@@ -96,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-14 after Phase 2 (Stage 14 – Normalize) completed*
+*Last updated: 2026-10-18 after Phase 3 (Stage 15 – Seeing the footage) completed*
