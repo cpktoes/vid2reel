@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: stage-16-cut-list-and-renderer
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-10-19T21:01:51.257Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-10-19T21:17:47.062Z"
 last_activity: 2026-10-19
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 28
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 04 (stage-16-cut-list-and-renderer) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-10-19 — Phase 04 execution started
 
-Progress: [██████░░░░] 64% (1 of 14 phases complete)
+Progress: [███████░░░] 68% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [██████░░░░] 64% (1 of 14 phases complete)
 | Phase 03 P08 | one checkpoint round trip | 2 tasks | 0 files |
 | Phase 03 P09 | 3 checkpoint round trips | 3 tasks | 4 files |
 | Phase 04 P02 | 5min | 2 tasks | 4 files |
+| Phase 04 P01 | about 1h (Task 2) | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: [Phase 3] Stage 15 phone test: look step taken from the offered draft (step 4 of EDITOR.md) at the user's word; branch pushed, main untouched at 248bec0
 - [Phase ?]: [Phase 3] DESHAKE_CONTRAST set to 20 (deshake default 125 read a panning camera as still on small tone-mapped frames); confirmed on Mac, bench clips and phone
 - [Phase ?]: [Phase 3] Handheld pan reads shaky not panning (SHAKE_LIMIT_PX 2.0): left alone, candidate for a later tuning pass
+- [Phase 04]: 04-01: frames(s) = floor(round(s x 30, 6) + 0.5); whole clips use a thousandth-of-a-frame benefit
+- [Phase 04]: 04-01: check runs canvas, clips block, segments, fit in order, each only if earlier ones found nothing; one sentence per clip in the clips block
 
 ### Pending Todos
 
@@ -143,6 +146,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-19T21:01:51.229Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-10-19T21:17:47.041Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
