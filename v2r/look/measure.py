@@ -108,11 +108,20 @@ def parse_motion(path):
 
     A row is: Ori x, Avg x, Fin x, Ori y, Avg y, Fin y, then the angle and the zoom, three each. The first line of the
     file is a header and is skipped. Only the Ori columns are used, never Avg or Fin (their two-second lag would read
-    the start of every pan as shake).
+    the start of every pan as shake). Raises ValueError for a number that is not finite (NaN or infinity), which is
+    treated like any other unreadable motion file: the camera movement of that clip is then not measured.
     """
+    rows = []
     with open(path, encoding="utf-8", errors="replace") as handle:
         next(handle, None)
-        return [[float(part) for part in line.split(",")] for line in handle if line.strip()]
+        for line in handle:
+            if not line.strip():
+                continue
+            values = [finite(part) for part in line.split(",")]
+            if None in values:
+                raise ValueError("a motion value is not a finite number")
+            rows.append(values)
+    return rows
 
 
 def camera_and_shake(rows, skip):

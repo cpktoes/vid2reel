@@ -267,6 +267,29 @@ def test_run_stills_that_fail_keep_the_measurements(shape, tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_run_survives_a_clip_whose_numbers_are_not_finite(shape, tmp_path, monkeypatch, capsys):
+    work = make_work(tmp_path)
+    make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2), clip_in(work, "B.mp4", shape, 2)])
+    real = measure.measure_clip
+
+    def poisoned(path, entry, have, folder):
+        measured = real(path, entry, have, folder)
+        if entry["letter"] == "A":
+            measured["overall"]["brightness"] = float("nan")  # whatever the source, a NaN must not reach look.json
+        return measured
+
+    monkeypatch.setattr(measure, "measure_clip", poisoned)
+
+    assert main(["look", str(work)]) == 0
+
+    first, second = read_look(work)["clips"]
+    assert read_look(work)["finished"] is True
+    assert (first["status"], first["sentence"]) == ("skipped", "Clip A could not be looked at.")
+    assert second["status"] == "done"
+    assert "Clip A could not be looked at." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
 def test_run_without_picture_library_still_measures(shape, tmp_path, monkeypatch):
     work = make_work(tmp_path)
     make_manifest(work, shape, [clip_in(work, "A.mp4", shape, 2)])

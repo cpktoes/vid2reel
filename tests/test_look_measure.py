@@ -89,6 +89,34 @@ def test_parse_motion_header_and_rows(tmp_path):
     assert (rows[1][0], rows[1][3]) == (1.5, -2.0)
 
 
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
+def test_parse_motion_refuses_a_number_that_is_not_finite(bad, tmp_path):
+    header = "Ori x, Avg x, Fin x, Ori y, Avg y, Fin y, Ori angle, Avg angle, Fin angle, Ori zoom, Avg zoom, Fin zoom"
+    path = tmp_path / "motion.txt"
+    path.write_text(
+        header + f"\n0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0\n"
+        f"{bad}, 0.15, -1.35, -2.0, -0.2, 1.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        measure.parse_motion(path)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_a_non_finite_motion_value_is_an_unreadable_motion_file(shape, tmp_path, monkeypatch):
+    real = measure.parse_motion
+
+    def poisoned(path):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        lines[3] = ",".join(["nan"] + lines[3].split(",")[1:])
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return real(path)
+
+    monkeypatch.setattr(measure, "parse_motion", poisoned)
+    result = measured(tmp_path, shape, "plain")
+    assert result["notes"] == ["The camera movement of clip A could not be read."]
+    assert all(half["camera"] is None and half["shake"] is None for half in result["halves"])
+    assert all(half["movement"] is not None for half in result["halves"][1:])  # the other measurements stand
+
+
 def test_chain_order():
     have = {"fps", "scale", "signalstats", "blurdetect", "scdet", "deshake", "metadata"}
     assert filter_names(measure.video_chain(have)) == [

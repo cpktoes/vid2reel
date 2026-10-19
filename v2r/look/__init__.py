@@ -68,6 +68,15 @@ def write_look(work_dir, look):
     os.replace(temp, work_dir / "look.json")
 
 
+def writable(clip):
+    """True when a clip's entry can go into look.json: it holds no NaN or infinity and nothing JSON cannot write."""
+    try:
+        json.dumps(clip, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def clear_last_look(work_dir):
     """Delete the last run's look.json, look.json.tmp and sheets/sheet-NN.jpg files; nothing else, ever (D-08)."""
     work_dir = Path(work_dir)
@@ -283,6 +292,8 @@ def look(work_dir=None):
                     raise
                 clip = skipped_entry(entry, f"Clip {letter} could not be looked at.")
             except Exception:  # one broad catch at the per-clip boundary: nothing may stop the others
+                clip = skipped_entry(entry, f"Clip {letter} could not be looked at.")
+            if not writable(clip):  # a number that is not finite would stop every later write of look.json
                 clip = skipped_entry(entry, f"Clip {letter} could not be looked at.")
             result["clips"].append(clip)
             result["sheets"] = book.names()
