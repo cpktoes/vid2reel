@@ -1231,3 +1231,24 @@ def test_an_unexpected_error_cannot_fake_a_line(capsys, monkeypatch):
 
     err = capsys.readouterr().err
     assert len(err.strip().splitlines()) == 1 and "z" * 600 not in err
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_frame_rate_tolerance_is_a_setting(shape, tmp_path, capsys, monkeypatch):
+    c = context(shape, tmp_path, None)
+    sentence = "The working copy of clip B is not at 30 frames a second, so normalize has to make it again."
+
+    def set_fps(fps):
+        def apply(manifest):
+            manifest["clips"][1]["working"]["fps"] = fps
+        edit_manifest(c.work, apply)
+
+    set_fps(30.0005)  # inside the tolerance
+    assert run_check(c.work, c.data, capsys)[1] == []
+    set_fps(30.002)  # outside it
+    assert run_check(c.work, c.data, capsys)[1] == [sentence]
+    monkeypatch.setattr(settings, "FPS_TOLERANCE", 0.01)
+    assert run_check(c.work, c.data, capsys)[1] == []
+    monkeypatch.setattr(settings, "FPS_TOLERANCE", 0.0)
+    set_fps(30.0005)
+    assert run_check(c.work, c.data, capsys)[1] == [sentence]

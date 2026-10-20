@@ -183,9 +183,10 @@ def music_branch(the_plan, settings_for_reel, extra_input):
     length = the_plan["total_frames"] * samples_per_frame()
     first = round(settings_for_reel["music_from"] * rate)
     if extra_input is None:
-        source = (
-            f"sine=frequency={settings.TEST_TONE_HZ}:sample_rate={rate}:"
-            f"duration={settings_for_reel['music_from'] + seconds + 1:.6f}")
+        # the tone runs a little past the end of the reel and never past the length the settings give it; check refuses
+        # a reel that would need more than that length, so the tone is always long enough
+        tone = min(settings.TEST_TONE_SECONDS, settings_for_reel["music_from"] + seconds + settings.TEST_TONE_SLACK_SECONDS)
+        source = f"sine=frequency={settings.TEST_TONE_HZ}:sample_rate={rate}:duration={tone:.6f}"
     else:
         source = f"[{extra_input}:a]aresample={rate}"
     steps = [

@@ -24,10 +24,10 @@ def clip_frames(seconds, fps=None):
     """The whole frames a working copy holds.
 
     A working copy's sound can run a few milliseconds past its last picture, and that must not invent a frame, so a
-    clip gets a thousandth of a frame of benefit, not half a frame.
+    clip gets settings.CLIP_FRAME_BENEFIT (a thousandth of a frame) of benefit, not half a frame.
     """
     fps = settings.OUTPUT_FPS if fps is None else fps
-    return math.floor(round(seconds * fps, 6) + 0.001)
+    return math.floor(round(seconds * fps, 6) + settings.CLIP_FRAME_BENEFIT)
 
 
 def segment_frames(segment):

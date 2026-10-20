@@ -12,7 +12,7 @@ RENDER_SETTINGS = [
     # the rest of the render block
     "MOVE_AMOUNT", "MUSIC_DROP_RAMP", "FADE_IN_SECONDS", "FADE_OUT_SECONDS", "LOUDNESS_TARGET", "TRUE_PEAK_CEILING",
     "MIN_REEL_SECONDS", "CROP_NOTE_SHARE", "MAX_SEGMENTS", "TEST_TONE_ID", "TEST_TONE_HZ", "TEST_TONE_SECONDS",
-    "COVER_JPEG_QUALITY", "LUMA_RANGE", "CHROMA_RANGE",
+    "COVER_JPEG_QUALITY", "LUMA_RANGE", "CHROMA_RANGE", "CLIP_FRAME_BENEFIT", "FPS_TOLERANCE", "TEST_TONE_SLACK_SECONDS",
     # the match block
     "TOUCH_UP_MAX_BRIGHTNESS", "TOUCH_UP_MAX_COLOUR", "TOUCH_UP_SATURATION_MIN", "TOUCH_UP_SATURATION_MAX",
     "TOUCH_UP_DECIMALS", "SATURATION_DECIMALS",
@@ -28,7 +28,7 @@ def render_block_lines():
 
 
 def test_render_settings_have_unit_comments():
-    assert len(RENDER_SETTINGS) == 31
+    assert len(RENDER_SETTINGS) == 34
     for name in RENDER_SETTINGS:
         assert hasattr(settings, name), f"{name} is not in v2r/settings.py"
     block = render_block_lines()

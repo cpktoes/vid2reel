@@ -481,7 +481,7 @@ def clips_problem(letter, record, manifest, work_dir):
     facts = look.working_facts(entry, work_dir)
     if isinstance(facts, str):
         return missing
-    if abs(facts[2] - settings.OUTPUT_FPS) > 0.001:
+    if abs(facts[2] - settings.OUTPUT_FPS) > settings.FPS_TOLERANCE:
         return f"The working copy of clip {letter} is not at {settings.OUTPUT_FPS} frames a second, so normalize has to make it again."
     if entry["kind"] == "photo" and not plain_file((entry.get("photo") or {}).get("file"), work_dir):
         return f"The full-size copy of photo {letter} is missing from the work folder, so it cannot be built."

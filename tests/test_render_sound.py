@@ -431,3 +431,27 @@ def test_sound_commands_use_only_listed_filters(shape, music, tmp_path):
     assert "loudnorm" not in graph and "acompressor" not in graph and "alimiter" not in graph
     assert ("amix=inputs=2:duration=first:normalize=0" in graph) == (music is not None)
     assert ("amultiply" in graph) == bool(music and music.get("music_under_sound"))
+
+
+# ---- the test tone's length follows the settings (IN-03) ----
+
+
+def tone_duration(music_from, seconds):
+    the_plan = {"seconds": seconds, "total_frames": round(seconds * settings.OUTPUT_FPS), "segments": []}
+    graph = sound.music_branch(the_plan, {**sound.sound_settings({}), "music_from": music_from}, None)
+    return float(re.search(r"duration=([0-9.]+)", graph[0]).group(1))
+
+
+def test_the_test_tone_runs_a_stated_slack_past_the_end_of_the_reel(monkeypatch):
+    assert tone_duration(0.0, 10.0) == pytest.approx(10.0 + settings.TEST_TONE_SLACK_SECONDS)
+    assert tone_duration(20.0, 10.0) == pytest.approx(30.0 + settings.TEST_TONE_SLACK_SECONDS)
+    monkeypatch.setattr(settings, "TEST_TONE_SLACK_SECONDS", 2.5)
+    assert tone_duration(0.0, 10.0) == pytest.approx(12.5)
+
+
+def test_the_test_tone_is_never_longer_than_the_length_the_settings_give_it(monkeypatch):
+    # check refuses a reel that would need more than TEST_TONE_SECONDS of tone, so the tone never has to be longer
+    assert tone_duration(settings.TEST_TONE_SECONDS - 10.0, 10.0) == pytest.approx(settings.TEST_TONE_SECONDS)
+    monkeypatch.setattr(settings, "TEST_TONE_SECONDS", 60)
+    assert tone_duration(0.0, 10.0) == pytest.approx(10.0 + settings.TEST_TONE_SLACK_SECONDS)
+    assert tone_duration(52.0, 10.0) == pytest.approx(60.0)  # 63 seconds would not fit in the track's 60

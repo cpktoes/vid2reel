@@ -170,3 +170,15 @@ def test_a_one_frame_segment_is_the_fitted_crop(shape, move):
     segment = plan.plan(cutlist, manifest_with("video", [1920, 1080]))["segments"][0]
     assert segment["frames"] == 1
     assert segment["window_start"] == segment["window_end"] == [0, 0, width, height]
+
+
+# ---- the numbers that were written into the code now come from settings.py (IN-03) ----
+
+
+def test_a_clips_frame_benefit_is_a_setting(monkeypatch):
+    assert plan.clip_frames(12.433333) == 373  # 372.99999 frames and a thousandth of a frame of benefit
+    assert plan.clip_frames(12.45) == 373  # 373.5 frames: half a frame is not given
+    monkeypatch.setattr(settings, "CLIP_FRAME_BENEFIT", 0.5)
+    assert plan.clip_frames(12.45) == 374
+    monkeypatch.setattr(settings, "CLIP_FRAME_BENEFIT", 0.0)
+    assert plan.clip_frames(12.433333) == 372
