@@ -2,7 +2,10 @@
 
 Render builds exactly the cut list and makes no choices of its own: nothing is trimmed, nudged, reordered or added. A
 list that fails `check` builds nothing. It writes the reel (reel-SHAPE-STAMP.mp4), its proof sheets (proof/proof-NN.jpg)
-and a hidden scratch folder (.v2r-render-XXXX) that is always removed, whether the run succeeds or fails.
+and a hidden scratch folder (.v2r-render-XXXX) that is removed when the run ends, whether it succeeds or fails. A run
+that is stopped hard (the computer restarts, the app is closed) cannot tidy up, so a list that passes `check` first sweeps
+what an earlier run left: scratch folders and the .part reel and cover files, matched by their exact names, and nothing
+else. Only one render at a time may use a work folder.
 
 One piece per shot is built into the scratch folder, the pieces are joined, and the reel is encoded once, under the
 frame size and bitrate that join.fit gives for its length. The reel is written under a .part name, checked, and only
@@ -14,6 +17,7 @@ reel's proof sheets and cover as they were.
 import errno
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -34,12 +38,33 @@ RENDER_DECODERS = ["h264", "aac", "mjpeg", "pcm_f32le"]
 RENDER_MUXERS = ["mp4", "matroska", "wav"]
 RENDER_DEMUXERS = ["concat", "matroska,webm", "wav", "image2", "mov,mp4,m4a,3gp,3g2,mj2"]
 RENDER_TEMP_PREFIX = ".v2r-render-"  # a hidden folder in the work folder holds the pieces and the sound bed
+LEFTOVER_FOLDER = re.compile(r"^\.v2r-render-[A-Za-z0-9_]+$")  # the prefix and what tempfile adds, and nothing else
+# a reel or cover that was being written (new_path's names with the .part that normalize.part_path adds)
+LEFTOVER_FILE = re.compile(r"^reel-(tall|wide)-\d{8}-\d{6}(-\d+)?(-cover\.part\.jpg|\.part\.mp4)$")
 NO_FFMPEG = "FFmpeg is not installed here, so nothing was built."
 OUT_OF_ROOM = "The work folder ran out of room, so the reel was not built."
 
 
 class RenderError(Exception):
     """The reel can't be built; the message is one plain sentence."""
+
+
+def clear_leftovers(work_dir):
+    """Delete what a render that was stopped hard left in the work folder: its scratch folders and unfinished files.
+
+    A scratch folder is a real folder (never a link) directly in the work folder whose whole name is render's hidden
+    prefix and the letters tempfile adds; an unfinished file is a regular file named like a reel's or a cover's .part
+    file. Nothing else, ever: no original, working copy, manifest.json, look.json, proof sheet or finished reel. One
+    that cannot be removed is harmless and does not stop the run.
+    """
+    for entry in Path(work_dir).iterdir():
+        if LEFTOVER_FOLDER.match(entry.name) and entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry, ignore_errors=True)
+        elif LEFTOVER_FILE.match(entry.name) and entry.is_file() and not entry.is_symlink():
+            try:
+                entry.unlink()
+            except OSError:
+                pass
 
 
 def new_path(work_dir, shape):
@@ -139,6 +164,7 @@ def render(cutlist_path=None, work_dir=None):
         count = len(checked.problems)
         raise RenderError(f"The cut list has {count} problem{'' if count == 1 else 's'}, so nothing was built.")
 
+    clear_leftovers(work_dir)  # only now: a list that is refused changes nothing in the work folder
     the_plan = plan.plan(checked.cutlist, checked.manifest)
     shape, canvas, seconds = the_plan["shape"], the_plan["canvas"], the_plan["seconds"]
     segments = the_plan["segments"]

@@ -320,3 +320,76 @@ def test_render_refuses_on_a_missing_ffmpeg_piece(shape, tmp_path, capsys, monke
     err = capsys.readouterr().err
     assert "lacks the nosuchfilter filter, so nothing was built" in err
     assert listing(work) == before
+
+
+# ---- what a stopped run leaves behind is swept at the start of the next one (WR-02) ----
+
+LEFTOVERS_FILES = [
+    "reel-tall-20260101-120000.part.mp4", "reel-wide-20260101-120000-2.part.mp4",
+    "reel-tall-20260101-120000-cover.part.jpg", "reel-wide-20260101-120000-2-cover.part.jpg",
+]
+LEFTOVERS_FOLDERS = [".v2r-render-ab12_Z", ".v2r-render-x"]
+MUST_STAY = [  # lookalikes and everything else a work folder holds
+    "reel-tall-20260101-120000.mp4", "reel-tall-20260101-120000-cover.jpg", "reel-sideways-20260101-120000.part.mp4",
+    "reel-tall-20260101-120000.part.mp4.txt", "reel-tall-notes.part.mp4", "A.part.mp4", "C-photo.part.jpg", "notes.part.mp4",
+    ".v2r-render-ab12.txt", ".v2r-render-afile", ".v2r-look-ab12", "v2r-render-ab12", "look.json", "cutlist.json.part",
+]
+
+
+def plant_leftovers(work):
+    for name in LEFTOVERS_FILES + MUST_STAY:
+        if not (work / name).exists():
+            (work / name).write_bytes(b"x")
+    for name in LEFTOVERS_FOLDERS:
+        (work / name).mkdir()
+        (work / name / "piece-001.mkv").write_bytes(b"x" * 10)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_render_sweeps_what_a_stopped_run_left_and_nothing_else(shape, tmp_path, capsys):
+    work = tracer_work(tmp_path, shape)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "precious.txt").write_bytes(b"keep")
+    (work / ".v2r-render-link").symlink_to(outside, target_is_directory=True)  # a link is never followed or removed
+    plant_leftovers(work)
+    (work / "proof").mkdir()
+    (work / "proof" / "proof-09.jpg").write_bytes(b"x")  # a leftover that make_proof's own sweep owns, not this one
+    fixed = {name: sha256(work / name) for name in ("A.mp4", "B.mp4", "manifest.json", "cutlist.json")}
+
+    assert main(["render", "--work", str(work)]) == 0
+    capsys.readouterr()
+
+    names = {path.name for path in work.iterdir()}
+    assert not names & set(LEFTOVERS_FILES + LEFTOVERS_FOLDERS)
+    assert set(MUST_STAY) <= names
+    assert (work / ".v2r-render-link").is_symlink() and (outside / "precious.txt").read_bytes() == b"keep"
+    assert {name: sha256(work / name) for name in fixed} == fixed
+    assert len([name for name in names if name.startswith(f"reel-{shape}-") and name.endswith(".mp4") and ".part" not in name]) >= 1
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_render_leaves_a_stopped_runs_files_alone_when_the_list_is_refused(shape, tmp_path, capsys):
+    work = tracer_work(tmp_path, shape, segments=[
+        {"clip": "B", "from": 0.0, "to": 5.0, "sound": "off", "why": "past the end of B"},
+    ])
+    plant_leftovers(work)
+    before = listing(work)
+
+    assert main(["render", "--work", str(work)]) == 1
+    capsys.readouterr()
+
+    assert listing(work) == before  # a refused list changes nothing at all
+
+
+def test_the_leftover_sweep_names_are_tight(tmp_path):
+    from v2r import render
+
+    work = tmp_path / "work"
+    work.mkdir()
+    plant_leftovers(work)
+
+    render.clear_leftovers(work)
+
+    assert {path.name for path in work.iterdir()} == set(MUST_STAY)
+
