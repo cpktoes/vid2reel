@@ -630,9 +630,36 @@ def crop_notes(data, manifest):
         share = plan.fill_region(size, [canvas["width"], canvas["height"]])["share"]
         if share < settings.CROP_NOTE_SHARE:
             subject = f"Photo {shown(letter)}" if photo else f"Clip {shown(letter)}"
+            bands = kept_bands(data, letter, size, canvas, down=turned == "upright")
             notes.append(
-                f"{subject} is {turned} in a {shape} frame, so the frame keeps only {round(share * 100)} percent of its picture.")
+                f"{subject} is {turned} in a {shape} frame, so the frame keeps only {round(share * 100)} percent of its "
+                f"picture: {bands}.")
     return notes
+
+
+def kept_bands(data, letter, size, canvas, down):
+    """The part of a clip's picture the crop keeps, in whole percents, in words: one band for each way the list frames it.
+
+    A crop that cuts rows (an upright clip in a wide frame) is told "down the picture", one that cuts columns (a sideways
+    clip in a tall frame) "across the picture". The band is plan.fill_region's own crop for each segment's focus point,
+    so it is the band the renderer keeps, held inside the picture at its edges; a clip framed the same way twice names
+    its band once, in the order the segments use it.
+    """
+    bands = []
+    for segment in data["segments"]:
+        if segment["clip"] != letter:
+            continue
+        crop = plan.fill_region(size, [canvas["width"], canvas["height"]], segment.get("focus_x", 0.5), segment.get("focus_y", 0.5))["crop"]
+        crop_w, crop_h, crop_x, crop_y = crop
+        first, length, whole = (crop_y, crop_h, size[1]) if down else (crop_x, crop_w, size[0])
+        band = (round(first * 100 / whole), round((first + length) * 100 / whole))
+        if band not in bands:
+            bands.append(band)
+    ranges = [f"from {first} to {last}" for first, last in bands]
+    way = "down" if down else "across"
+    if len(ranges) == 1:
+        return f"the part {ranges[0]} percent {way} the picture"
+    return f"the parts {', '.join(ranges[:-1])} and {ranges[-1]} percent {way} the picture"
 
 
 def rule_notes(data, manifest):

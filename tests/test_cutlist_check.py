@@ -910,11 +910,16 @@ def test_nfc_and_case_in_file_names(shape, tmp_path, capsys):
 
 NO_TOUCH_UP = "There is no touch-up in the list; run match if the clips should match."
 NO_SOUND = "This reel has no sound at all."
-EXAMPLE_NOTES = {  # what the approved examples say about their sideways and upright clips
-    "tall": ["Clip B is sideways in a tall frame, so the frame keeps only 32 percent of its picture."],
+EXAMPLE_NOTES = {  # what the approved examples say about their sideways and upright clips, and the band each keeps
+    "tall": [
+        "Clip B is sideways in a tall frame, so the frame keeps only 32 percent of its picture: "
+        "the parts from 19 to 51 and from 44 to 76 percent across the picture.",
+    ],
     "wide": [
-        "Clip B is upright in a wide frame, so the frame keeps only 32 percent of its picture.",
-        "Photo C is upright in a wide frame, so the frame keeps only 42 percent of its picture.",
+        "Clip B is upright in a wide frame, so the frame keeps only 32 percent of its picture: "
+        "the part from 14 to 46 percent down the picture.",
+        "Photo C is upright in a wide frame, so the frame keeps only 42 percent of its picture: "
+        "the part from 29 to 71 percent down the picture.",
     ],
 }
 PHOTO_SEGMENT = {"tall": (5, "E"), "wide": (4, "C")}
@@ -928,6 +933,38 @@ def test_examples_pass_with_their_notes(shape, tmp_path, capsys):
 
     assert (code, problems) == (0, [])
     assert notes == EXAMPLE_NOTES[shape]
+
+
+def test_a_crop_note_names_the_band_the_focus_leaves_in_place(tmp_path, capsys):
+    c = context("wide", tmp_path, None)
+    only_b = [item for item in c.data["segments"] if item["clip"] == "B"]
+    assert len(only_b) == 1
+
+    only_b[0]["focus_y"] = 1.0  # the bottom edge: the band is held inside the picture, not run off it
+    notes = run_check(c.work, c.data, capsys, all_notes=True)[2]
+    assert "Clip B is upright in a wide frame, so the frame keeps only 32 percent of its picture: " \
+        "the part from 68 to 100 percent down the picture." in notes
+
+    only_b[0]["focus_y"] = 0.0  # the top edge
+    notes = run_check(c.work, c.data, capsys, all_notes=True)[2]
+    assert "Clip B is upright in a wide frame, so the frame keeps only 32 percent of its picture: " \
+        "the part from 0 to 32 percent down the picture." in notes
+
+    only_b[0]["focus_y"] = 0.36  # the planing shot of the phone test: the band is the one the list asked for
+    notes = run_check(c.work, c.data, capsys, all_notes=True)[2]
+    assert "the part from 20 to 52 percent down the picture." in " ".join(notes)
+
+
+def test_a_clip_framed_the_same_way_twice_names_one_band(tmp_path, capsys):
+    c = context("tall", tmp_path, None)
+    for item in c.data["segments"]:
+        if item["clip"] == "B":
+            item["focus_x"] = 0.5
+
+    notes = run_check(c.work, c.data, capsys, all_notes=True)[2]
+
+    assert notes == ["Clip B is sideways in a tall frame, so the frame keeps only 32 percent of its picture: "
+                     "the part from 34 to 66 percent across the picture."]
 
 
 @pytest.mark.parametrize("shape", SHAPES)
