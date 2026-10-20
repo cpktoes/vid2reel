@@ -1,10 +1,11 @@
 ---
 phase: 04-stage-16-cut-list-and-renderer
 verified: 2026-10-19T00:00:00Z
-status: human_needed
+status: passed
 score: 5/5 roadmap truths verified (9/9 requirements satisfied)
 behavior_unverified: 0
 overrides_applied: 0
+human_verification_result: passed. The user made one wide reel from the phone on branch stage-16-render with commits 36a3db6 and f7bb4a0 and the review fixes in place, and replied "approved" in chat on 2026-10-19 (see 04-UAT.md).
 human_verification:
   - test: "Make one wide reel from a phone on branch stage-16-render with the two follow-up changes in place (the EDITOR.md focus-point sentence, commit 36a3db6, and check's crop note naming the band the crop keeps, commit f7bb4a0)"
     expected: "check prints a crop note that names the part of the picture the frame keeps (for example 'the part from 20 to 52 percent down the picture'); Claude aims focus_y at the thing the reel is about and says roughly where the frame lands; the finished wide reel looks right on the phone"
@@ -15,7 +16,7 @@ human_verification:
 
 **Phase Goal:** A cut list, checked against a schema, renders to exactly that video in either shape, with a mild touch-up, gentle movement and a proof sheet.
 **Verified:** 2026-10-19
-**Status:** human_needed (no gaps; one outstanding phone check)
+**Status:** passed (no gaps; the phone check was approved by the user on 2026-10-19)
 **Re-verification:** No, initial verification
 **Branch confirmed:** stage-16-render
 
