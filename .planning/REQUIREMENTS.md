@@ -45,7 +45,7 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 - [x] **CUT-06**: Each segment's own sound can be on or off, music is laid underneath with the start point, fades and level from the cut list, and the finished mix is normalized to the loudness the main platforms target, with the figure used stated
 - [x] **CUT-07**: The output is an MP4 with H.264 video and AAC sound at the canvas size and frame rate, fast-start, under `MAX_RESULT_BYTES`, with a contact sheet of the finished video and a cover still alongside
 - [x] **CUT-08**: Fields for text, speed, transitions and a voice track are accepted and ignored with a note
-- [ ] **CUT-09**: Golden renders exist in both shapes from generated clips, with expected length, size and a colour check at a known second, and the same cut list always makes the same video
+- [x] **CUT-09**: Golden renders exist in both shapes from generated clips, with expected length, size and a colour check at a known second, and the same cut list always makes the same video
 
 ### Editor's handbook (Stage 17)
 

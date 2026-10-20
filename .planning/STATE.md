@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: stage-16-cut-list-and-renderer
 status: executing
-stopped_at: Completed 04-08-PLAN.md
-last_updated: "2026-10-19T23:30:33.825Z"
+stopped_at: Completed 04-09-PLAN.md
+last_updated: "2026-10-20T00:18:07.904Z"
 last_activity: 2026-10-19
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 28
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 04 (stage-16-cut-list-and-renderer) — EXECUTING
-Plan: 9 of 11
+Plan: 10 of 11
 Status: Ready to execute
 Last activity: 2026-10-19 — Phase 04 execution started
 
-Progress: [█████████░] 89% (1 of 14 phases complete)
+Progress: [█████████░] 93% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -85,6 +85,7 @@ Progress: [█████████░] 89% (1 of 14 phases complete)
 | Phase 04 P06 | 45min | 2 tasks | 3 files |
 | Phase 04 P07 | 70min | 2 tasks | 3 files |
 | Phase 04 P08 | 50min | 2 tasks | 6 files |
+| Phase 04 P09 | 45 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: [Phase 4] Plan 06: music/library.json read as {tracks:[{id,file,seconds}]}; test-tone is 220 Hz for 300 s; a fade longer than the reel covers the reel
 - [Phase ?]: 04-07: check rules no longer wait for each other (only fit does); clips/touch-ups checked in letter order; two decimals when one would hide a shortfall
 - [Phase ?]: 04-08: match's group is the measured clips the segments use; every measured clip in clips still gets a record; colour offsets follow the rounded saturation multiply
+- [Phase ?]: 04-09: the cover still is read from the finished reel and saved whole or not at all; a cover that cannot be made keeps the reel and says so
+- [Phase ?]: 04-09: golden reels are checked by worked-out colours and frame luma plus decoded md5 of two runs, never a hard-coded hash
 
 ### Pending Todos
 
@@ -160,6 +163,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-19T23:30:33.803Z
-Stopped at: Completed 04-08-PLAN.md
+Last session: 2026-10-20T00:18:07.876Z
+Stopped at: Completed 04-09-PLAN.md
 Resume file: None
