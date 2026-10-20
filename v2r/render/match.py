@@ -52,11 +52,23 @@ def measured(overall):
     return values
 
 
+def same_length(looked, working):
+    """True when look.json's length for a clip is the manifest's, written the way look writes it (LOOK_DECIMALS places).
+
+    A second job in the same chat gives its clips the same letters and file names, so the length and the kind are what
+    show look.json came from other clips.
+    """
+    if not check.is_number(looked) or not check.is_number(working):
+        return False
+    return looked == round(working, settings.LOOK_DECIMALS)
+
+
 def read_look(work_dir, manifest):
     """{letter: its four measurements, or None}: what look.json says about each clip, read strictly.
 
     Refused, in one sentence: no look.json, one that cannot be read, one still being made, one of another shape than
-    the work folder, and one made from other clips (a letter the manifest lacks, or a working copy of another name).
+    the work folder, and one made from other clips (a letter the manifest lacks, or a working copy of another name, kind
+    or length).
     A skipped entry, or one that is missing a value, maps to None.
     """
     path = Path(work_dir) / "look.json"
@@ -83,7 +95,9 @@ def read_look(work_dir, manifest):
         if entry.get("status") != "done":
             result[letter] = None
             continue
-        if entry.get("file") != found["working"].get("file"):
+        if entry.get("file") != found["working"].get("file") or entry.get("kind") != found.get("kind"):
+            raise MatchError(OTHER_CLIPS)
+        if not same_length(entry.get("seconds"), found["working"].get("seconds")):
             raise MatchError(OTHER_CLIPS)
         result[letter] = measured(entry.get("overall"))
     return result

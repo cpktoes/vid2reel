@@ -345,6 +345,59 @@ def test_a_look_json_from_other_clips_refuses(shape, tmp_path, capsys):
     refused(work, path, capsys, "look.json was made from other clips than the work folder holds now")
 
 
+def change_look_entry(work, index, **changes):
+    data = json.loads((work / "look.json").read_text(encoding="utf-8"))
+    data["clips"][index].update(changes)
+    (work / "look.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_look_json_of_a_clip_of_another_length_refuses(shape, tmp_path, capsys):
+    # a second job in the same chat reuses the letters and file names; only the length shows it is another clip
+    letters = letters_of(shape)
+    work, manifest, path = setup(tmp_path, shape, letters, {letter: (100, 0, 0, 40) for letter in letters})
+    change_look_entry(work, 1, seconds=manifest["clips"][1]["working"]["seconds"] + 5.0)
+    refused(work, path, capsys, "look.json was made from other clips than the work folder holds now")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_look_json_of_a_clip_of_another_kind_refuses(shape, tmp_path, capsys):
+    letters = letters_of(shape)
+    work, manifest, path = setup(tmp_path, shape, letters, {letter: (100, 0, 0, 40) for letter in letters})
+    other = "photo" if manifest["clips"][0]["kind"] == "video" else "video"
+    change_look_entry(work, 0, kind=other)
+    refused(work, path, capsys, "look.json was made from other clips than the work folder holds now")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("missing", ["seconds", "kind"])
+def test_a_look_json_entry_without_its_length_or_kind_refuses(shape, missing, tmp_path, capsys):
+    letters = letters_of(shape)
+    work, manifest, path = setup(tmp_path, shape, letters, {letter: (100, 0, 0, 40) for letter in letters})
+    data = json.loads((work / "look.json").read_text(encoding="utf-8"))
+    del data["clips"][0][missing]
+    (work / "look.json").write_text(json.dumps(data), encoding="utf-8")
+    refused(work, path, capsys, "look.json was made from other clips than the work folder holds now")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_look_json_lengths_are_compared_as_look_writes_them(shape, tmp_path, capsys):
+    # look writes a clip's length to LOOK_DECIMALS places, so a working copy of 12.004 seconds is 12.0 in look.json
+    letters = letters_of(shape)
+    work, manifest = placeholder_work(tmp_path, shape)
+    manifest_path = work / "manifest.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["clips"][0]["working"]["seconds"] = 12.004
+    manifest_path.write_text(json.dumps(data), encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    write_look(work, manifest, {letter: (100, 0, 0, 40) for letter in letters})
+    change_look_entry(work, 0, seconds=round(12.004, settings.LOOK_DECIMALS))
+    path = write_list(work, one_list(shape, manifest, letters))
+
+    assert main(["match", str(path), "--work", str(work)]) == 0
+    assert "touch_up" in json.loads(path.read_text(encoding="utf-8"))["look"]
+
+
 @pytest.mark.parametrize("shape", SHAPES)
 def test_a_clips_block_that_does_not_match_refuses(shape, tmp_path, capsys):
     letters = letters_of(shape)

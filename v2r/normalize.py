@@ -102,6 +102,7 @@ def letter(n):
 
 ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"]
 LAST_JOB_FILES = re.compile(r"^[A-Z]{1,3}(-photo)?(\.part)?\.(mp4|jpg)$")
+LAST_JOB_RECORDS = ("manifest.json", "manifest.json.tmp", "look.json", "look.json.tmp")  # the last job's records, by exact name
 
 
 def ordinal(n):
@@ -114,10 +115,14 @@ def ordinal(n):
 
 
 def clear_last_job(out_dir, inputs):
-    """Delete the last run's lettered files and manifest in `out_dir`; nothing else, and never one of `inputs`."""
+    """Delete the last run's lettered files, manifest and look.json in `out_dir`; nothing else, and never one of `inputs`.
+
+    look.json goes too: it holds measurements of the last job's clips under letters and file names a new job reuses,
+    so left in place it would pass for the new job's own.
+    """
     protected = {Path(path).resolve() for path in inputs}
     for entry in Path(out_dir).iterdir():
-        last_job = LAST_JOB_FILES.match(entry.name) or entry.name in ("manifest.json", "manifest.json.tmp")
+        last_job = LAST_JOB_FILES.match(entry.name) or entry.name in LAST_JOB_RECORDS
         if last_job and entry.is_file() and entry.resolve() not in protected:
             entry.unlink()
 

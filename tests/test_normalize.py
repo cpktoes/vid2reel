@@ -283,6 +283,33 @@ def test_clear_last_job_never_touches_an_input_or_other_files(tmp_path):
     assert sorted(path.name for path in tmp_path.iterdir()) == ["A.mp4", "ABCD.mp4", "abc.mp4", "join-wide-1.mp4", "notes.txt"]
 
 
+def test_clear_last_job_removes_the_last_looks_measurements(tmp_path):
+    # look.json belongs to the clips of the job that made it; a new job must never find it and think it is its own (WR-03)
+    for name in ["A.mp4", "manifest.json", "look.json", "look.json.tmp"]:
+        (tmp_path / name).write_bytes(b"old")
+    (tmp_path / "sheets").mkdir()
+    (tmp_path / "sheets" / "sheet-01.jpg").write_bytes(b"old")  # look's own sweep owns the sheets, not normalize
+    for name in ["look.json.bak", "look.jsonl", "mylook.json"]:
+        (tmp_path / name).write_bytes(b"other")
+
+    clear_last_job(tmp_path, [])
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["look.json.bak", "look.jsonl", "mylook.json", "sheets"]
+    assert (tmp_path / "sheets" / "sheet-01.jpg").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_a_new_job_deletes_the_last_jobs_look_json(shape, tmp_path):
+    clips = [make_clip(tmp_path / "one.mp4", 320, 180)]
+    out = tmp_path / "out"
+    convert(clips, shape, out)
+    (out / "look.json").write_text("{}", encoding="utf-8")
+
+    convert(clips, shape, out)
+
+    assert not (out / "look.json").exists()
+
+
 @pytest.mark.parametrize("shape", ["tall", "wide"])
 def test_manifest_same_file_twice_gets_two_letters(shape, tmp_path):
     clip = make_clip(tmp_path / "in.mp4", 320, 180)
