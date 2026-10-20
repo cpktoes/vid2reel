@@ -18,10 +18,10 @@ A reel worth posting, made entirely from her phone. Everything else can fail; th
 - ✓ The phone route's real limits are measured and recorded in docs/phone-limits.md — Phase 1 (Stage 11)
 - ✓ `python -m v2r normalize --shape tall|wide` turns every clip or photo into one working format: upright, sized for the shape, steady 30 fps, HDR tone-mapped to ordinary colour, sound on every clip, photos as 4-second stills, letters A, B, C and work/manifest.json; bad files get one plain sentence and originals are never written to; verified from a phone on FFmpeg 6.1 with a tall and a wide reel — Phase 2 (Stage 14)
 - ✓ `python -m v2r look` turns the working copies into contact sheets (a still every second plus extras at cuts, movement bursts and sound peaks, each labelled like "B 07.5") and work/look.json (half-second measurements, each clip's exposure and colour, ranked candidate stretches whose reasons cite stills); the blind test on real footage was approved 4 of 4 and the sheets, a wide pass and a reel were checked from a phone on FFmpeg 6.1 — Phase 3 (Stage 15)
+- ✓ `python -m v2r check`, `match` and `render`: a cut list (version 1, checked against schema/cutlist.schema.json with one plain sentence per problem and notes for the rest) renders to exactly that video in either shape, cut to the frame, every shot filling the canvas around its focus point, a slow 4 percent move where asked, photos from their full-size copy, a capped touch-up written by `match` as numbers, music with fades and a drop under kept sound, the mix evened to -14 LUFS, proof sheets and a cover still, all under the send-back limit and the same every time; verified from a phone on FFmpeg 6.1 with a tall and a wide reel and a pasted list — Phase 4 (Stage 16)
 
 ### Active
 
-- [ ] A cut list, checked against a schema, renders to exactly that video in either shape, with a mild touch-up, gentle movement and a proof sheet (Stage 16)
 - [ ] EDITOR.md is the complete handbook; one taste profile per social account lives in that account's Claude Project (Stage 17)
 - [ ] A small public-domain music library, chosen with her, mixed under the reel at a steady loudness (Stage 18)
 - [ ] A brief of three to five questions, a quiet wait, a short reply, and follow-ups that change only what was asked (Stage 19)
@@ -99,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-18 after Phase 3 (Stage 15 – Seeing the footage) completed*
+*Last updated: 2026-10-19 after Phase 4 (Stage 16 – Cut list and renderer) completed*
