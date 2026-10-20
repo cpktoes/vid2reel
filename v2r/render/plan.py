@@ -59,7 +59,13 @@ def clamp(x, low, high):
 
 
 def shape_of(canvas):
-    """The settings.SHAPES name whose size equals the canvas's [width, height], or None."""
+    """The settings.SHAPES name whose size equals the canvas's [width, height], or None.
+
+    Only whole numbers count: 1080.0 equals 1080 to Python but the picture arithmetic needs real whole numbers, so a
+    canvas written with a decimal point is no shape at all.
+    """
+    if not all(isinstance(side, int) and not isinstance(side, bool) for side in canvas):
+        return None
     for name, size in settings.SHAPES.items():
         if [size[0], size[1]] == list(canvas):
             return name

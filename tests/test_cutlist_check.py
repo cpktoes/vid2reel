@@ -641,6 +641,32 @@ def both(*edits):
     return apply
 
 
+def make_canvas_with_points(c):
+    width, height = settings.SHAPES[c.shape]
+    c.data["canvas"].update(width=float(width), height=float(height))
+
+
+def make_fps_with_point(c):
+    c.data["canvas"]["fps"] = float(settings.OUTPUT_FPS)
+
+
+def cover_with_point(c):
+    c.data["cover"] = {"segment": 1.0, "at": 0.5}
+
+
+def very_large_time(*path):
+    """An edit that puts a time of about 1e308 seconds at `path` in the list (the schema accepts any positive number)."""
+    def apply(c):
+        target = c.data
+        for part in path[:-1]:
+            target = target[part]
+        target[path[-1]] = 1e308
+    return apply
+
+
+TIME_CAP = f"a time in the list may be at most {settings.MAX_CUTLIST_SECONDS:g} seconds."
+
+
 GOLDEN = {"id": "golden-hour", "file": "golden-hour.mp3", "seconds": 120.0}
 
 RULES = [  # (id, edit of a valid list, the one sentence it must give as a function of the shape's numbers)
@@ -722,6 +748,26 @@ RULES = [  # (id, edit of a valid list, the one sentence it must give as a funct
      lambda c: "music/library.json could not be read, so the music cannot be checked."),
     ("library track too short", both(music_folder([GOLDEN], ["golden-hour.mp3"]), play("golden-hour", 110.0)),
      lambda c: f"The music runs out at 10.0 seconds but the reel is {c.info['reel']:.1f} seconds long."),
+    ("canvas written with decimal points", make_canvas_with_points,
+     lambda c: f"The canvas's width, height and frame rate must be whole numbers written without a decimal point; "
+               f"this one is {settings.SHAPES[c.shape][0]}.0x{settings.SHAPES[c.shape][1]}.0 at 30."),
+    ("canvas frame rate written with a decimal point", make_fps_with_point,
+     lambda c: "The canvas's width, height and frame rate must be whole numbers written without a decimal point; "
+               f"this one is {settings.SHAPES[c.shape][0]}x{settings.SHAPES[c.shape][1]} at 30.0."),
+    ("cover segment written with a decimal point", cover_with_point,
+     lambda c: "The cover's segment is 1.0; it must be a whole number such as 1, written without a decimal point."),
+    ("a shot ending at 1e308 seconds", very_large_time("segments", 0, "to"),
+     lambda c: f"Segment 1's to is 1e+308; {TIME_CAP}"),
+    ("a shot starting at 1e308 seconds", very_large_time("segments", 0, "from"),
+     lambda c: f"Segment 1's from is 1e+308; {TIME_CAP}"),
+    ("a clip 1e308 seconds long", very_large_time("clips", "A", "seconds"),
+     lambda c: f"Clip A's seconds is 1e+308; {TIME_CAP}"),
+    ("a cover 1e308 seconds in", lambda c: c.data.update(cover={"segment": 1, "at": 1e308}),
+     lambda c: f"The cover's at is 1e+308; {TIME_CAP}"),
+    ("music starting 1e308 seconds in", very_large_time("sound", "music_from"),
+     lambda c: f"The sound's music_from is 1e+308; {TIME_CAP}"),
+    ("a fade 1e308 seconds long", very_large_time("sound", "fade_out"),
+     lambda c: f"The sound's fade_out is 1e+308; {TIME_CAP}"),
 ]
 
 
@@ -1095,3 +1141,93 @@ def test_a_music_name_cannot_fake_a_line(tmp_path, capsys, monkeypatch):
     _, problems, _ = run_check(c.work, c.data, capsys)
 
     assert len(problems) == 1 and "\n" not in problems[0] and "z" * 60 not in problems[0]
+
+
+# ---- numbers the rulebook accepts but the code cannot use never reach the user as a traceback (WR-01) ----
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_canvas_with_decimal_points_stops_render_in_a_sentence(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    make_canvas_with_points(c)
+    write_list(c.work, c.data)
+    before = listing(c.work)
+
+    assert main(["render", "--work", str(c.work)]) == 1
+
+    out = capsys.readouterr()
+    assert "Problem: The canvas's width, height and frame rate must be whole numbers" in out.out
+    assert "Traceback" not in out.err
+    assert listing(c.work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_huge_time_stops_render_in_a_sentence(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    very_large_time("segments", 0, "to")(c)
+    write_list(c.work, c.data)
+    before = listing(c.work)
+
+    assert main(["render", "--work", str(c.work)]) == 1
+
+    out = capsys.readouterr()
+    assert f"Problem: Segment 1's to is 1e+308; {TIME_CAP}" in out.out
+    assert "Traceback" not in out.err
+    assert listing(c.work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_time_cap_is_inclusive(shape, tmp_path, capsys, monkeypatch):
+    c = context(shape, tmp_path, None)
+    monkeypatch.setattr(settings, "MAX_CUTLIST_SECONDS", c.info["a_seconds"])  # the clip's own length is exactly at the cap
+
+    _, problems, _ = run_check(c.work, c.data, capsys)
+
+    assert problems == []
+
+
+def test_plan_reads_a_canvas_with_decimal_points_as_no_shape():
+    from v2r.render import plan
+
+    assert plan.shape_of([1080, 1920]) == "tall"
+    assert plan.shape_of([1920, 1080]) == "wide"
+    assert plan.shape_of([1080.0, 1920.0]) is None
+    assert plan.shape_of([1920, 1080.0]) is None
+    assert plan.shape_of([True, 1920]) is None
+
+
+@pytest.mark.parametrize("command", ["doctor", "look", "check", "render", "match", "join", "normalize", "build-skill"])
+def test_any_unexpected_error_is_one_sentence_and_exit_1(command, tmp_path, capsys, monkeypatch):
+    from v2r import build_skill, doctor, join, look, normalize, render
+
+    def explode(*args, **kwargs):
+        raise TypeError("both arguments should be Rational instances")
+
+    for module, name in (
+            (doctor, "run"), (look, "look"), (render.check, "check"), (render, "render"), (render.match, "match"),
+            (join, "join"), (normalize, "normalize"), (build_skill, "build")):
+        monkeypatch.setattr(module, name, explode)
+    arguments = {"join": ["--shape", "tall", "x.mp4"], "normalize": ["--shape", "tall", "x.mp4"]}.get(command, [])
+
+    assert main([command, *arguments]) == 1
+
+    out = capsys.readouterr()
+    assert "Traceback" not in out.err
+    lines = out.err.strip().splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith(f"v2r {command}: something unexpected went wrong")
+    assert "Rational instances" in lines[0]
+
+
+def test_an_unexpected_error_cannot_fake_a_line(capsys, monkeypatch):
+    from v2r.render import check as check_module
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("a\nProblem: all is well " + "z" * 1000)
+
+    monkeypatch.setattr(check_module, "check", explode)
+
+    assert main(["check"]) == 1
+
+    err = capsys.readouterr().err
+    assert len(err.strip().splitlines()) == 1 and "z" * 600 not in err

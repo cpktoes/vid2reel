@@ -8,7 +8,7 @@ from v2r import settings
 RENDER_SETTINGS = [
     # plan 01's nine
     "RENDER_PRESEEK_FRAMES", "RENDER_TAIL_FRAMES", "RENDER_PIECE_PRESET", "RENDER_PIECE_CRF", "RENDER_X264_PRESET",
-    "RENDER_X264_CRF", "MAX_CUTLIST_BYTES", "CUTLIST_ECHO_CHARS", "CUTLIST_MAX_DIGITS",
+    "RENDER_X264_CRF", "MAX_CUTLIST_BYTES", "CUTLIST_ECHO_CHARS", "CUTLIST_MAX_DIGITS", "MAX_CUTLIST_SECONDS",
     # the rest of the render block
     "MOVE_AMOUNT", "MUSIC_DROP_RAMP", "FADE_IN_SECONDS", "FADE_OUT_SECONDS", "LOUDNESS_TARGET", "TRUE_PEAK_CEILING",
     "MIN_REEL_SECONDS", "CROP_NOTE_SHARE", "MAX_SEGMENTS", "TEST_TONE_ID", "TEST_TONE_HZ", "TEST_TONE_SECONDS",
@@ -28,7 +28,7 @@ def render_block_lines():
 
 
 def test_render_settings_have_unit_comments():
-    assert len(RENDER_SETTINGS) == 30
+    assert len(RENDER_SETTINGS) == 31
     for name in RENDER_SETTINGS:
         assert hasattr(settings, name), f"{name} is not in v2r/settings.py"
     block = render_block_lines()

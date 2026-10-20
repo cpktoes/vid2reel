@@ -129,6 +129,7 @@ RENDER_X264_CRF = 20  # x264 quality of the finished reel, lower is better; the 
 MAX_CUTLIST_BYTES = 1_000_000  # bytes: a cut list larger than this is not read
 CUTLIST_ECHO_CHARS = 40  # characters: the longest piece of the list's own text a sentence repeats; longer text is cut, so a list cannot print a long instruction
 CUTLIST_MAX_DIGITS = 15  # digits: the longest whole number a cut list may hold; a longer one is refused before Python turns it into a number
+MAX_CUTLIST_SECONDS = 3 * 60 * 60  # seconds: the largest time any field of a cut list may hold; a bigger one is refused before the frame arithmetic can overflow
 MOVE_AMOUNT = 0.04  # share (0 to 1) of the frame every push-in, pull-out and pan moves by, used in full
 MUSIC_DROP_RAMP = 0.3  # seconds the music takes to drop before a kept-sound segment and to come back after it
 FADE_IN_SECONDS = 0.5  # seconds the music fades in over when the list states none

@@ -66,7 +66,16 @@ def main(argv=None):
     )
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
+    try:
+        return run(args, parser)
+    except Exception as error:  # the last resort: whatever was not foreseen is one plain sentence, never a Python traceback
+        detail = normalize.clean_text(f"{type(error).__name__}: {error}", settings.ERROR_DETAIL_CHARS)
+        print(f"v2r {args.command}: something unexpected went wrong ({detail}).", file=sys.stderr)
+        return 1
 
+
+def run(args, parser):
+    """Do the command `args` names and return its exit code; the errors each command expects are answered here."""
     if args.command == "doctor":
         doctor.run()
     elif args.command == "join":

@@ -358,12 +358,28 @@ def field_notes(data, schema):
     return notes
 
 
+def is_whole(value):
+    """True for a real whole number as Python holds it; 1080.0 is not one, though the rulebook accepts it as an integer."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def canvas_problems(data, manifest):
-    """The canvas must be one of the two shapes at the working frame rate, and the shape the clips were made for (D-03)."""
+    """The canvas must be one of the two shapes at the working frame rate, and the shape the clips were made for (D-03).
+
+    Its three numbers must be whole numbers written without a decimal point: the rulebook accepts 1080.0, but the
+    picture arithmetic cannot use it, so it is refused here rather than failing later.
+    """
     canvas = data["canvas"]
     width, height, fps = canvas.get("width"), canvas.get("height"), canvas.get("fps")
-    shape = plan.shape_of([width, height]) if is_number(width) and is_number(height) else None
-    if shape is None or fps != settings.OUTPUT_FPS:
+    if not all(is_whole(value) for value in (width, height, fps)):
+        sizes = [list(size) for size in settings.SHAPES.values()]
+        if [width, height] in sizes and fps == settings.OUTPUT_FPS:  # the right numbers, written the wrong way
+            return [
+                "The canvas's width, height and frame rate must be whole numbers written without a decimal point; "
+                f"this one is {shown(width)}x{shown(height)} at {shown(fps)}."
+            ]
+    shape = plan.shape_of([width, height])
+    if shape is None or fps != settings.OUTPUT_FPS or not is_whole(fps):
         tall, wide = settings.SHAPES["tall"], settings.SHAPES["wide"]
         return [
             f"The canvas is {shown(width)}x{shown(height)} at {shown(fps)} frames a second; it must be "
@@ -407,6 +423,37 @@ def letters_sentence(letters):
     if len(letters) <= 1:
         return "".join(letters)
     return ", ".join(letters[:-1]) + " and " + letters[-1]
+
+
+def time_fields(data):
+    """(where, value) for every time in seconds the list holds, in the list's order: each field named as a sentence names it."""
+    fields = []
+    for letter, record in sorted(data["clips"].items()):
+        fields.append((place(["clips", letter, "seconds"]), record["seconds"]))
+    for index, segment in enumerate(data["segments"]):
+        for name in ("from", "to"):
+            fields.append((place(["segments", index, name]), segment[name]))
+    cover = data.get("cover")
+    if isinstance(cover, dict):
+        fields.append((place(["cover", "at"]), cover["at"]))
+    block = data.get("sound")
+    if isinstance(block, dict):
+        for name in ("music_from", "fade_in", "fade_out"):
+            if name in block:
+                fields.append((place(["sound", name]), block[name]))
+    return fields
+
+
+def time_problems(data):
+    """A time in the list may be at most settings.MAX_CUTLIST_SECONDS; a larger one would overflow the frame arithmetic.
+
+    The rulebook accepts any positive number, 1e308 included, and the reader refuses only what is infinite already.
+    Every rule after this one turns seconds into frames, so this one runs first and, when it finds anything, alone.
+    """
+    cap = settings.MAX_CUTLIST_SECONDS
+    return [
+        f"{where} is {value:g}; a time in the list may be at most {cap:g} seconds."
+        for where, value in time_fields(data) if is_number(value) and value > cap]
 
 
 def clips_problem(letter, record, manifest, work_dir):
@@ -533,6 +580,9 @@ def cover_problems(data):
     if not isinstance(cover, dict):
         return []
     number, at = cover["segment"], cover["at"]
+    if not is_whole(number):  # the rulebook accepts 1.0 as an integer; it cannot number a segment
+        return [
+            f"The cover's segment is {shown(number)}; it must be a whole number such as 1, written without a decimal point."]
     total = len(data["segments"])
     if number > total:
         return [f"The cover names segment {number}, but the list has only {total} segments."]
@@ -711,6 +761,11 @@ def check(cutlist_path=None, work_dir=None):
     if checked.problems:
         return checked
     manifest = checked.manifest
+    oversize = time_problems(data)
+    if oversize:  # every later rule turns seconds into frames, so none of them can be trusted with these
+        checked.problems = oversize
+        checked.notes.append(NOT_COMPARED)
+        return checked
     # The rules run in a stated order and every one of them reports, so a list with several faults gets all its
     # sentences at once. The fit is the exception: it measures the reel, so it waits until nothing before it failed.
     checked.problems = (
