@@ -35,7 +35,12 @@ Run each as `python3 -m v2r COMMAND` (or `uv run python -m v2r COMMAND` on the M
 | `normalize --shape tall\|wide FILES` | Turns every attached clip and photo into one working format in `work/`, and writes `work/manifest.json`. |
 | `join --shape tall\|wide FILES` | Joins videos into one MP4 in `work/`, in the order given. |
 | `look` | Reads `work/manifest.json` and writes contact sheets of stills to `work/sheets/` and measurements to `work/look.json`. It takes no `--shape` because the manifest carries it. |
+| `check [CUTLIST]` | Checks a cut list, `work/cutlist.json` unless named, against `schema/cutlist.schema.json`, `work/manifest.json` and the music, and prints one plain sentence for each problem and each note. |
+| `match [CUTLIST]` | Writes a mild, capped touch-up for each clip into the cut list, from `work/look.json`. |
+| `render [CUTLIST]` | Builds exactly the reel the cut list describes into `work/`, with proof sheets in `work/proof/` and a cover still beside the reel. |
 | `build-skill` | Builds `skill/vid2reel.zip`, the file the chat installs. |
+
+`check`, `match` and `render` take `--work FOLDER` to use another work folder, and no `--shape`, because the cut list's canvas carries it.
 
 ## Layout
 
@@ -44,7 +49,7 @@ Run each as `python3 -m v2r COMMAND` (or `uv run python -m v2r COMMAND` on the M
 | `v2r/` | The package. `look/` and `render/` are sub-packages. |
 | `v2r/settings.py` | Every tunable number, in one place. |
 | `tests/` | pytest tests. Test media files may be committed here. |
-| `schema/` | Schemas. |
+| `schema/` | Schemas: `cutlist.schema.json`, the cut list's rulebook. |
 | `music/` | Music tracks. Audio files may be committed here. |
 | `docs/` | Documentation. |
 | `skill/` | Skill definition. |
