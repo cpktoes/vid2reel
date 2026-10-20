@@ -287,7 +287,7 @@ def test_kept_and_off_sound(shape, small, tmp_path):
     _, off_peak = window_levels(reel, 2.2, 3.8)
     assert kept_peak > -20
     assert off_peak < -60
-    assert "sound evened to -14.0 LUFS" in sentences[-2]
+    assert "sound evened to -14.0 LUFS" in sentences[-3]
 
 
 @pytest.mark.parametrize("shape", SHAPES)
@@ -345,14 +345,14 @@ def test_loudness_is_evened_to_the_target(shape, target, small, tmp_path):
     wanted = -14 if target is None else target
     loudness, _ = integrated_and_peak(reel)
     assert loudness == pytest.approx(wanted, abs=0.3)
-    assert f"sound evened to {wanted:.1f} LUFS." in sentences[-2]
+    assert f"sound evened to {wanted:.1f} LUFS." in sentences[-3]
 
 
 @pytest.mark.parametrize("shape", SHAPES)
 def test_peak_ceiling_stops_the_gain(shape, small, tmp_path):
     work = sound_work(tmp_path, shape, [(0.0, 2.0, "keep"), (2.0, 4.0, "keep")], music={"loudness": 0}, beep=(0.0, 5.0))
     reel, sentences = render_it(work)
-    said = sentences[-2]
+    said = sentences[-3]
     assert "short of the 0 LUFS target because the loudest peak would have gone past -1 dBTP." in said
     figure = float(re.search(r"sound evened to (\S+) LUFS", said).group(1))
     loudness, peak = integrated_and_peak(reel)
@@ -371,7 +371,7 @@ def test_silent_reel_has_a_silent_aac_track(shape, small, tmp_path):
     tracks = [item for item in info["streams"] if item["codec_type"] == "audio"]
     assert [(item["codec_name"], item["channels"]) for item in tracks] == [("aac", 2)]
     assert window_levels(reel, 0.0, 4.0)[1] <= -90
-    assert sentences[-2].endswith(", with no sound to even.")
+    assert sentences[-3].endswith(", with no sound to even.")
 
 
 @pytest.mark.parametrize("shape", SHAPES)
