@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 04
 current_phase_name: stage-16-cut-list-and-renderer
-status: executing
-stopped_at: Completed 04-10-PLAN.md
-last_updated: "2026-10-20T00:43:02.228Z"
+status: verifying
+stopped_at: Completed 04-11-PLAN.md
+last_updated: "2026-10-20T02:59:41.211Z"
 last_activity: 2026-10-19
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 28
-  completed_plans: 27
+  completed_plans: 28
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 
 Phase: 04 (stage-16-cut-list-and-renderer) — EXECUTING
 Plan: 11 of 11
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-19 — Phase 04 execution started
 
-Progress: [██████████] 96% (1 of 14 phases complete)
+Progress: [██████████] 100% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -87,6 +87,7 @@ Progress: [██████████] 96% (1 of 14 phases complete)
 | Phase 04 P08 | 50min | 2 tasks | 6 files |
 | Phase 04 P09 | 45 min | 2 tasks | 6 files |
 | Phase 04 P10 | ~45min | 2 tasks | 4 files |
+| Phase 04 P11 | phone test | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,7 @@ Settled decisions that shape later phases:
 - [Phase ?]: 04-09: the cover still is read from the finished reel and saved whole or not at all; a cover that cannot be made keeps the reel and says so
 - [Phase ?]: 04-09: golden reels are checked by worked-out colours and frame luma plus decoded md5 of two runs, never a hard-coded hash
 - [Phase ?]: Stage 16 differences from the guide recorded as 17 dated lines in docs/decisions.md; flagged build assumptions marked 'Assumption to confirm' for the phone test
+- [Phase 04]: Stage 16 phone test approved; check's crop note names the band the crop keeps (follows each shot's focus point); both fixes to be retested from the phone with one wide reel before merging
 
 ### Pending Todos
 
@@ -165,6 +167,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-20T00:43:02.143Z
-Stopped at: Completed 04-10-PLAN.md
+Last session: 2026-10-20T02:59:41.192Z
+Stopped at: Completed 04-11-PLAN.md
 Resume file: None

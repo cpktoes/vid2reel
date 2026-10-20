@@ -159,7 +159,7 @@ Plans:
   4. Each segment's own sound can be kept or dropped, music sits underneath, and the finished mix is normalized to a stated loudness
   5. The output is an H.264/AAC fast-start MP4 under the send-back limit with a contact sheet and cover still alongside, and golden renders in both shapes prove the same cut list always makes the same video
 
-**Plans**: 10/11 plans executed
+**Plans**: 11/11 plans executed
 
 Plans:
 **Wave 1**
@@ -192,7 +192,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 04-11-PLAN.md — The user's EDITOR.md steps and choices, the push on his word, and the phone test in tall and wide (wave 7, checkpoints)
+- [x] 04-11-PLAN.md — The user's EDITOR.md steps and choices, the push on his word, and the phone test in tall and wide (wave 7, checkpoints)
 
 ### Phase 5: Stage 17 – Editor's handbook
 
@@ -351,7 +351,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Skeleton | M1: A reel from a phone | done by hand | Complete | 2026-10-12 |
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
 | 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | Complete    | 2026-10-18 |
-| 4. Stage 16 – Cut list and renderer | M3: It can cut | 10/11 | In Progress|  |
+| 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | In Progress|  |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 0/TBD | Not started | - |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
 | 7. Stage 19 – Conversation | M4: It's a conversation | 0/TBD | Not started | - |
