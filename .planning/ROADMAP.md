@@ -207,7 +207,30 @@ Plans:
   4. The rehearsal runs for all five fixture sets, and a second profile on the same set changes only what the two profiles differ in
   5. She would post at least three of the five fixture reels with small changes
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Tracer: --work on normalize and look, one generated clip end to end into its own folder in both shapes; then placement, side-by-side folders, originals left alone, look named twice; README line (wave 1)
+- [ ] 05-02-PLAN.md — Guard tests for EDITOR.md: at most 1,200 words, real commands, the six steps in order, no Mac-only option, each proven to fire (wave 1)
+- [ ] 05-03-PLAN.md — Profiles checked by count and ignore status, private names kept out of tracked text, the rehearsal kit 05-REHEARSAL.md, and the owners' review and paste into each Project (wave 1, checkpoint)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-04-PLAN.md — The user's word on EDITOR.md (five corrections, two cuts, or his own edit), pasted exactly, guarded, and read against the checklist (wave 2, checkpoints)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-05-PLAN.md — Five rehearsals in fresh sessions, the second-profile pair compared by category, her scores, and one change at a time until three of five (wave 3, checkpoints)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 05-06-PLAN.md — Full suite, the --work-only code check, the private-data scan of everything a push carries, and the push on the user's word (wave 4, checkpoint)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 05-07-PLAN.md — The phone test inside one of her Projects on stage-17-handbook, the phone-limits row, decision lines and traceability (wave 5, checkpoint)
 
 ### Phase 6: Stage 18 – Music
 
