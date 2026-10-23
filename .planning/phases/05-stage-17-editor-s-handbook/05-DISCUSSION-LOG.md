@@ -74,6 +74,16 @@ The user opened the step by pasting the guide's Stage 17 discuss prompt, which s
 
 ---
 
+## The three sentences the user was asked about (after the draft, 2026-10-24)
+
+| Sentence | Options | Selected |
+|----------|---------|----------|
+| "The moment the user named usually opens or closes the reel." | keep / soften / drop | keep |
+| Shot sound off by default until Stage 18 | off unless asked / keep sound on for now | keep sound on for now |
+| After a second render is still wrong | send what you have and say so / stop and ask | stop and ask |
+
+---
+
 ## Claude's Discretion
 
 The handbook's exact wording after the user's review; the word-count test's form; whether a command-names test is added; how --work threads through normalize; rehearsal folder names and how the second-profile comparison is recorded.
