@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: stage-17-editor-s-handbook
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-10-24T17:11:41.723Z"
+stopped_at: Completed 05-04-PLAN.md (plan 03 parked at its Task 3 human gate)
+last_updated: "2026-10-24T21:10:40.294Z"
 last_activity: 2026-10-24
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 35
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
-Plan: 3 of 7
-Status: Ready to execute
+Plan: 4 of 7 complete (01, 02, 04 done); 03 is parked at its Task 3 human gate, not complete
+Status: Next is wave 3, plan 05, which waits on plan 03's profiles
 Last activity: 2026-10-24 — Phase 05 execution started
 
-Progress: [█████████░] 86% (1 of 14 phases complete)
+Progress: [█████████░] 89% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Progress: [█████████░] 86% (1 of 14 phases complete)
 | Phase 04 P11 | phone test | 3 tasks | 3 files |
 | Phase 05 P01 | 20min | 2 tasks | 3 files |
 | Phase 05 P02 | 10min | 2 tasks | 1 files |
+| Phase 05 P04 | two checkpoint rounds | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -140,6 +141,7 @@ Settled decisions that shape later phases:
 - [Phase ?]: Stage 16 differences from the guide recorded as 17 dated lines in docs/decisions.md; flagged build assumptions marked 'Assumption to confirm' for the phone test
 - [Phase 04]: Stage 16 phone test approved; check's crop note names the band the crop keeps (follows each shot's focus point); both fixes to be retested from the phone with one wide reel before merging
 - [Phase ?]: Phase 05-02: the 1,200-word handbook limit lives in tests/test_editor_handbook.py, step order read from python3 -m v2r matches only
+- [Phase ?]: [Phase 05-04]: the handbook's ordering rule, time order wins for talking, making and journeys, was the user's own addition at the read-through; EDITOR.md is 1,192 words, under the 1,200 cap
 
 ### Pending Todos
 
@@ -171,6 +173,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-24T17:11:41.704Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-10-24T21:10:40.274Z
+Stopped at: Completed 05-04-PLAN.md (plan 03 parked at its Task 3 human gate)
 Resume file: None

@@ -207,7 +207,7 @@ Plans:
   4. The rehearsal runs for all five fixture sets, and a second profile on the same set changes only what the two profiles differ in
   5. She would post at least three of the five fixture reels with small changes
 
-**Plans**: 2/7 plans executed
+**Plans**: 3/7 plans executed
 
 Plans:
 **Wave 1**
@@ -218,7 +218,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-04-PLAN.md — The user's word on EDITOR.md (five corrections, two cuts, or his own edit), pasted exactly, guarded, and read against the checklist (wave 2, checkpoints)
+- [x] 05-04-PLAN.md — The user's word on EDITOR.md (five corrections, two cuts, or his own edit), pasted exactly, guarded, and read against the checklist (wave 2, checkpoints)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -375,7 +375,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
 | 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | Complete    | 2026-10-18 |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | Complete    | 2026-10-19 |
-| 5. Stage 17 – Editor's handbook | M3: It can cut | 2/7 | In Progress|  |
+| 5. Stage 17 – Editor's handbook | M3: It can cut | 3/7 | In Progress|  |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
 | 7. Stage 19 – Conversation | M4: It's a conversation | 0/TBD | Not started | - |
 | 8. Stage 20 – Her two weeks | M5: Her two weeks | 0/TBD | Not started | - |
