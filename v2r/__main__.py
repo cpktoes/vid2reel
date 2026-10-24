@@ -35,10 +35,19 @@ def main(argv=None):
         "files", nargs="+", type=Path,
         help="files, in the order they were attached; they get the letters A, B, C...",
     )
+    normalize_parser.add_argument(
+        "--work", type=Path, default=None,
+        help="the work folder for the working copies and manifest.json; leave out for work/ in this repo; "
+             "its last job is cleared first",
+    )
     look_parser = commands.add_parser(
         "look", help="make contact sheets and measurements of the working copies in work/", allow_abbrev=False)
     look_parser.add_argument(
-        "work", nargs="?", type=Path, default=None,
+        "folder", nargs="?", type=Path, default=None,
+        help="the work folder that holds manifest.json; leave out for work/ in this repo",
+    )
+    look_parser.add_argument(
+        "--work", type=Path, default=None,
         help="the work folder that holds manifest.json; leave out for work/ in this repo",
     )
     for name, text in (
@@ -91,14 +100,18 @@ def run(args, parser):
         print(output)
     elif args.command == "normalize":
         try:
-            manifest = normalize.normalize(args.files, args.shape)
+            manifest = normalize.normalize(args.files, args.shape, args.work)
         except normalize.NormalizeError as error:
             print(f"v2r normalize: {error}", file=sys.stderr)
             return 1
         return 0 if any(clip["status"] == "done" for clip in manifest["clips"]) else 1
     elif args.command == "look":
+        if args.folder is not None and args.work is not None and args.folder.resolve() != args.work.resolve():
+            print("v2r look: the work folder was named twice, once on its own and once after --work, "
+                  "and the two differ; name it once.", file=sys.stderr)
+            return 1
         try:
-            result = look.look(args.work)
+            result = look.look(args.work if args.work is not None else args.folder)
         except look.LookError as error:
             print(f"v2r look: {error}", file=sys.stderr)
             return 1
