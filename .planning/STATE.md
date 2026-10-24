@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: stage-17-editor-s-handbook
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-10-24T17:09:46.479Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-10-24T17:11:41.723Z"
 last_activity: 2026-10-24
 last_activity_desc: Phase 05 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 35
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-10-24 — Phase 05 execution started
 
-Progress: [████████░░] 83% (1 of 14 phases complete)
+Progress: [█████████░] 86% (1 of 14 phases complete)
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [████████░░] 83% (1 of 14 phases complete)
 | Phase 04 P10 | ~45min | 2 tasks | 4 files |
 | Phase 04 P11 | phone test | 3 tasks | 3 files |
 | Phase 05 P01 | 20min | 2 tasks | 3 files |
+| Phase 05 P02 | 10min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -138,6 +139,7 @@ Settled decisions that shape later phases:
 - [Phase ?]: 04-09: golden reels are checked by worked-out colours and frame luma plus decoded md5 of two runs, never a hard-coded hash
 - [Phase ?]: Stage 16 differences from the guide recorded as 17 dated lines in docs/decisions.md; flagged build assumptions marked 'Assumption to confirm' for the phone test
 - [Phase 04]: Stage 16 phone test approved; check's crop note names the band the crop keeps (follows each shot's focus point); both fixes to be retested from the phone with one wide reel before merging
+- [Phase ?]: Phase 05-02: the 1,200-word handbook limit lives in tests/test_editor_handbook.py, step order read from python3 -m v2r matches only
 
 ### Pending Todos
 
@@ -169,6 +171,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-24T17:09:46.459Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-10-24T17:11:41.704Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

@@ -207,13 +207,13 @@ Plans:
   4. The rehearsal runs for all five fixture sets, and a second profile on the same set changes only what the two profiles differ in
   5. She would post at least three of the five fixture reels with small changes
 
-**Plans**: 1/7 plans executed
+**Plans**: 2/7 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 05-01-PLAN.md — Tracer: --work on normalize and look, one generated clip end to end into its own folder in both shapes; then placement, side-by-side folders, originals left alone, look named twice; README line (wave 1)
-- [ ] 05-02-PLAN.md — Guard tests for EDITOR.md: at most 1,200 words, real commands, the six steps in order, no Mac-only option, each proven to fire (wave 1)
+- [x] 05-02-PLAN.md — Guard tests for EDITOR.md: at most 1,200 words, real commands, the six steps in order, no Mac-only option, each proven to fire (wave 1)
 - [ ] 05-03-PLAN.md — Profiles checked by count and ignore status, private names kept out of tracked text, the rehearsal kit 05-REHEARSAL.md, and the owners' review and paste into each Project (wave 1, checkpoint)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -375,7 +375,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Stage 14 – Normalize | M2: It can see | 8/8 | Complete    | 2026-10-14 |
 | 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | Complete    | 2026-10-18 |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | Complete    | 2026-10-19 |
-| 5. Stage 17 – Editor's handbook | M3: It can cut | 1/7 | In Progress|  |
+| 5. Stage 17 – Editor's handbook | M3: It can cut | 2/7 | In Progress|  |
 | 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
 | 7. Stage 19 – Conversation | M4: It's a conversation | 0/TBD | Not started | - |
 | 8. Stage 20 – Her two weeks | M5: Her two weeks | 0/TBD | Not started | - |
