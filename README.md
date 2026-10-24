@@ -40,7 +40,7 @@ Run each as `python3 -m v2r COMMAND` (or `uv run python -m v2r COMMAND` on the M
 | `render [CUTLIST]` | Builds exactly the reel the cut list describes into `work/`, with proof sheets in `work/proof/` and a cover still beside the reel. |
 | `build-skill` | Builds `skill/vid2reel.zip`, the file the chat installs. |
 
-`check`, `match` and `render` take `--work FOLDER` to use another work folder, and no `--shape`, because the cut list's canvas carries it.
+`normalize`, `look`, `check`, `match` and `render` all take `--work FOLDER` to use another folder instead of `work/`, a Mac convenience for rehearsals; normalize clears that folder's last job first. `check`, `match` and `render` take no `--shape`, because the cut list's canvas carries it.
 
 ## Layout
 
