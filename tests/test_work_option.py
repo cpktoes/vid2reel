@@ -69,3 +69,97 @@ def test_tracer_work_folder_through_normalize_and_look(shape, tmp_path, small_ca
     assert [c["letter"] for c in look["clips"]] == ["A"]
     assert list((folder / "sheets").glob("*.jpg")), "look should have made at least one sheet"
     assert not default_work.exists(), "the default work folder must stay untouched"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_normalize_work_after_the_files(shape, tmp_path, small_caps, default_work):
+    clip = sent_clip(tmp_path)
+    folder = tmp_path / "set-one"
+
+    assert main(["normalize", "--shape", shape, str(clip), "--work", str(folder)]) == 0
+
+    assert (folder / "A.mp4").exists()
+    assert (folder / "manifest.json").exists()
+    assert not default_work.exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_two_work_folders_side_by_side(shape, tmp_path, small_caps, default_work):
+    clip = sent_clip(tmp_path)
+    one, two = tmp_path / "set-one", tmp_path / "set-two"
+
+    assert main(["normalize", "--shape", shape, "--work", str(one), str(clip)]) == 0
+    before = snapshot(one)
+    assert main(["normalize", "--shape", shape, "--work", str(two), str(clip)]) == 0
+
+    assert before and snapshot(one) == before, "the second run must leave the first folder unchanged"
+    assert (two / "A.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_normalize_work_clears_only_that_folders_last_job(shape, tmp_path, small_caps, default_work):
+    first = sent_clip(tmp_path, "first.mp4", seconds=2)
+    second = sent_clip(tmp_path, "second.mp4", seconds=2)
+    folder = tmp_path / "set-one"
+
+    assert main(["normalize", "--shape", shape, "--work", str(folder), str(first), str(second)]) == 0
+    assert (folder / "B.mp4").exists()
+    (folder / "notes.txt").write_text("keep me", encoding="utf-8")
+    old_manifest = (folder / "manifest.json").read_bytes()
+
+    assert main(["normalize", "--shape", shape, "--work", str(folder), str(first)]) == 0
+
+    assert not (folder / "B.mp4").exists(), "the last job's second copy should be cleared"
+    assert (folder / "A.mp4").exists()
+    assert (folder / "manifest.json").read_bytes() != old_manifest
+    assert len(json.loads((folder / "manifest.json").read_text(encoding="utf-8"))["clips"]) == 1
+    assert (folder / "notes.txt").read_text(encoding="utf-8") == "keep me", "a file that is not a working copy stays"
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_normalize_work_leaves_an_original_inside_it_alone(shape, tmp_path, small_caps, default_work, capsys):
+    folder = tmp_path / "set-one"
+    folder.mkdir()
+    original = make_clip(folder / "in.mp4", 640, 360, seconds=2)
+    before = sha256(original)
+
+    assert main(["normalize", "--shape", shape, "--work", str(folder), str(original)]) == 1
+
+    out = capsys.readouterr()
+    assert "already in the work folder" in out.out + out.err
+    assert original.exists() and sha256(original) == before
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_look_folder_and_work_option_agree(shape, tmp_path):
+    positional = look_folder(tmp_path, "by-position", shape)
+    optional = look_folder(tmp_path, "by-option", shape)
+
+    assert main(["look", str(positional)]) == 0
+    assert main(["look", "--work", str(optional)]) == 0
+
+    def letters_and_sheets(folder):
+        look = json.loads((folder / "look.json").read_text(encoding="utf-8"))
+        return [c["letter"] for c in look["clips"]], sorted(p.name for p in (folder / "sheets").iterdir())
+
+    assert letters_and_sheets(positional) == letters_and_sheets(optional)
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_look_folder_named_twice_differently_is_refused(shape, tmp_path, capsys):
+    one = look_folder(tmp_path, "one", shape)
+    two = look_folder(tmp_path, "two", shape)
+
+    assert main(["look", str(one), "--work", str(two)]) == 1
+
+    lines = [line for line in capsys.readouterr().err.splitlines() if line.strip()]
+    assert len(lines) == 1 and lines[0].startswith("v2r look:")
+    assert not (one / "look.json").exists() and not (two / "look.json").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_look_folder_named_twice_the_same_is_fine(shape, tmp_path):
+    folder = look_folder(tmp_path, "one", shape)
+
+    assert main(["look", str(folder), "--work", str(folder)]) == 0
+    assert (folder / "look.json").exists()
