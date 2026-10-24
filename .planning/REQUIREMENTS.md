@@ -50,7 +50,7 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 ### Editor's handbook (Stage 17)
 
 - [ ] **HAND-01**: EDITOR.md is the complete handbook: the steps in order naming each command; how to study the sheets and look.json; rules of craft for choosing and ordering moments; the Lively and Calm recipes with shot lengths; the house rules; the honesty rules (every "why" cites a still, guesses are called guesses, never "I watched your clips"); what to do when a file can't be read or there is too little footage; the order of authority (the chat, then the taste profile, then the handbook); tools only. Two pages at most, plain words
-- [ ] **HAND-02**: No editing judgement lives in Python, and no one person's taste lives in EDITOR.md
+- [x] **HAND-02**: No editing judgement lives in Python, and no one person's taste lives in EDITOR.md
 - [ ] **HAND-03**: A "Reel style" taste profile is drafted for each social account named in the taste notes, saved in fixtures/ and never in the repo
 - [ ] **HAND-04**: The rehearsal (after /clear, with EDITOR.md and one profile) runs for all five fixture sets, and a second profile on the same set changes only what the profiles differ in
 - [ ] **HAND-05**: She would post at least three of the five fixture reels with small changes (checked by a person)
