@@ -6,7 +6,7 @@ current_phase: 05
 current_phase_name: stage-17-editor-s-handbook
 status: executing
 stopped_at: Completed 05-04-PLAN.md (plan 03 parked at its Task 3 human gate)
-last_updated: "2026-10-24T21:10:40.294Z"
+last_updated: "2026-11-02T03:18:03.097Z"
 last_activity: 2026-10-24
 last_activity_desc: Phase 05 execution started
 progress:
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
 Plan: 4 of 7 complete (01, 02, 04 done); 03 is parked at its Task 3 human gate, not complete
 Status: Next is wave 3, plan 05, which waits on plan 03's profiles
-Last activity: 2026-10-24 — Phase 05 execution started
+Last activity: 2026-11-01 - Completed quick task 261101-qff: let a computer include a clip over the phone's 400 MB cap (one commit on stage-17-handbook; Phase 05 still in progress)
 
 Progress: [█████████░] 89% (1 of 14 phases complete)
 
@@ -162,6 +162,7 @@ None.
 | 5 | Record the Stage 15 phone tests in docs/phone-limits.md and settle the Stage 15 wording in CLAUDE.md and docs/decisions.md | 2026-10-18 | 6577548 | — |
 | 6 | Bring the guide's Stage 15 level with the build and publish the nineteenth edition; record it in docs/decisions.md | 2026-10-18 | 4bdbd92 | — |
 | 7 | Apply the nine Stage 15 review decisions (WR-01, WR-02, WR-04, IN-02 to IN-07) on branch stage-15-review-fixes | 2026-10-18 | fc40d90 | [261018-wu5-apply-the-nine-stage-15-review-decisions](./quick/261018-wu5-apply-the-nine-stage-15-review-decisions/) |
+| 8 | Let a computer include a clip over the phone's 400 MB cap: --no-size-limit on normalize, a clearer skip sentence, README only | 2026-11-01 | one commit on stage-17-handbook | [261101-qff-let-a-computer-include-a-clip-over-the-p](./quick/261101-qff-let-a-computer-include-a-clip-over-the-p/) |
 
 ## Deferred Items
 

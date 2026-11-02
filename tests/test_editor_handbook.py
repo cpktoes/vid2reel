@@ -57,6 +57,8 @@ def handbook_problems(text):
         )
     if "--work" in text:
         problems.append("EDITOR.md mentions --work, a Mac-only option the phone never uses (D-09).")
+    if "--no-size-limit" in text:
+        problems.append("EDITOR.md mentions --no-size-limit, a Mac-only option the phone never uses.")
     return problems
 
 

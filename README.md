@@ -42,6 +42,8 @@ Run each as `python3 -m v2r COMMAND` (or `uv run python -m v2r COMMAND` on the M
 
 `normalize`, `look`, `check`, `match` and `render` all take `--work FOLDER` to use another folder instead of `work/`, a Mac convenience for rehearsals; normalize clears that folder's last job first. `check`, `match` and `render` take no `--shape`, because the cut list's canvas carries it.
 
+`normalize --no-size-limit` includes a file over `MAX_ATTACHMENT_BYTES` (in `v2r/settings.py`) instead of leaving it out. It is for a computer only, never a phone: the cap mirrors what a phone can reliably send and the sandbox is slow on big clips, so EDITOR.md never mentions it.
+
 ## Layout
 
 | Path | Contents |

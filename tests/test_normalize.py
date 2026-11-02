@@ -463,13 +463,49 @@ def test_refuse_oversized_file_others_convert(shape, tmp_path, monkeypatch, caps
     skipped = manifest["clips"][1]
     assert skipped["sentence"].startswith("The second file, big.mov, is ")
     assert "over the " in skipped["sentence"]
-    assert "limit, so it was left out" in skipped["sentence"]
+    assert skipped["sentence"] == (
+        "The second file, big.mov, is 1 MB, over the 1 MB a phone can reliably send, so it was left out. "
+        "On a computer the same reel can be made with it included."
+    )
+    assert "size-limit" not in skipped["sentence"]
+    assert "size_limit" not in skipped["sentence"]
     assert skipped["kind"] is None
     assert skipped["original"]["name"] == "big.mov"
     assert skipped["original"]["bytes"] == 1_000_001
     assert skipped["sentence"] in capsys.readouterr().out
     assert (tmp_path / "out" / "C.mp4").exists()
     assert not (tmp_path / "out" / "B.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_no_size_limit_takes_an_oversized_file(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(settings, "MAX_ATTACHMENT_BYTES", 1)
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+
+    capped = convert([clip], shape, tmp_path / "capped")
+    assert capped["clips"][0]["status"] == "skipped"
+    assert "a phone can reliably send, so it was left out" in capped["clips"][0]["sentence"]
+    assert "On a computer" in capped["clips"][0]["sentence"]
+
+    normalize([clip], shape, out_dir=tmp_path / "uncapped", size_limit=False)
+    manifest = manifest_of(tmp_path / "uncapped")
+    assert manifest["finished"] is True
+    assert manifest["clips"][0]["status"] == "done"
+    assert (tmp_path / "uncapped" / "A.mp4").exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_cli_no_size_limit_option_and_its_default(shape, tmp_path, monkeypatch, small_caps):
+    monkeypatch.setattr(v2r.normalize, "WORK_DIR", tmp_path / "default-work")  # safety net: never the real work/
+    monkeypatch.setattr(settings, "MAX_ATTACHMENT_BYTES", 1)
+    clip = make_clip(tmp_path / "in.mp4", 320, 180)
+
+    assert main(["normalize", "--shape", shape, "--work", str(tmp_path / "phone"), str(clip)]) == 1
+    assert manifest_of(tmp_path / "phone")["clips"][0]["status"] == "skipped"
+
+    assert main(["normalize", "--shape", shape, "--work", str(tmp_path / "computer"), "--no-size-limit", str(clip)]) == 0
+    assert manifest_of(tmp_path / "computer")["clips"][0]["status"] == "done"
+    assert not (tmp_path / "default-work").exists()
 
 
 @pytest.mark.parametrize("shape", ["tall", "wide"])

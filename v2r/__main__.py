@@ -40,6 +40,10 @@ def main(argv=None):
         help="the work folder for the working copies and manifest.json; leave out for work/ in this repo; "
              "its last job is cleared first",
     )
+    normalize_parser.add_argument(
+        "--no-size-limit", action="store_true", default=False,
+        help="include a file over the phone's size cap; for a computer only, never from a phone",
+    )
     look_parser = commands.add_parser(
         "look", help="make contact sheets and measurements of the working copies in work/", allow_abbrev=False)
     look_parser.add_argument(
@@ -100,7 +104,7 @@ def run(args, parser):
         print(output)
     elif args.command == "normalize":
         try:
-            manifest = normalize.normalize(args.files, args.shape, args.work)
+            manifest = normalize.normalize(args.files, args.shape, args.work, size_limit=not args.no_size_limit)
         except normalize.NormalizeError as error:
             print(f"v2r normalize: {error}", file=sys.stderr)
             return 1

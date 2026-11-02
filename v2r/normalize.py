@@ -518,10 +518,11 @@ def convert_photo(read, who, number, letter, shape, out_dir, started):
     }
 
 
-def convert_one(path, given, number, letter, shape, out_dir, who):
+def convert_one(path, given, number, letter, shape, out_dir, who, size_limit=True):
     """Convert one file into `letter`.mp4 in `out_dir`; returns its "done" manifest entry or raises Refused.
 
     Checks run before any decode: found, not already in the work folder, not over the size limit, readable.
+    The size check runs only when `size_limit` is true, so a computer can switch it off; the others always run.
     `path` is the resolved path, `given` the path as she sent it, `who` the opening of every sentence about this
     file, such as "The first file, NAME,", built once by normalize().
     """
@@ -533,10 +534,10 @@ def convert_one(path, given, number, letter, shape, out_dir, who):
         raise Refused(f"{who} is already in the work folder, so it was left alone.")
     size_bytes = path.stat().st_size
     limit = settings.MAX_ATTACHMENT_BYTES
-    if size_bytes > limit:  # by size alone: the file is never opened
+    if size_limit and size_bytes > limit:  # by size alone: the file is never opened
         raise Refused(
-            f"{who} is {size_bytes / 1e6:.0f} MB, over the {limit / 1e6:.0f} MB limit, so it was left out; "
-            "a way to shrink clips comes in a later stage."
+            f"{who} is {size_bytes / 1e6:.0f} MB, over the {limit / 1e6:.0f} MB a phone can reliably send, "
+            "so it was left out. On a computer the same reel can be made with it included."
         )
     try:
         photo_libraries()
@@ -654,11 +655,12 @@ def skipped_entry(letter, number, path, given, sentence, detail):
     }
 
 
-def normalize(files, shape, out_dir=None):
+def normalize(files, shape, out_dir=None, size_limit=True):
     """Convert `files`, in the order given, into working copies A, B, C... in `out_dir`; returns the manifest.
 
     A file that can't be used is skipped with one sentence and the others carry on; only a run that can't
-    go on at all (no FFmpeg piece, out of room) raises NormalizeError.
+    go on at all (no FFmpeg piece, out of room) raises NormalizeError. `size_limit=False` (the Mac's
+    --no-size-limit) includes a file over settings.MAX_ATTACHMENT_BYTES instead of leaving it out.
     """
     if shape not in settings.SHAPES:
         raise NormalizeError("The shape must be tall or wide.")
@@ -676,7 +678,7 @@ def normalize(files, shape, out_dir=None):
             name = letter(number)
             who = f"The {ordinal(number)} file, {display_name(as_given)},"
             try:
-                entry = convert_one(path, as_given, number, name, shape, out_dir, who)
+                entry = convert_one(path, as_given, number, name, shape, out_dir, who, size_limit)
                 json.dumps(entry)  # a value that can't be written to the manifest turns this one file into a skipped one
             except Refused as refused:
                 entry = skipped_entry(name, number, path, as_given, refused.sentence, refused.detail)
