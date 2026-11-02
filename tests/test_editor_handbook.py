@@ -1,4 +1,4 @@
-"""Guards for EDITOR.md, the handbook the phone's Claude follows: two pages at most, real commands, the six steps in order, and no Mac-only option. They check counts and names, never wording, so the user can rewrite any sentence."""
+"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,500 words, real commands, the six steps in order, and no Mac-only option. They check counts and names, never wording, so the user can rewrite any sentence."""
 
 import contextlib
 import io
@@ -7,7 +7,7 @@ import re
 from v2r import ROOT
 from v2r.__main__ import main
 
-MAX_WORDS = 1200  # the two-pages rule (Stage 17, D-04); a repo rule, so it lives here and not in v2r/settings.py
+MAX_WORDS = 1500  # the handbook's cap (Stage 17, D-04; raised from 1,200 to 1,500 on 2026-11-02); a repo rule, so it lives here and not in v2r/settings.py
 
 # The six steps, in the order they must first appear. join is a side road and is left out of the order.
 STEPS = ("doctor", "normalize", "look", "check", "match", "render")
@@ -16,7 +16,7 @@ NAMED = re.compile(r"python3? -m v2r ([a-z][a-z-]*)")
 
 
 def word_count(text):
-    # whitespace-split is the stated rule for "two pages"; it equals `wc -w`
+    # whitespace-split is the stated rule for the cap; it equals `wc -w`
     return len(text.split())
 
 
@@ -40,7 +40,7 @@ def handbook_problems(text):
     problems = []
     words = word_count(text)
     if words > MAX_WORDS:
-        problems.append(f"EDITOR.md has {words} words; two pages is at most {MAX_WORDS}. Cut something before adding.")
+        problems.append(f"EDITOR.md has {words} words; the cap is {MAX_WORDS}. Cut something before adding.")
     names = named_commands(text)
     if not names:
         problems.append("EDITOR.md names no v2r command.")
@@ -80,14 +80,14 @@ def test_the_counter_counts_words_not_lines():
     assert word_count("one  two\nthree\tfour") == 4
 
 
-def test_a_text_of_exactly_1200_words_passes_and_1201_fails_the_cap():
+def test_a_text_of_exactly_1500_words_passes_and_1501_fails_the_cap():
     at_cap = steps_text(STEPS, extra_words=MAX_WORDS)
     assert word_count(at_cap) == MAX_WORDS
     assert handbook_problems(at_cap) == []
     over_cap = at_cap + " word"
     assert word_count(over_cap) == MAX_WORDS + 1
     problems = handbook_problems(over_cap)
-    assert len(problems) == 1 and "two pages" in problems[0]
+    assert len(problems) == 1 and "the cap is" in problems[0]
 
 
 def test_an_empty_handbook_is_refused():

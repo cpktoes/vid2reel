@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
 Plan: 4 of 7 complete (01, 02, 04 done); 03 is parked at its Task 3 human gate, not complete
 Status: Next is wave 3, plan 05, which waits on plan 03's profiles
-Last activity: 2026-11-01 - Completed quick task 261101-qff: let a computer include a clip over the phone's 400 MB cap (one commit on stage-17-handbook; Phase 05 still in progress)
+Last activity: 2026-11-02 - Completed quick task 261102-a38: viral-reel craft in the handbook, the cap to 1,500 words and four craft rules (one commit on stage-17-handbook; Phase 05 still in progress)
 
 Progress: [█████████░] 89% (1 of 14 phases complete)
 
@@ -163,6 +163,7 @@ None.
 | 6 | Bring the guide's Stage 15 level with the build and publish the nineteenth edition; record it in docs/decisions.md | 2026-10-18 | 4bdbd92 | — |
 | 7 | Apply the nine Stage 15 review decisions (WR-01, WR-02, WR-04, IN-02 to IN-07) on branch stage-15-review-fixes | 2026-10-18 | fc40d90 | [261018-wu5-apply-the-nine-stage-15-review-decisions](./quick/261018-wu5-apply-the-nine-stage-15-review-decisions/) |
 | 8 | Let a computer include a clip over the phone's 400 MB cap: --no-size-limit on normalize, a clearer skip sentence, README only | 2026-11-01 | one commit on stage-17-handbook | [261101-qff-let-a-computer-include-a-clip-over-the-p](./quick/261101-qff-let-a-computer-include-a-clip-over-the-p/) |
+| 9 | Viral-reel craft in the handbook: the cap to 1,500 words, four craft rules (first frame, loop ending, shortest first, bottom fifth), four [check] taste items in the three profile drafts | 2026-11-02 | one commit on stage-17-handbook | [261102-a38-viral-reel-craft-in-the-handbook-editor-](./quick/261102-a38-viral-reel-craft-in-the-handbook-editor-/) |
 
 ## Deferred Items
 
