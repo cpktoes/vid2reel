@@ -5,7 +5,7 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: stage-17-editor-s-handbook
 status: executing
-stopped_at: Completed 05-04-PLAN.md (plan 03 parked at its Task 3 human gate)
+stopped_at: Completed 05-03-PLAN.md (profiles reviewed and pasted)
 last_updated: "2026-11-02T03:18:03.097Z"
 last_activity: 2026-10-24
 last_activity_desc: Phase 05 execution started
@@ -13,7 +13,7 @@ progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 35
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
-Plan: 4 of 7 complete (01, 02, 04 done); 03 is parked at its Task 3 human gate, not complete
-Status: Next is wave 3, plan 05, which waits on plan 03's profiles
+Plan: 4 of 7 complete (01, 02, 03, 04 done)
+Status: Next is plan 05; its rehearsals are already running in separate sessions
 Last activity: 2026-11-02 - Completed quick task 261102-a38: viral-reel craft in the handbook, the cap to 1,500 words and four craft rules (one commit on stage-17-handbook; Phase 05 still in progress)
 
 Progress: [█████████░] 89% (1 of 14 phases complete)
@@ -92,6 +92,7 @@ Progress: [█████████░] 89% (1 of 14 phases complete)
 | Phase 05 P01 | 20min | 2 tasks | 3 files |
 | Phase 05 P02 | 10min | 2 tasks | 1 files |
 | Phase 05 P04 | two checkpoint rounds | 3 tasks | 1 files |
+| Phase 05 P03 | two sessions, one checkpoint round | 3 tasks | 1 files |
 
 ## Accumulated Context
 

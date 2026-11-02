@@ -207,14 +207,14 @@ Plans:
   4. The rehearsal runs for all five fixture sets, and a second profile on the same set changes only what the two profiles differ in
   5. She would post at least three of the five fixture reels with small changes
 
-**Plans**: 3/7 plans executed
+**Plans**: 4/7 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 05-01-PLAN.md — Tracer: --work on normalize and look, one generated clip end to end into its own folder in both shapes; then placement, side-by-side folders, originals left alone, look named twice; README line (wave 1)
 - [x] 05-02-PLAN.md — Guard tests for EDITOR.md: at most 1,200 words, real commands, the six steps in order, no Mac-only option, each proven to fire (wave 1)
-- [ ] 05-03-PLAN.md — Profiles checked by count and ignore status, private names kept out of tracked text, the rehearsal kit 05-REHEARSAL.md, and the owners' review and paste into each Project (wave 1, checkpoint)
+- [x] 05-03-PLAN.md — Profiles checked by count and ignore status, private names kept out of tracked text, the rehearsal kit 05-REHEARSAL.md, and the owners' review and paste into each Project (wave 1, checkpoint)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
