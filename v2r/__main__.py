@@ -36,9 +36,9 @@ def main(argv=None):
         help="files, in the order they were attached; they get the letters A, B, C...",
     )
     normalize_parser.add_argument(
-        "--work", type=Path, default=None,
+        "--work", type=str, default=None,  # text, not a Path: Path("") would quietly become the current folder
         help="the work folder for the working copies and manifest.json; leave out for work/ in this repo; "
-             "its last job is cleared first",
+             "the last job it holds is cleared first, and a folder with lettered files but no manifest.json is refused",
     )
     normalize_parser.add_argument(
         "--no-size-limit", action="store_true", default=False,
@@ -103,8 +103,12 @@ def run(args, parser):
         print(summary)
         print(output)
     elif args.command == "normalize":
+        if args.work is not None and not args.work.strip():
+            print("v2r normalize: --work needs a folder name; leave it out to use work/ in this repo.", file=sys.stderr)
+            return 1
         try:
-            manifest = normalize.normalize(args.files, args.shape, args.work, size_limit=not args.no_size_limit)
+            manifest = normalize.normalize(
+                args.files, args.shape, None if args.work is None else Path(args.work), size_limit=not args.no_size_limit)
         except normalize.NormalizeError as error:
             print(f"v2r normalize: {error}", file=sys.stderr)
             return 1

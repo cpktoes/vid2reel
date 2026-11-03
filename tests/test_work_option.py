@@ -163,3 +163,68 @@ def test_look_folder_named_twice_the_same_is_fine(shape, tmp_path):
 
     assert main(["look", str(folder), "--work", str(folder)]) == 0
     assert (folder / "look.json").exists()
+
+
+def stub_job(folder, shape, listed, unlisted):
+    """A work folder a past job left: `listed` names have a manifest entry, `unlisted` ones are lettered files it never made."""
+    folder.mkdir()
+    entries = []
+    for number, name in enumerate(listed, start=1):
+        (folder / name).write_bytes(b"old working copy")
+        working = {"file": name, "size": [2, 2], "fps": 30.0, "seconds": 1.0, "bytes": 16,
+                   "sound_added": False, "colour_converted": False}
+        entries.append({"file": folder / name, "working": working})
+    make_manifest(folder, shape, entries)
+    for name in unlisted:
+        (folder / name).write_bytes(b"not made by this job")
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_work_folder_with_a_stray_lettered_file_and_no_manifest_is_refused(shape, tmp_path, small_caps, default_work, capsys):
+    clip = sent_clip(tmp_path)
+    folder = tmp_path / "my-own-media"
+    folder.mkdir()
+    (folder / "A.mp4").write_bytes(b"someone's own video")
+    (folder / "notes.txt").write_bytes(b"keep")
+    before = snapshot(folder)
+
+    assert main(["normalize", "--shape", shape, "--work", str(folder), str(clip)]) == 1
+
+    lines = [line for line in capsys.readouterr().err.splitlines() if line.strip()]
+    assert len(lines) == 1 and lines[0].startswith("v2r normalize:") and "no manifest.json" in lines[0]
+    assert snapshot(folder) == before, "nothing in the folder may be deleted or added"
+    assert not default_work.exists()
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_work_folder_loses_exactly_what_its_manifest_lists(shape, tmp_path, small_caps, default_work):
+    clip = sent_clip(tmp_path)
+    folder = tmp_path / "set-one"
+    stub_job(folder, shape, listed=["A.mp4", "B.mp4"], unlisted=["Z.mp4", "Y-photo.jpg"])
+    (folder / "look.json").write_bytes(b"{}")
+    (folder / "B.part.mp4").write_bytes(b"unfinished")
+    (folder / "notes.txt").write_bytes(b"keep")
+    kept = {name: sha256(folder / name) for name in ("Z.mp4", "Y-photo.jpg", "notes.txt")}
+
+    assert main(["normalize", "--shape", shape, "--work", str(folder), str(clip)]) == 0
+
+    assert not (folder / "B.mp4").exists() and not (folder / "B.part.mp4").exists()
+    assert not (folder / "look.json").exists()
+    assert (folder / "A.mp4").read_bytes() != b"old working copy", "A is the new job's own copy"
+    assert {name: sha256(folder / name) for name in kept} == kept, "files the manifest does not list must survive"
+    assert len(json.loads((folder / "manifest.json").read_text(encoding="utf-8"))["clips"]) == 1
+
+
+@pytest.mark.parametrize("shape", ["tall", "wide"])
+def test_an_empty_work_option_is_refused(shape, tmp_path, monkeypatch, small_caps, default_work, capsys):
+    clip = sent_clip(tmp_path)
+    monkeypatch.chdir(tmp_path)  # an empty name would otherwise mean this folder
+    before = sorted(path.name for path in tmp_path.iterdir())
+
+    assert main(["normalize", "--shape", shape, "--work", "", str(clip)]) == 1
+
+    lines = [line for line in capsys.readouterr().err.splitlines() if line.strip()]
+    assert len(lines) == 1 and lines[0].startswith("v2r normalize:") and "--work" in lines[0]
+    assert sorted(path.name for path in tmp_path.iterdir()) == before
+    assert not default_work.exists()
+

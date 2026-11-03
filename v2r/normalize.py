@@ -114,16 +114,52 @@ def ordinal(n):
     return f"{n}{({1: 'st', 2: 'nd', 3: 'rd'}).get(n % 10, 'th')}"
 
 
-def clear_last_job(out_dir, inputs):
-    """Delete the last run's lettered files, manifest and look.json in `out_dir`; nothing else, and never one of `inputs`.
+def names_in_manifest(out_dir):
+    """The working-copy names the folder's manifest.json lists; None when there is no readable manifest.json.
 
+    A listed clip gives its working file and, for a photo, its upright copy. While the manifest says the job did not
+    finish, the next letter's two names are added too: that copy may have been finished just before the crash.
+    """
+    try:
+        manifest = json.loads((Path(out_dir) / "manifest.json").read_text(encoding="utf-8"))
+        clips = manifest["clips"]
+        names = set()
+        for clip in clips:
+            for block in ("working", "photo"):
+                if isinstance(clip.get(block), dict) and isinstance(clip[block].get("file"), str):
+                    names.add(clip[block]["file"])
+        if manifest.get("finished") is not True:
+            names.update((f"{letter(len(clips) + 1)}.mp4", f"{letter(len(clips) + 1)}-photo.jpg"))
+        return names
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def clear_last_job(out_dir, inputs):
+    """Delete what the last run made in `out_dir`; nothing else, and never one of `inputs`.
+
+    What it made is what the folder's manifest.json lists, that manifest, look.json and the unfinished .part copies.
     look.json goes too: it holds measurements of the last job's clips under letters and file names a new job reuses,
-    so left in place it would pass for the new job's own.
+    so left in place it would pass for the new job's own. A folder that has lettered media files (A.mp4, B-photo.jpg)
+    but no manifest.json never held a job, so those files may be someone's own media: nothing is deleted and
+    NormalizeError says so. A manifest that can't be read still shows a job was here, so the lettered names go.
     """
     protected = {Path(path).resolve() for path in inputs}
-    for entry in Path(out_dir).iterdir():
-        last_job = LAST_JOB_FILES.match(entry.name) or entry.name in LAST_JOB_RECORDS
-        if last_job and entry.is_file() and entry.resolve() not in protected:
+    entries = [entry for entry in Path(out_dir).iterdir() if entry.is_file() and entry.resolve() not in protected]
+    lettered = [entry for entry in entries if LAST_JOB_FILES.match(entry.name)]
+    if not (Path(out_dir) / "manifest.json").exists():
+        if lettered:
+            raise NormalizeError(
+                f"The folder already holds {display_name(lettered[0])} and files like it but no manifest.json from an "
+                "earlier job, so nothing was cleared or converted; name a folder that holds only a job made by "
+                "this tool, or an empty one.")
+        listed = set()
+    else:
+        listed = names_in_manifest(out_dir)
+    for entry in entries:
+        in_last_job = entry.name in LAST_JOB_RECORDS or (
+            LAST_JOB_FILES.match(entry.name) and (listed is None or entry.name in listed or ".part" in entry.name))
+        if in_last_job:
             entry.unlink()
 
 
@@ -666,10 +702,11 @@ def normalize(files, shape, out_dir=None, size_limit=True):
         raise NormalizeError("The shape must be tall or wide.")
     check_ffmpeg()  # before anything in the work folder is touched
     out_dir = Path(WORK_DIR if out_dir is None else out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
     inputs = [Path(file).resolve() for file in files]
     given = [Path(file) for file in files]
-    clear_last_job(out_dir, inputs)  # a new run is a new job (D-18)
+    if out_dir.is_dir():
+        clear_last_job(out_dir, inputs)  # a new run is a new job (D-18); refuses a folder that never held one
+    out_dir.mkdir(parents=True, exist_ok=True)  # only now: a refused run leaves no new folder behind
     manifest = {"version": 1, "shape": shape, "finished": False, "stopped": None, "clips": []}
     write_manifest(out_dir, manifest)
 
