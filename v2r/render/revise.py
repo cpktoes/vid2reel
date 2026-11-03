@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 from v2r import WORK_DIR, normalize, settings
-from v2r.render import check
+from v2r.render import check, plan
 
 WORK_GONE = (
     "There is no cut list and no manifest.json in the work folder, so there is nothing to change; "
@@ -156,7 +156,23 @@ def change_sound(data, options, folder):
     return lines
 
 
-CHANGES = {"sound": change_sound}
+def change_canvas(data, options, folder):
+    """Make the list tall or wide: only the canvas's width and height change; fps, shots and focus points stay."""
+    shape = options["shape"]
+    width, height = settings.SHAPES[shape]
+    canvas = data["canvas"]
+    old = plan.shape_of([canvas["width"], canvas["height"]])
+    if old == shape:
+        raise Unchanged(f"The canvas is already {shape}, so nothing was changed.")
+    old_width, old_height = canvas["width"], canvas["height"]
+    canvas["width"] = width
+    canvas["height"] = height
+    return [
+        f"The canvas: was {old or 'not a known shape'} {old_width}x{old_height}, now {shape} {width}x{height}; "
+        "nothing else changed."]
+
+
+CHANGES = {"sound": change_sound, "canvas": change_canvas}
 
 
 def run(change, options, cutlist_path=None, work_dir=None):

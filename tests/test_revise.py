@@ -284,8 +284,63 @@ def test_the_top_level_sound_block_and_everything_else_stay(tmp_path, shape):
 
 
 def test_help_exits_clean(capsys):
-    for words in (["revise", "--help"], ["revise", "sound", "--help"]):
+    for words in (["revise", "--help"], ["revise", "sound", "--help"], ["revise", "canvas", "--help"]):
         with pytest.raises(SystemExit) as caught:
             main(words)
         assert caught.value.code == 0
     assert "sound" in capsys.readouterr().out
+
+
+# canvas
+
+OTHER = {"tall": "wide", "wide": "tall"}
+
+
+def to_canvas(shape):
+    def edit(data):
+        data["canvas"]["width"], data["canvas"]["height"] = settings.SHAPES[shape]
+
+    return edit
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_canvas_changes_only_the_two_canvas_numbers(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, to_canvas(OTHER[shape]))
+    assert main(revise_args(work, "canvas", shape)) == 0
+    new = load(work / "cutlist-2.json")
+    assert changed_paths(data, new) == {("canvas", "width"), ("canvas", "height")}
+    assert [new["canvas"]["width"], new["canvas"]["height"]] == list(settings.SHAPES[shape])
+    assert new["canvas"]["fps"] == data["canvas"]["fps"]
+    assert "ready to render" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_canvas_over_the_other_shapes_clips_gets_checks_own_sentence(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    other = OTHER[shape]
+    assert main(revise_args(work, "canvas", other)) == 1
+    out = capsys.readouterr().out
+    assert (work / "cutlist-2.json").is_file()
+    assert f"normalize them again with --shape {other}" in out
+    assert "Once the problems above are fixed: python3 -m v2r render " in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_canvas_already_that_shape_changes_nothing(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "canvas", shape)) == 0
+    assert listing(work) == before
+    out = capsys.readouterr().out
+    assert f"The canvas is already {shape}, so nothing was changed." in out
+    assert "is still the list to use." in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_canvas_square_is_refused_by_the_parser(tmp_path, shape):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    with pytest.raises(SystemExit) as caught:
+        main(revise_args(work, "canvas", "square"))
+    assert caught.value.code == 2
+    assert listing(work) == before

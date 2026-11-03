@@ -98,6 +98,10 @@ def main(argv=None):
         "--shot", default=None, metavar="N",  # text: revise checks it, so a bad one gets a plain sentence, not usage text
         help="change only this shot, counted from 1 in list order; leave out for every shot",
     )
+    canvas_parser = changes.add_parser(
+        "canvas", parents=[revise_common], allow_abbrev=False,
+        help="make the list tall or wide; only the canvas size changes")
+    canvas_parser.add_argument("shape", choices=list(settings.SHAPES), help="the shape the list should have")
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
     try:
