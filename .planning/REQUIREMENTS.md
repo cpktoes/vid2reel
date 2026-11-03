@@ -57,6 +57,8 @@ Each category is one stage of docs/field-guide.html and one roadmap phase. The d
 
 ### Music (Stage 18)
 
+Dropped 2026-11-03: the tool adds no music; music is added in the posting app. The six requirements below stay listed for the record and are not built.
+
 - [ ] **MUS-01**: music/library.json describes each track: id, title, mood words, beats per minute, energy 1 to 5, length, the second where it gets going, licence, source page and date checked
 - [ ] **MUS-02**: `python -m v2r music add` measures a track's tempo and loudness, converts it to a compact standard format, asks for mood words, the licence and the source page, and refuses to add a track without a licence and a source; tempo is measured on the Mac, never in the sandbox
 - [ ] **MUS-03**: `python -m v2r music list` prints the library for the chat's Claude to choose from
@@ -170,7 +172,7 @@ Each category maps to one phase, in guide order. Phase 1 is complete.
 | LOOK-01 to LOOK-07 | Phase 3 – Stage 15 – Seeing the footage | Complete |
 | CUT-01 to CUT-09 | Phase 4 – Stage 16 – Cut list and renderer | Complete |
 | HAND-01 to HAND-05 | Phase 5 – Stage 17 – Editor's handbook | Complete |
-| MUS-01 to MUS-06 | Phase 6 – Stage 18 – Music | Pending |
+| MUS-01 to MUS-06 | Phase 6 – Stage 18 – Music | Dropped |
 | CONV-01 to CONV-07 | Phase 7 – Stage 19 – Conversation | Pending |
 | WEEK-01 to WEEK-04 | Phase 8 – Stage 20 – Her two weeks | Pending |
 | STYL-01 to STYL-08 | Phase 9 – Stage 21 – Her look and words on screen | Pending |

@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Stage 15 – Seeing the footage** - Contact sheets and measurements good enough for Claude to pick the best moment unseen (completed 2026-10-18)
 - [x] **Phase 4: Stage 16 – Cut list and renderer** - A checked cut list renders to exactly that video in either shape (completed 2026-10-19)
 - [x] **Phase 5: Stage 17 – Editor's handbook** - EDITOR.md becomes the complete handbook, with taste kept in per-account profiles (completed 2026-11-02)
-- [ ] **Phase 6: Stage 18 – Music** - A small public-domain music library, chosen with her, mixed under the reel
+- [ ] **Phase 6: Stage 18 – Music** - No music from the tool: the handbook says keep the clips' sound or go mute, and music is added in the posting app (re-scoped 2026-11-03)
 - [ ] **Phase 7: Stage 19 – Conversation** - A short brief, a quiet wait, a short reply, and follow-ups that change only what was asked
 - [ ] **Phase 8: Stage 20 – Her two weeks** - Two weeks of her real reels, logged, and the call on what comes next
 - [ ] **Phase 9: Stage 21 – Her look and words on screen** - Profiles that learn, filters only when asked, words inside the safe areas
@@ -234,17 +234,16 @@ Plans:
 
 ### Phase 6: Stage 18 – Music
 
-**Goal**: A small public-domain music library, chosen with her, is mixed under the reel at a steady loudness.
+**Goal**: The tool adds no music. The handbook says a reel keeps the clips' own sound or, when asked, goes mute, and that music and its mix are added in the posting app; the records say why.
 **Depends on**: Phase 5
-**Requirements**: MUS-01, MUS-02, MUS-03, MUS-04, MUS-05, MUS-06
+**Requirements**: MUS-01 to MUS-06 (dropped 2026-11-03: not built)
 **Success Criteria** (what must be TRUE):
 
-  1. Eight to twelve tracks chosen with her are in music/library.json, each with her mood words, tempo, energy, licence, source page and date checked, and each shown as CC0 or public domain on its own source page
-  2. User can add a track with `python -m v2r music add`, which measures tempo and loudness and refuses a track without a licence and a source; tempo is measured on the Mac, never in the sandbox
-  3. `python -m v2r music list` prints the library, and EDITOR.md tells Claude how to choose a track, always name it, and offer "no music"
-  4. Music dips while a clip's own sound is present and comes back after, with a fast fade in and a fade out over the last 1.5 seconds, and the final mix is still normalized
+  1. EDITOR.md's Sound paragraph says keep the sound or mute, that the tool adds no music and music is added in the posting app, and no longer promises a library
+  2. CLAUDE.md, docs/decisions.md, README.md and the planning files record the decision and that the earlier music work is shelved unmerged
+  3. A reel made from a phone on branch stage-18-music comes back with the clips' own sound and a reply that does not promise a library
 
-**Plans**: TBD
+**Plans**: one quick task (handbook and records, 2026-11-03); the phone test is done by hand
 
 ### Phase 7: Stage 19 – Conversation
 
@@ -293,6 +292,7 @@ Plans:
 ### Phase 10: Stage 22 – Cut to the beat
 
 **Goal**: Cuts land on the beat of the chosen music, checked by ear.
+**Note (2026-11-03)**: depends on a track chosen inside the tool, which Stage 18 dropped; whether this stage still happens is decided when it is reached.
 **Depends on**: Phase 9
 **Requirements**: BEAT-01, BEAT-02, BEAT-03, BEAT-04, BEAT-05
 **Success Criteria** (what must be TRUE):

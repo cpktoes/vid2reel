@@ -52,7 +52,7 @@ Run each as `python3 -m v2r COMMAND` (or `uv run python -m v2r COMMAND` on the M
 | `v2r/settings.py` | Every tunable number, in one place. |
 | `tests/` | pytest tests. Test media files may be committed here. |
 | `schema/` | Schemas: `cutlist.schema.json`, the cut list's rulebook. |
-| `music/` | Music tracks. Audio files may be committed here. |
+| `music/` | Empty: the tool adds no music (Stage 18). The cut list's music fields from Stage 16 remain for the test tone only. |
 | `docs/` | Documentation. |
 | `skill/` | Skill definition. |
 | `work/` | Scratch output. Never committed. |

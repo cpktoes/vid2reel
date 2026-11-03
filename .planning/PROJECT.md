@@ -23,7 +23,7 @@ A reel worth posting, made entirely from her phone. Everything else can fail; th
 ### Active
 
 - [ ] EDITOR.md is the complete handbook; one taste profile per social account lives in that account's Claude Project (Stage 17)
-- [ ] A small public-domain music library, chosen with her, mixed under the reel at a steady loudness (Stage 18)
+- [ ] No music from the tool: a reel keeps the clips' sound or goes mute, and music is added in the posting app (Stage 18, re-scoped 2026-11-03)
 - [ ] A brief of three to five questions, a quiet wait, a short reply, and follow-ups that change only what was asked (Stage 19)
 - [ ] Two weeks of her real reels, logged; at least half posted without another editor (Stage 20)
 - [ ] Profiles that learn from what she changes; filters only when asked; words on screen inside the safe areas (Stage 21)
