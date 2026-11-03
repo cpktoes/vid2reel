@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Stage 15 – Seeing the footage** - Contact sheets and measurements good enough for Claude to pick the best moment unseen (completed 2026-10-18)
 - [x] **Phase 4: Stage 16 – Cut list and renderer** - A checked cut list renders to exactly that video in either shape (completed 2026-10-19)
 - [x] **Phase 5: Stage 17 – Editor's handbook** - EDITOR.md becomes the complete handbook, with taste kept in per-account profiles (completed 2026-11-02)
-- [ ] **Phase 6: Stage 18 – Music** - No music from the tool: the handbook says keep the clips' sound or go mute, and music is added in the posting app (re-scoped 2026-11-03)
+- [x] **Phase 6: Stage 18 – Music** - No music from the tool: the handbook says keep the clips' sound or go mute, and music is added in the posting app (re-scoped 2026-11-03) (completed 2026-11-03)
 - [ ] **Phase 7: Stage 19 – Conversation** - A short brief, a quiet wait, a short reply, and follow-ups that change only what was asked
 - [ ] **Phase 8: Stage 20 – Her two weeks** - Two weeks of her real reels, logged, and the call on what comes next
 - [ ] **Phase 9: Stage 21 – Her look and words on screen** - Profiles that learn, filters only when asked, words inside the safe areas
@@ -376,7 +376,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Stage 15 – Seeing the footage | M2: It can see | 9/9 | Complete    | 2026-10-18 |
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | Complete    | 2026-10-19 |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 7/7 | Complete    | 2026-11-02 |
-| 6. Stage 18 – Music | M3: It can cut | 0/TBD | Not started | - |
+| 6. Stage 18 – Music | M3: It can cut | 1/1 | Complete    | 2026-11-03 |
 | 7. Stage 19 – Conversation | M4: It's a conversation | 0/TBD | Not started | - |
 | 8. Stage 20 – Her two weeks | M5: Her two weeks | 0/TBD | Not started | - |
 | 9. Stage 21 – Her look and words on screen | M6: Her look | 0/TBD | Not started | - |
