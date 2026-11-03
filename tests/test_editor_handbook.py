@@ -116,6 +116,50 @@ def handbook_problems(text):
     return problems
 
 
+REVISE_PREFIX = "python3 -m v2r revise"
+REVISE_CHANGES = ("shorter", "longer", "reorder", "drop", "sound", "canvas")  # the change words a revise call may start with
+
+
+def revise_help(change):
+    """(exit code, help text) of `v2r revise CHANGE --help`: 0 for a change revise has, 2 for one it does not."""
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+        try:
+            main(["revise", change, "--help"])
+        except SystemExit as stop:
+            return stop.code, out.getvalue()
+    return 0, out.getvalue()
+
+
+def revise_calls(text):
+    """The backticked spans that are revise calls, as (change word, the span's options): `python3 -m v2r revise X ...`, or a span that starts with one of revise's own change words."""
+    calls = []
+    for span in re.findall(r"`([^`]+)`", text):
+        words = span.split()
+        if words[:4] == REVISE_PREFIX.split() and len(words) > 4:
+            words = words[4:]
+        elif words and words[0] in REVISE_CHANGES and span.startswith(words[0]):
+            pass
+        else:
+            continue
+        calls.append((words[0], [word for word in words if word.startswith("--")]))
+    return calls
+
+
+def revise_call_problems(text):
+    """Plain sentences saying where a revise call the text writes is not a real one: a change word revise does not have, or an option that change does not have. Empty when every call is real."""
+    problems = []
+    for change, options in revise_calls(text):
+        code, help_text = revise_help(change)
+        if code != 0:
+            problems.append(f"EDITOR.md writes `revise {change}`, which revise does not have.")
+            continue
+        for option in dict.fromkeys(options):
+            if option not in help_text:
+                problems.append(f"EDITOR.md gives `revise {change}` the option {option}, which it does not have.")
+    return problems
+
+
 def steps_text(order, extra_words=0):
     """A small valid handbook: one line per named command, then filler words to reach exactly the word count asked for."""
     text = "\n".join(f"Run `python3 -m v2r {name}`." for name in order) + "\n"
@@ -154,7 +198,7 @@ def test_an_unknown_command_is_refused():
 
 
 def test_every_real_command_is_accepted_and_a_made_up_one_is_not():
-    for name in (*STEPS, "join", "build-skill"):
+    for name in (*STEPS, "join", "revise", "build-skill"):
         assert is_v2r_command(name), name
     assert not is_v2r_command("bogus")
 
@@ -243,3 +287,39 @@ def test_a_recipe_sentence_that_differs_from_settings_is_named():
 def test_a_handbook_that_never_states_a_recipe_is_named():
     problems = recipe_problems("Lively: shots of one and a half to three seconds.")
     assert problems == ["EDITOR.md never states Calm's shot lengths; say them as settings.RECIPES does, 3 to 5 seconds."]
+
+
+def test_editor_md_names_revise_and_every_call_is_real():
+    text = (ROOT / "EDITOR.md").read_text(encoding="utf-8")
+    assert REVISE_PREFIX in text, "EDITOR.md never names `python3 -m v2r revise`; the follow-ups need it."
+    problems = revise_call_problems(text)
+    assert problems == [], "\n".join(problems)
+
+
+def test_a_made_up_revise_change_is_named():
+    problems = revise_call_problems("Then run `python3 -m v2r revise faster --to 15`.")
+    assert problems == ["EDITOR.md writes `revise faster`, which revise does not have."]
+
+
+def test_a_made_up_revise_option_is_named():
+    problems = revise_call_problems("Then `shorter --to 15 --speed 2` and `python3 -m v2r revise sound off --loud`.")
+    assert problems == [
+        "EDITOR.md gives `revise shorter` the option --speed, which it does not have.",
+        "EDITOR.md gives `revise sound` the option --loud, which it does not have.",
+    ]
+
+
+def test_real_revise_calls_are_accepted():
+    text = "Use `python3 -m v2r revise shorter --to 15 --from 4,2`, then `sound off --shot 3`, `drop shot 3` and `canvas wide`."
+    assert revise_call_problems(text) == []
+
+
+def test_the_bare_prefix_and_other_commands_are_not_revise_calls():
+    text = "Each is `python3 -m v2r revise` and then `python3 -m v2r render work/cutlist-3.json` or `--shot 3`."
+    assert revise_calls(text) == []
+    assert revise_call_problems(text) == []
+
+
+def test_the_handbook_never_names_a_mac_only_switch_in_a_revise_call():
+    text = (ROOT / "EDITOR.md").read_text(encoding="utf-8")
+    assert "--work" not in text and "--no-size-limit" not in text
