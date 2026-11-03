@@ -169,7 +169,7 @@ Each category maps to one phase, in guide order. Phase 1 is complete.
 | NORM-01 to NORM-08 | Phase 2 – Stage 14 – Normalize | Complete |
 | LOOK-01 to LOOK-07 | Phase 3 – Stage 15 – Seeing the footage | Complete |
 | CUT-01 to CUT-09 | Phase 4 – Stage 16 – Cut list and renderer | Complete |
-| HAND-01 to HAND-05 | Phase 5 – Stage 17 – Editor's handbook | Pending |
+| HAND-01 to HAND-05 | Phase 5 – Stage 17 – Editor's handbook | Complete |
 | MUS-01 to MUS-06 | Phase 6 – Stage 18 – Music | Pending |
 | CONV-01 to CONV-07 | Phase 7 – Stage 19 – Conversation | Pending |
 | WEEK-01 to WEEK-04 | Phase 8 – Stage 20 – Her two weeks | Pending |
