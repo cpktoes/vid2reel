@@ -5,7 +5,7 @@ and no existing file is ever replaced. revise never renders and never runs FFmpe
 it. It decides nothing about the edit; the chat's Claude names the change (and, for shorter and longer, the shots), and
 every other field stays exactly as it was, fields revise has never heard of included.
 
-The change words are sound and canvas (here), reorder and drop (a later plan) and shorter and longer (a later plan).
+The change words are sound, canvas, reorder and drop (here) and shorter and longer (a later plan).
 """
 
 import copy
@@ -172,7 +172,69 @@ def change_canvas(data, options, folder):
         "nothing else changed."]
 
 
-CHANGES = {"sound": change_sound, "canvas": change_canvas}
+def parse_shot_list(text, count):
+    """The shot numbers `text` names, in the order given, each once; ReviseError in one sentence when it can't be read.
+
+    The length is checked before anything is converted, so a very long list costs nothing.
+    """
+    not_a_list = (
+        f'"{check.shown(text)}" is not a list of shot numbers such as 4,2; shots are counted from 1 in list order.')
+    if not isinstance(text, str):
+        raise ReviseError(not_a_list)
+    items = [item.strip() for item in text.split(",")]
+    if len(items) > settings.MAX_SEGMENTS:
+        raise ReviseError(f"That names more than {settings.MAX_SEGMENTS} shots, more than a list can hold.")
+    numbers = []
+    for item in items:
+        if re.fullmatch(digits_pattern(), item, flags=re.ASCII) is None:
+            raise ReviseError(not_a_list)
+        number = parse_shot(item, count)
+        if number in numbers:
+            raise ReviseError(f"Shot {number} is named twice; name each shot once.")
+        numbers.append(number)
+    return numbers
+
+
+def follow_cover(data, mapping):
+    """Keep the cover on its shot. `mapping` takes each old shot number (from 1) to its new number, or None if taken out.
+
+    A cover that is missing or not usable is left alone: check reports that itself. Returns the lines to print.
+    """
+    cover = data.get("cover")
+    if not isinstance(cover, dict):
+        return []
+    old = cover.get("segment")
+    if not check.is_whole(old) or old not in mapping:
+        return []
+    new = mapping[old]
+    if new is None:
+        del data["cover"]
+        return [f"The cover was in shot {old}, which was taken out, so the reel's first frame is the cover now."]
+    if new == old:
+        return []
+    cover["segment"] = new
+    return [f"The cover moved with its shot: it was in shot {old}, now shot {new}."]
+
+
+def change_reorder(data, options, folder):
+    """Play the shots in the order given: the very same shot records, only their places change; the cover follows."""
+    count = len(data["segments"])
+    order = parse_shot_list(options["order"], count)
+    if len(order) != count:
+        have = "1 shot" if count == 1 else f"{count} shots"
+        raise ReviseError(f"Reorder needs every shot number once, in the new order; this list has {have}.")
+    if order == list(range(1, count + 1)):
+        raise Unchanged("The shots are already in that order, so nothing was changed.")
+    old = data["segments"]
+    data["segments"] = [old[number - 1] for number in order]
+    lines = [
+        OLD_NUMBERS,
+        f"The shots now play as old shots {check.letters_sentence([str(number) for number in order])}; "
+        "each shot itself is unchanged."]
+    return lines + follow_cover(data, {before: after for after, before in enumerate(order, start=1)})
+
+
+CHANGES = {"sound": change_sound, "canvas": change_canvas, "reorder": change_reorder}
 
 
 def run(change, options, cutlist_path=None, work_dir=None):

@@ -102,6 +102,10 @@ def main(argv=None):
         "canvas", parents=[revise_common], allow_abbrev=False,
         help="make the list tall or wide; only the canvas size changes")
     canvas_parser.add_argument("shape", choices=list(settings.SHAPES), help="the shape the list should have")
+    reorder_parser = changes.add_parser(
+        "reorder", parents=[revise_common], allow_abbrev=False,
+        help="play the shots in a new order, every shot number once, such as 3,1,2; start with a shot by putting it first")
+    reorder_parser.add_argument("order", metavar="ORDER", help="the shot numbers in their new order, such as 3,1,2")
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
     try:

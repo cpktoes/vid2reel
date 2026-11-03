@@ -451,7 +451,7 @@ def test_a_one_shot_list_reorders_to_nothing(tmp_path, capsys, shape):
     assert main(revise_args(work, "reorder", "1")) == 0
     assert listing(work) == before
     assert main(revise_args(work, "reorder", "1,2")) == 1
-    assert "this list has 1 shot." in one_line_refusal(capsys)
+    assert "it has only shot 1." in one_line_refusal(capsys)
 
 
 def test_follow_cover_leaves_a_broken_cover_for_check():
