@@ -18,6 +18,8 @@ from v2r.__main__ import main
 from v2r.render import check, sound
 
 SHAPES = ["tall", "wide"]
+NO_TOUCH_UP = "There is no touch-up in the list; run match if the clips should match."
+ASSUMED_LIVELY = "The list names no recipe, so Lively (shots of 1.5 to 3 seconds) was assumed."
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "cutlist.schema.json"
 SCHEMA = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
@@ -254,8 +256,7 @@ def test_a_list_with_one_segment_and_nothing_else_is_ready(shape, tmp_path, caps
 
     code, problems, notes = run_check(work, data, capsys, all_notes=True)
 
-    assert (code, problems, notes) == (
-        0, [], ["There is no touch-up in the list; run match if the clips should match."])
+    assert (code, problems, notes) == (0, [], [NO_TOUCH_UP, ASSUMED_LIVELY])
 
 
 # ---- a missing, empty or bare list ----
@@ -957,7 +958,6 @@ def test_nfc_and_case_in_file_names(shape, tmp_path, capsys):
 
 # ---- the music that is long enough, and the notes that never refuse (D-06, D-10, D-17, D-21) ----
 
-NO_TOUCH_UP = "There is no touch-up in the list; run match if the clips should match."
 NO_SOUND = "This reel has no sound at all."
 EXAMPLE_NOTES = {  # what the approved examples say about their sideways and upright clips, and the band each keeps
     "tall": [
@@ -1206,9 +1206,7 @@ def test_a_photo_may_run_past_the_longest_shot_but_not_under_the_shortest(shape,
 @pytest.mark.parametrize("shape", SHAPES)
 def test_a_list_with_no_recipe_is_read_as_lively_and_says_so(shape, tmp_path, capsys):
     c = checked(shape, tmp_path, capsys)
-    assumed = "The list names no recipe, so Lively (shots of 1.5 to 3 seconds) was assumed."
-
-    assert shots_of(c, [60, 100], None) == [assumed, recipe_sentence(LONG_NOTE, [2], "lively")]
+    assert shots_of(c, [60, 100], None) == [ASSUMED_LIVELY, recipe_sentence(LONG_NOTE, [2], "lively")]
     assert shots_of(c, [60, 100], "lively") == [recipe_sentence(LONG_NOTE, [2], "lively")]
     assert shots_of(c, [60, 100], "calm") == [recipe_sentence(SHORT_NOTE, [1], "calm")]
 

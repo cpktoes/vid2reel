@@ -6,7 +6,8 @@ that are accepted but not built yet, and fields the rulebook does not name, each
 the ones the cut list cannot state about itself: whether its canvas suits the work folder, whether its clips are the
 work folder's clips, whether each shot lies inside its clip, whether the touch-up, music, cover and length keep to
 their limits, and whether the whole reel can come back under the limit. Problems come in that order, one sentence each,
-and refuse the list; notes (a photo with no move, no touch-up, a crop that keeps little, a silent reel) never refuse.
+and refuse the list; notes (a photo with no move, no touch-up, a crop that keeps little, a shot outside its recipe, a
+silent reel) never refuse.
 Every sentence that repeats text from the list or the work folder passes it through `normalize.clean_text` first.
 """
 
@@ -687,6 +688,39 @@ def crop_notes(data, manifest):
     return notes
 
 
+def recipe_notes(data, manifest):
+    """Notes on the recipe: that Lively was assumed, then the shots that are too short, then those that are too long.
+
+    The recipe is the list's own, or settings.DEFAULT_RECIPE when it names none; the schema has already refused any
+    other name. Lengths are compared in whole frames, as the renderer counts them, so a shot exactly at a recipe's
+    shortest or longest length is inside it. A photo is held to the shortest length only. Shots of each kind are
+    named in one sentence, in list order; a shot under one frame has its own problem sentence and is passed over here.
+    """
+    name = data.get("recipe", settings.DEFAULT_RECIPE)
+    low, high = settings.RECIPES[name]
+    shown_name = name.capitalize()
+    notes = []
+    if "recipe" not in data:
+        notes.append(f"The list names no recipe, so {shown_name} (shots of {low:g} to {high:g} seconds) was assumed.")
+    floor, ceiling = plan.frames(low), plan.frames(high)
+    under, over = [], []
+    for number, segment in enumerate(data["segments"], start=1):
+        count = plan.segment_frames(segment)[1]
+        if count < 1:
+            continue
+        entry = manifest_entry(manifest, segment["clip"])
+        photo = entry is not None and entry["kind"] == "photo"
+        if count < floor:
+            under.append(str(number))
+        elif count > ceiling and not photo:
+            over.append(str(number))
+    for numbers, way in ((under, "less"), (over, "longer")):
+        if numbers:
+            subject = f"Segments {letters_sentence(numbers)} last" if len(numbers) > 1 else f"Segment {numbers[0]} lasts"
+            notes.append(f"{subject} {way} than a {shown_name} shot's {low:g} to {high:g} seconds.")
+    return notes
+
+
 def kept_bands(data, letter, size, canvas, down):
     """The part of a clip's picture the crop keeps, in whole percents, in words: one band for each way the list frames it.
 
@@ -713,10 +747,11 @@ def kept_bands(data, letter, size, canvas, down):
 
 
 def rule_notes(data, manifest):
-    """Notes that are worth saying but never refuse: no touch-up, a photo with no move, a crop that keeps little, no sound.
+    """Notes that are worth saying but never refuse: no touch-up, a photo with no move, a crop that keeps little, a shot
+    outside its recipe, no sound.
 
     In this order: the missing touch-up (D-06), photos with no move in segment order (D-21), crops in letter order
-    (D-10), and a reel with no sound at all (D-17). The handbook asks for a push-in on a photo and for match to run;
+    (D-10), the recipe's notes (D-16), and a reel with no sound at all (D-17). The handbook asks for a push-in on a photo and for match to run;
     the checker only says so and the renderer builds the list as it stands.
     """
     notes = []
@@ -727,6 +762,7 @@ def rule_notes(data, manifest):
         if entry is not None and entry["kind"] == "photo" and segment.get("move", "none") == "none":
             notes.append(f"Segment {number}: {shown(segment['clip'])} is a photo with no move.")
     notes += crop_notes(data, manifest)
+    notes += recipe_notes(data, manifest)
     if sound.sound_settings(data)["music"] is None and all(segment["sound"] == "off" for segment in data["segments"]):
         notes.append("This reel has no sound at all.")
     return notes

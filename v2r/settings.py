@@ -119,6 +119,14 @@ CHROMA_NEUTRAL = 128  # 8-bit code value of grey in video chroma (a fact of the 
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
 
+# recipes: Stage 19's numbers. The shot lengths each recipe names; check notes a shot outside them and revise trims and
+# extends within them; nothing is refused for them.
+RECIPES = {  # recipe name: (shortest, longest) shot, in seconds
+    "lively": (1.5, 3.0),
+    "calm": (3.0, 5.0),
+}
+DEFAULT_RECIPE = "lively"  # a name, not a number: the recipe a list that names none is read as
+
 # revise: Stage 19's limits on the words revise reads and on how it names a new list; it decides nothing.
 REVISE_NUMBER_DIGITS = 6  # digits: the longest shot number, or number in a cutlist-N.json name, revise reads; a longer one is refused or passed over before Python turns it into a number
 REVISE_NAME_TRIES = 100  # tries: how many next numbers revise tries when another file takes the name it picked
