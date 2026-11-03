@@ -112,6 +112,13 @@ def main(argv=None):
     drop_parser.add_argument(
         "what", nargs="+", metavar="WHAT",  # revise reads the words, so a wrong one gets a plain sentence, not usage text
         help="a clip letter such as C, or the word shot and a number such as shot 3")
+    shorter_parser = changes.add_parser(
+        "shorter", parents=[revise_common], allow_abbrev=False,
+        help="trim the shots named in --from, in that order, from their ends, to reach --to seconds")
+    shorter_parser.add_argument("--to", required=True, metavar="SECONDS", help="the length to aim for, such as 15")
+    shorter_parser.add_argument(
+        "--from", dest="shots", required=True, metavar="SHOTS",  # "from" is a Python keyword; text, so revise can answer in a sentence
+        help="the shots to trim, weakest first, counted from 1 in list order, such as 6,2")
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
     try:

@@ -5,11 +5,12 @@ and no existing file is ever replaced. revise never renders and never runs FFmpe
 it. It decides nothing about the edit; the chat's Claude names the change (and, for shorter and longer, the shots), and
 every other field stays exactly as it was, fields revise has never heard of included.
 
-The change words are sound, canvas, reorder and drop (here) and shorter and longer (a later plan).
+The change words are sound, canvas, reorder, drop, shorter and longer.
 """
 
 import copy
 import json
+import math
 import re
 from pathlib import Path
 
@@ -287,7 +288,185 @@ def change_drop(data, options, folder):
     return lines + follow_cover(data, mapping)
 
 
-CHANGES = {"sound": change_sound, "canvas": change_canvas, "reorder": change_reorder, "drop": change_drop}
+def seconds_text(frames):
+    """`frames` as seconds for revise's own sentences: "15", "2.5", "6.67"; trailing zeros and a bare point are dropped."""
+    text = f"{frames / settings.OUTPUT_FPS:.{settings.REVISE_SHOWN_DECIMALS}f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def parse_target(text):
+    """(seconds, whole frames) for a length typed as a plain number of seconds, or ReviseError in one sentence.
+
+    Only ASCII digits, with at most a point and more digits, reach float(): no sign, exponent, nan or inf. The digit
+    limits are settings, and the value must be above 0 and at most settings.MAX_CUTLIST_SECONDS.
+    """
+    refused = "The length to aim for must be a number of seconds, such as 15."
+    pattern = "[0-9]{1,%d}(\\.[0-9]{1,%d})?" % (settings.REVISE_SECONDS_DIGITS, settings.REVISE_FRACTION_DIGITS)
+    if not isinstance(text, str) or re.fullmatch(pattern, text, flags=re.ASCII) is None:
+        raise ReviseError(refused)
+    value = float(text)
+    if not 0 < value <= settings.MAX_CUTLIST_SECONDS:
+        raise ReviseError(refused)
+    return value, plan.frames(value)
+
+
+def set_frames(segment, count):
+    """Make the shot last exactly `count` frames from its first frame: "from" is left alone and "to" is written.
+
+    A shot's length is the rounded `to - from`, and its end frame the rounded `to`, so both are checked against what
+    check and render will count. "to" is tried to settings.REVISE_DECIMALS places, then to
+    settings.REVISE_DECIMALS_EXACT places. That is enough unless the start sits exactly half way into a frame (0.05
+    seconds is 1.5 frames): the intended end is then exactly half a frame too, and a repeating decimal such as
+    0.083333 falls just short of it, so the last try is the same number rounded up at the last place.
+    """
+    start = segment["from"]
+    first = plan.frames(start)
+    exact = 10 ** settings.REVISE_DECIMALS_EXACT
+    wanted = start + count / settings.OUTPUT_FPS
+    for end in (
+            round(wanted, settings.REVISE_DECIMALS), round(wanted, settings.REVISE_DECIMALS_EXACT),
+            math.ceil(wanted * exact) / exact):
+        segment["to"] = end
+        if plan.segment_frames(segment) == (first, count) and plan.frames(end) == first + count:
+            return
+    raise ReviseError("A shot's end could not be written to the exact frame, so nothing was changed.")
+
+
+class CannotShorten(Exception):
+    """Even with every shot at its shortest, and every shot that may be dropped dropped, the reel is over the target.
+
+    `frames` is the total of the shots left at their shortest and `dropped` the 0-based shots dropped, in the order
+    they were dropped. The function that raises it stays pure: the sentence is written by change_shorter.
+    """
+
+    def __init__(self, frames, dropped):
+        super().__init__(frames, dropped)
+        self.frames = frames
+        self.dropped = dropped
+
+
+def shorter_frames(lengths, floor, target, named):
+    """The shots' new lengths in frames (None for a dropped shot) and the 0-based shots dropped, in drop order.
+
+    `named` are 0-based shots in the order the chat's Claude named them; nothing here judges a shot. A shot is never
+    taken under `floor` (or under its own length, if that is shorter). Whole shots are dropped only when even the
+    floors are over `target`, from the end of the named list, never shot 0, never one not named. Otherwise the named
+    shots go down to their floors in order, then what remains is shared evenly across the others: equal shares, and
+    when frames are left over, one each from the later shots. Raises CannotShorten when the named shots run out.
+    """
+    named = list(dict.fromkeys(named))
+    floors = [min(length, floor) for length in lengths]
+    alive = [True] * len(lengths)
+    dropped = []
+    candidates = [index for index in reversed(named) if index != 0]
+    while sum(f for f, here in zip(floors, alive) if here) > target:
+        if not candidates:
+            raise CannotShorten(sum(f for f, here in zip(floors, alive) if here), dropped)
+        index = candidates.pop(0)
+        alive[index] = False
+        dropped.append(index)
+    new = [length if here else None for length, here in zip(lengths, alive)]
+    excess = sum(length for length, here in zip(lengths, alive) if here) - target
+    for index in named:
+        if excess <= 0:
+            break
+        if alive[index]:
+            give = min(new[index] - floors[index], excess)
+            new[index] -= give
+            excess -= give
+    others = [index for index in range(len(lengths)) if alive[index] and index not in named and new[index] > floors[index]]
+    while excess > 0 and others:
+        share, extra = divmod(excess, len(others))
+        if share:
+            for index in others:
+                give = min(new[index] - floors[index], share)
+                new[index] -= give
+                excess -= give
+        else:
+            for index in others[len(others) - extra:]:
+                new[index] -= 1
+                excess -= 1
+        others = [index for index in others if new[index] > floors[index]]
+    return new, dropped
+
+
+def read_shots_and_target(data, options):
+    """(0-based named shots, the target as typed in seconds, the target in frames, each shot's frames, their total)."""
+    count = len(data["segments"])
+    shots = parse_shot_list(options["shots"], count)
+    value, target = parse_target(options["to"])
+    lengths = check.segment_lengths(data)
+    if lengths is None:
+        raise ReviseError(
+            "A shot in this list lasts less than one frame, so the lengths cannot be worked out; run check to see which.")
+    return [number - 1 for number in shots], value, target, lengths, sum(lengths)
+
+
+def change_shorter(data, options, folder):
+    """Trim the named shots from their ends, in the order named, to reach the length asked; see shorter_frames."""
+    named, value, target, lengths, total = read_shots_and_target(data, options)
+    if target < plan.frames(settings.MIN_REEL_SECONDS):
+        raise ReviseError(f"A reel must be at least {settings.MIN_REEL_SECONDS:g} seconds, so it cannot be made shorter than that.")
+    if target == total:
+        raise Unchanged(f"The reel is already {seconds_text(total)} seconds, so nothing was changed.")
+    if target > total:
+        raise ReviseError(
+            f"The reel is {seconds_text(total)} seconds, already shorter than the {value:g} asked; use longer to make it longer.")
+    recipe = data.get("recipe", settings.DEFAULT_RECIPE)
+    floor = plan.frames(settings.RECIPES[recipe][0])
+    try:
+        new, dropped = shorter_frames(lengths, floor, target, named)
+    except CannotShorten as refusal:
+        gone = [index + 1 for index in named if index in refusal.dropped]  # in the order they were named
+        if gone:
+            who = check.letters_sentence([str(number) for number in gone])
+            raise ReviseError(
+                f"Even with every shot at its shortest and shots {who} dropped, the reel would be "
+                f"{seconds_text(refusal.frames)} seconds, so nothing was changed; name more shots to take it to {value:g} seconds."
+            ) from None
+        raise ReviseError(
+            f"Even with every shot at its shortest, the reel would be {seconds_text(refusal.frames)} seconds, "
+            f"so nothing was changed; name more shots to take it to {value:g} seconds.") from None
+    segments = data["segments"]
+    lines = [OLD_NUMBERS] if dropped else []
+    for index in named:
+        if index not in dropped and lengths[index] <= floor:
+            lines.append(f"Shot {index + 1} was already at its shortest for {recipe.capitalize()}, so it was left as it was.")
+    for index in dropped:
+        lines.append(f"Shot {index + 1} was dropped: even at their shortest the shots were too long for {value:g} seconds.")
+    mapping = {}
+    kept = []
+    for index, shot in enumerate(segments):
+        if new[index] is None:
+            mapping[index + 1] = None
+            continue
+        kept.append(shot)
+        mapping[index + 1] = len(kept)
+        if new[index] != lengths[index]:
+            set_frames(shot, new[index])
+            lines.append(f"Shot {index + 1}: was {seconds_text(lengths[index])} seconds, now {seconds_text(new[index])}.")
+    new_total = sum(count for count in new if count is not None)
+    lines.append(f"The reel is now {seconds_text(new_total)} seconds; it was {seconds_text(total)}.")
+    if new_total < target:
+        lines.append(f"That is {seconds_text(target - new_total)} seconds under the {value:g} asked, because a whole shot had to go.")
+    data["segments"] = kept
+    cover = data.get("cover")
+    old_shot = cover.get("segment") if isinstance(cover, dict) else None
+    lines += follow_cover(data, mapping)
+    cover = data.get("cover")
+    if isinstance(cover, dict) and check.is_whole(old_shot) and mapping.get(old_shot) is not None and check.is_number(cover.get("at")):
+        index = old_shot - 1
+        if new[index] != lengths[index] and cover["at"] >= new[index] / settings.OUTPUT_FPS:
+            lines.append(
+                f"The cover was {cover['at']:g} seconds into shot {old_shot}, which is now only {seconds_text(new[index])} "
+                "seconds long, so the reel's first frame is the cover now.")
+            del data["cover"]
+    return lines
+
+
+CHANGES = {
+    "sound": change_sound, "canvas": change_canvas, "reorder": change_reorder, "drop": change_drop,
+    "shorter": change_shorter}
 
 
 def run(change, options, cutlist_path=None, work_dir=None):

@@ -130,6 +130,11 @@ DEFAULT_RECIPE = "lively"  # a name, not a number: the recipe a list that names 
 # revise: Stage 19's limits on the words revise reads and on how it names a new list; it decides nothing.
 REVISE_NUMBER_DIGITS = 6  # digits: the longest shot number, or number in a cutlist-N.json name, revise reads; a longer one is refused or passed over before Python turns it into a number
 REVISE_NAME_TRIES = 100  # tries: how many next numbers revise tries when another file takes the name it picked
+REVISE_SECONDS_DIGITS = 5  # digits: the longest whole number of seconds --to may hold (MAX_CUTLIST_SECONDS, three hours, has five)
+REVISE_FRACTION_DIGITS = 6  # digits: the most decimal places --to may hold
+REVISE_DECIMALS = 3  # decimal places of seconds revise writes in a shot's "to"
+REVISE_DECIMALS_EXACT = 6  # decimal places written instead when REVISE_DECIMALS would miss the intended frame
+REVISE_SHOWN_DECIMALS = 2  # decimal places of seconds in revise's own sentences, trailing zeros dropped
 
 # render: Stage 16's numbers. The renderer builds exactly the cut list; these say how, never what.
 RENDER_PRESEEK_FRAMES = 30  # frames: a shot's fast seek lands this many frames ahead of its first frame, so the exact trim always starts on the right one
