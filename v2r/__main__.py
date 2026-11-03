@@ -77,6 +77,27 @@ def main(argv=None):
         "--work", type=Path, default=None,
         help="the work folder that holds manifest.json and look.json; leave out for work/ in this repo",
     )
+    revise_common = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    revise_common.add_argument(
+        "--cutlist", type=Path, default=None,
+        help="the cut list to change; leave out for cutlist.json in the work folder",
+    )
+    revise_common.add_argument(
+        "--work", type=Path, default=None,
+        help="the work folder that holds manifest.json; leave out for work/ in this repo",
+    )
+    revise_parser = commands.add_parser(
+        "revise", help="make one named change to a cut list and save it as a new numbered list beside it; never renders",
+        allow_abbrev=False)
+    changes = revise_parser.add_subparsers(dest="change", required=True, metavar="CHANGE")
+    sound_parser = changes.add_parser(
+        "sound", parents=[revise_common], allow_abbrev=False,
+        help="keep or mute every shot's own sound, or one shot's with --shot")
+    sound_parser.add_argument("setting", choices=["keep", "off"], help="keep the shots' own sound, or turn it off")
+    sound_parser.add_argument(
+        "--shot", default=None, metavar="N",  # text: revise checks it, so a bad one gets a plain sentence, not usage text
+        help="change only this shot, counted from 1 in list order; leave out for every shot",
+    )
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
     try:
@@ -146,6 +167,16 @@ def run(args, parser):
             return 1
         for line in lines:
             print(line)
+    elif args.command == "revise":
+        options = {name: value for name, value in vars(args).items() if name not in ("command", "change", "cutlist", "work")}
+        try:
+            _, lines, ready = render.revise.run(args.change, options, args.cutlist, args.work)
+        except render.revise.ReviseError as error:
+            print(f"v2r revise: {error}", file=sys.stderr)
+            return 1
+        for line in lines:
+            print(line)
+        return 0 if ready else 1
     elif args.command == "build-skill":
         print(build_skill.build())
     else:

@@ -119,6 +119,10 @@ CHROMA_NEUTRAL = 128  # 8-bit code value of grey in video chroma (a fact of the 
 # doctor
 NETWORK_TIMEOUT = 5  # seconds to wait for github.com / pypi.org to answer
 
+# revise: Stage 19's limits on the words revise reads and on how it names a new list; it decides nothing.
+REVISE_NUMBER_DIGITS = 6  # digits: the longest shot number, or number in a cutlist-N.json name, revise reads; a longer one is refused or passed over before Python turns it into a number
+REVISE_NAME_TRIES = 100  # tries: how many next numbers revise tries when another file takes the name it picked
+
 # render: Stage 16's numbers. The renderer builds exactly the cut list; these say how, never what.
 RENDER_PRESEEK_FRAMES = 30  # frames: a shot's fast seek lands this many frames ahead of its first frame, so the exact trim always starts on the right one
 RENDER_TAIL_FRAMES = 3  # frames read past a shot's end, so the exact trim always has its last frame
