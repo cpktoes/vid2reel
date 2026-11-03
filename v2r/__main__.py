@@ -106,6 +106,12 @@ def main(argv=None):
         "reorder", parents=[revise_common], allow_abbrev=False,
         help="play the shots in a new order, every shot number once, such as 3,1,2; start with a shot by putting it first")
     reorder_parser.add_argument("order", metavar="ORDER", help="the shot numbers in their new order, such as 3,1,2")
+    drop_parser = changes.add_parser(
+        "drop", parents=[revise_common], allow_abbrev=False,
+        help="take out every shot of a clip (drop C) or one shot (drop shot 3)")
+    drop_parser.add_argument(
+        "what", nargs="+", metavar="WHAT",  # revise reads the words, so a wrong one gets a plain sentence, not usage text
+        help="a clip letter such as C, or the word shot and a number such as shot 3")
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
     try:

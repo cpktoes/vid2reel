@@ -234,7 +234,60 @@ def change_reorder(data, options, folder):
     return lines + follow_cover(data, {before: after for after, before in enumerate(order, start=1)})
 
 
-CHANGES = {"sound": change_sound, "canvas": change_canvas, "reorder": change_reorder}
+DROP_WORDS = "Drop needs a clip letter such as C, or the word shot and a number such as shot 3."
+LAST_SHOT = "That would leave the reel with no shots, so nothing was changed."
+
+
+def change_drop(data, options, folder):
+    """Take out every shot of one clip (a capital letter) or one shot (the word shot and its number).
+
+    Only the shots go. The clips block and the touch-up are left as they are: check never requires a clip to have a
+    shot, and a touch-up whose clip has no shot harms nothing. The cover follows its shot or is removed with it.
+    """
+    words = options["what"]
+    segments = data["segments"]
+    count = len(segments)
+    # A clip letter is one to three capitals: normalize's and the schema's own pattern, not a new limit.
+    if len(words) == 1 and re.fullmatch("[A-Z]{1,3}", words[0], flags=re.ASCII):
+        letter = words[0]
+        gone = [number for number, shot in enumerate(segments, start=1) if shot.get("clip") == letter]
+        if not gone:
+            if isinstance(data.get("clips"), dict) and letter in data["clips"]:
+                raise Unchanged(f"Clip {letter} has no shots in this list, so nothing was changed.")
+            used = sorted({shot.get("clip") for shot in segments if isinstance(shot.get("clip"), str)})
+            raise ReviseError(
+                f"There is no clip {letter} in this list's shots; its shots use clips {check.letters_sentence(used)}.")
+        whole_clip = True
+    elif len(words) == 2 and words[0] == "shot":
+        gone = [parse_shot(words[1], count)]
+        whole_clip = False
+    else:
+        raise ReviseError(DROP_WORDS)
+    if len(gone) == count:
+        raise ReviseError(LAST_SHOT)
+    mapping = {}
+    kept = []
+    for number, shot in enumerate(segments, start=1):
+        if number in gone:
+            mapping[number] = None
+        else:
+            kept.append(shot)
+            mapping[number] = len(kept)
+    lines = [OLD_NUMBERS]
+    for number in gone:
+        lines.append(f"Shot {number} (clip {check.shown(segments[number - 1].get('clip'))}) was taken out.")
+    if whole_clip:
+        look = data.get("look")
+        touch_ups = look.get("touch_up") if isinstance(look, dict) else None
+        if isinstance(touch_ups, dict) and letter in touch_ups:
+            lines.append(f"Clip {letter}'s record and touch-up stay in the list, unused.")
+        else:
+            lines.append(f"Clip {letter}'s record stays in the list, unused.")
+    data["segments"] = kept
+    return lines + follow_cover(data, mapping)
+
+
+CHANGES = {"sound": change_sound, "canvas": change_canvas, "reorder": change_reorder, "drop": change_drop}
 
 
 def run(change, options, cutlist_path=None, work_dir=None):
