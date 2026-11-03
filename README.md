@@ -38,9 +38,10 @@ Run each as `python3 -m v2r COMMAND` (or `uv run python -m v2r COMMAND` on the M
 | `check [CUTLIST]` | Checks a cut list, `work/cutlist.json` unless named, against `schema/cutlist.schema.json`, `work/manifest.json` and the music, and prints one plain sentence for each problem and each note. |
 | `match [CUTLIST]` | Writes a mild, capped touch-up for each clip into the cut list, from `work/look.json`. |
 | `render [CUTLIST]` | Builds exactly the reel the cut list describes into `work/`, with proof sheets in `work/proof/` and a cover still beside the reel. |
+| `revise CHANGE` | Makes one named change to a cut list and writes the result as a new numbered list beside it (`work/cutlist-2.json`, then `-3`), never touching the old list and never rendering: `shorter --to SECONDS --from SHOTS` and `longer --to SECONDS --from SHOTS` (the shots named in order, trimmed or extended at their ends within the list's recipe), `reorder 3,1,2`, `drop C` or `drop shot 3`, `sound keep\|off [--shot N]`, `canvas tall\|wide`. `--cutlist PATH` names the list to change (`work/cutlist.json` unless named). It ends with check's report and the next commands, naming the new list. |
 | `build-skill` | Builds `skill/vid2reel.zip`, the file the chat installs. |
 
-`normalize`, `look`, `check`, `match` and `render` all take `--work FOLDER` to use another folder instead of `work/`, a Mac convenience for rehearsals; normalize clears that folder's last job first. `check`, `match` and `render` take no `--shape`, because the cut list's canvas carries it.
+`normalize`, `look`, `check`, `match`, `render` and `revise` all take `--work FOLDER` to use another folder instead of `work/`, a Mac convenience for rehearsals; normalize clears that folder's last job first. `check`, `match` and `render` take no `--shape`, because the cut list's canvas carries it. `revise` takes `--cutlist` and `--work` after its change word.
 
 `normalize --no-size-limit` includes a file over `MAX_ATTACHMENT_BYTES` (in `v2r/settings.py`) instead of leaving it out. It is for a computer only, never a phone: the cap mirrors what a phone can reliably send and the sandbox is slow on big clips, so EDITOR.md never mentions it.
 
