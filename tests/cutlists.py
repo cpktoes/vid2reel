@@ -91,6 +91,7 @@ def tall_example(clips):
             segment("A", 6.0, 8.5, "off", "A 06.0 to A 08.5: the wave breaks"),
             segment("B", 6.0, 9.0, "off", "B 06.0 to B 09.0: she walks off right", focus_x=0.6),
         ],
+        "recipe": "lively",
         "look": {
             "filter": "none",
             "touch_up": {
@@ -119,6 +120,7 @@ def wide_example(clips):
             segment("C", 0.0, 3.0, "off", "C 00.0: the photo, a slow pull-out", move="pull-out"),
             segment("A", 28.0, 38.0, "keep", "A 28.0 to A 38.0: the sign-off"),
         ],
+        "recipe": "lively",
         "look": {
             "filter": "none",
             "touch_up": {

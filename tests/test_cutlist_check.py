@@ -73,7 +73,8 @@ def test_schema_leaves_unknown_fields_open(shape, tmp_path):
 
 RULE_NOTE = re.compile(
     r"There is no touch-up in the list|Segment \d+: \w+ is a photo with no move|(Clip|Photo) \w+ is (sideways|upright) in a "
-    r"(tall|wide) frame|This reel has no sound at all")
+    r"(tall|wide) frame|This reel has no sound at all|The list names no recipe|"
+    r"Segments? \d[\d, and]* lasts? (less|longer) than")
 
 
 def run_check(work, data, capsys, name="cutlist.json", all_notes=False):
@@ -675,6 +676,8 @@ RULES = [  # (id, edit of a valid list, the one sentence it must give as a funct
     ("canvas shape", make_canvas_other,
      lambda c: f"The canvas is {OTHER[c.shape]} but the clips were normalized for a {c.shape} reel; "
                f"normalize them again with --shape {OTHER[c.shape]} to render this list {OTHER[c.shape]}."),
+    ("an unknown recipe", lambda c: c.data.update(recipe="fast"),
+     lambda c: 'The list\'s recipe is "fast"; it must be one of lively or calm.'),
     ("clip not in the manifest", add_unknown_clip,
      lambda c: f"Clip Z in this list is not in the work folder, which has clips {c.info['letters']}."),
     ("skipped clip", skip_last_clip,
@@ -966,6 +969,7 @@ EXAMPLE_NOTES = {  # what the approved examples say about their sideways and upr
         "the part from 14 to 46 percent down the picture.",
         "Photo C is upright in a wide frame, so the frame keeps only 42 percent of its picture: "
         "the part from 29 to 71 percent down the picture.",
+        "Segments 1, 3 and 5 last longer than a Lively shot's 1.5 to 3 seconds.",
     ],
 }
 PHOTO_SEGMENT = {"tall": (5, "E"), "wide": (4, "C")}
@@ -1018,7 +1022,10 @@ def test_a_lower_crop_share_gives_no_crop_note(shape, tmp_path, capsys, monkeypa
     c = context(shape, tmp_path, None)
     monkeypatch.setattr(settings, "CROP_NOTE_SHARE", 0.3)  # read when used, never when loaded
 
-    assert run_check(c.work, c.data, capsys, all_notes=True) == (0, [], [])
+    code, problems, notes = run_check(c.work, c.data, capsys, all_notes=True)
+
+    assert (code, problems) == (0, [])
+    assert notes == [note for note in EXAMPLE_NOTES[shape] if not note.startswith(("Clip", "Photo"))]
 
 
 @pytest.mark.parametrize("shape", SHAPES)
@@ -1106,6 +1113,135 @@ def test_notes_never_refuse(shape, tmp_path, capsys):
     assert notes == ACCEPTED_NOTES + [
         NO_TOUCH_UP, f"Segment {number}: {PHOTO_SEGMENT[shape][1]} is a photo with no move.",
         *EXAMPLE_NOTES[shape], NO_SOUND]
+
+
+# ---- the recipe: its field, its numbers, and the notes for a shot outside them (D-14, D-15, D-16) ----
+
+RECIPE_FRAMES = {"lively": (45, 90), "calm": (90, 150)}  # the recipes' lengths in whole frames at 30 a second
+SHORT_NOTE = "Segment{s} {verb} less than a {name} shot's {low:g} to {high:g} seconds."
+LONG_NOTE = "Segment{s} {verb} longer than a {name} shot's {low:g} to {high:g} seconds."
+
+
+def recipe_sentence(template, numbers, recipe):
+    low, high = settings.RECIPES[recipe]
+    many = len(numbers) > 1
+    return template.format(
+        s="s " + check.letters_sentence([str(number) for number in numbers]) if many else f" {numbers[0]}",
+        verb="last" if many else "lasts", name=recipe.capitalize(), low=low, high=high)
+
+
+def shots_of(c, frames_list, recipe=None, photo_frames=None):
+    """Replace the list's shots with clip A shots of the given lengths in frames (and one photo shot), with the recipe set."""
+    letter = PHOTO_SEGMENT[c.shape][1]
+    c.data["segments"] = [
+        segment("A", 0.0, frames / 30, "keep", f"A: a shot of {frames} frames") for frames in frames_list]
+    if photo_frames is not None:
+        c.data["segments"].append(segment(letter, 0.0, photo_frames / 30, "off", "a photo", move="push-in"))
+    c.data.pop("cover", None)
+    if recipe is None:
+        c.data.pop("recipe", None)
+    else:
+        c.data["recipe"] = recipe
+    return [note for note in run_check(c.work, c.data, c.capsys, all_notes=True)[2]
+            if "recipe" in note or " shot's " in note]
+
+
+def checked(shape, tmp_path, capsys):
+    c = context(shape, tmp_path, None)
+    c.capsys = capsys
+    return c
+
+
+def test_the_schema_names_exactly_the_recipes_settings_holds():
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    assert schema["properties"]["recipe"]["enum"] == list(settings.RECIPES)
+    assert "recipe" not in schema["required"]
+    assert schema["properties"]["version"]["const"] == 1
+    assert settings.DEFAULT_RECIPE in settings.RECIPES
+    for low, high in settings.RECIPES.values():
+        assert 0 < low < high
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_both_examples_name_their_recipe_and_say_nothing_more_about_it(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+
+    assert c.data["recipe"] == "lively"
+    assert errors_of(c.data) == []
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_shot_exactly_at_a_recipes_edge_gets_no_note_and_one_frame_past_it_does(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+    for recipe, (floor, ceiling) in RECIPE_FRAMES.items():
+        assert shots_of(c, [floor, ceiling], recipe) == []
+        assert shots_of(c, [floor - 1, ceiling], recipe) == [recipe_sentence(SHORT_NOTE, [1], recipe)]
+        assert shots_of(c, [floor, ceiling + 1], recipe) == [recipe_sentence(LONG_NOTE, [2], recipe)]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shots_outside_a_recipe_are_grouped_one_sentence_a_direction(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+
+    notes = shots_of(c, [30, 60, 100, 40, 120, 45, 200], "lively")
+
+    assert notes == [
+        "Segments 1 and 4 last less than a Lively shot's 1.5 to 3 seconds.",
+        "Segments 3, 5 and 7 last longer than a Lively shot's 1.5 to 3 seconds.",
+    ]
+    calm = shots_of(c, [60, 60, 60], "calm")
+    assert calm == ["Segments 1, 2 and 3 last less than a Calm shot's 3 to 5 seconds."]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_photo_may_run_past_the_longest_shot_but_not_under_the_shortest(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+
+    assert shots_of(c, [60], "lively", photo_frames=120) == []  # four seconds, a photo's own length
+    assert shots_of(c, [60], "lively", photo_frames=30) == [recipe_sentence(SHORT_NOTE, [2], "lively")]
+    assert shots_of(c, [60, 100], "lively", photo_frames=120) == [recipe_sentence(LONG_NOTE, [2], "lively")]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_list_with_no_recipe_is_read_as_lively_and_says_so(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+    assumed = "The list names no recipe, so Lively (shots of 1.5 to 3 seconds) was assumed."
+
+    assert shots_of(c, [60, 100], None) == [assumed, recipe_sentence(LONG_NOTE, [2], "lively")]
+    assert shots_of(c, [60, 100], "lively") == [recipe_sentence(LONG_NOTE, [2], "lively")]
+    assert shots_of(c, [60, 100], "calm") == [recipe_sentence(SHORT_NOTE, [1], "calm")]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_recipe_notes_come_after_the_crop_notes_and_before_the_no_sound_note(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+    c.data["sound"]["music"] = None
+    for item in c.data["segments"]:
+        item["sound"] = "off"
+    del c.data["look"]
+
+    code, problems, notes = run_check(c.work, c.data, capsys, all_notes=True)
+
+    assert (code, problems) == (0, [])
+    assert notes == [NO_TOUCH_UP] + EXAMPLE_NOTES[shape] + [NO_SOUND]
+    long_note = "Segments 1, 3 and 5 last longer than a Lively shot's 1.5 to 3 seconds."
+    assert (notes.index(long_note) < notes.index(NO_SOUND)) if shape == "wide" else long_note not in notes
+    if shape == "wide":
+        assert notes.index(long_note) > max(i for i, note in enumerate(notes) if note.startswith(("Clip", "Photo")))
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_shot_outside_its_recipe_never_refuses_the_list(shape, tmp_path, capsys):
+    c = checked(shape, tmp_path, capsys)
+    c.data["segments"] = [segment("A", 0.0, 8.0, "keep", "A: a slow shot, on purpose")]
+    c.data.pop("cover", None)
+    path = write_list(c.work, c.data)
+
+    assert main(["check", str(path), "--work", str(c.work)]) == 0
+    out = capsys.readouterr().out
+    assert "Problem:" not in out and "ready to render" in out
+    assert "Note: Segment 1 lasts longer than a Lively shot's 1.5 to 3 seconds." in out
 
 
 @pytest.mark.parametrize("shape", SHAPES)
