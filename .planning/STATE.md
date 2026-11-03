@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 7
 current_phase_name: Stage 19 – Conversation
 status: executing
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-11-03T22:46:22.344Z"
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-11-03T23:06:03.933Z"
 last_activity: 2026-11-03
 last_activity_desc: "Phase 7 planned: 9 plans in 8 waves"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 44
-  completed_plans: 40
+  completed_plans: 41
 ---
 
 # Project State
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 7 (Stage 19 – Conversation) — EXECUTING
-Plan: 5 of 9 complete (07-01 to 07-05 done)
+Plan: 6 of 9 complete (07-01 to 07-06 done)
 Status: Executing Phase 7
-Last activity: 2026-11-03 — Completed 07-05 (the follow-up chain proved on the Mac in both shapes; README revise row)
+Last activity: 2026-11-03 — Completed 07-06 (the handbook's Talking with her pasted as the user drafted it, cap 1,800, revise-call guard)
 
 Progress: [████░░░░░░] 43% (6 of 14 phases complete)
 
@@ -101,6 +101,7 @@ Progress: [████░░░░░░] 43% (6 of 14 phases complete)
 | Phase 7 P03 | 25min | 2 tasks | 3 files |
 | Phase 7 P04 | 45min | 2 tasks | 4 files |
 | Phase 7 P07-05 | 15min | 2 tasks | 2 files |
+| Phase 7 P07-06 | 45min | 3 tasks tasks | 5 files files |
 
 ## Accumulated Context
 
@@ -156,6 +157,7 @@ Settled decisions that shape later phases:
 - [Phase 05-07]: one phone test inside a Project on the stage's branch stands for both of the guide's checks; approved 2026-11-02; branch pushed at c882443 with a clean private-data scan
 - [Phase 07-01]: Stage 19 revise: change word first, default input stays cutlist.json, newest list named in every next command
 - [Phase ?]: [Phase 7] Plan 04: set_frames rounds the end up at the last place when a start sits exactly half way into a frame, so every shot lasts exactly the frames intended; revise shorter drops named shots from the end of the named list only, never shot 1
+- [Phase ?]: [Phase 7 / Stage 19] 07-06: EDITOR.md is the user's draft exactly (1,767 words); cap raised 1,500 to 1,800 on 2026-11-03. A handbook-shortening review is wanted after this stage (user: 'a big review later to cut and make the handbook shorter'), not acted on yet
 
 ### Pending Todos
 
@@ -191,6 +193,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-11-03T22:46:22.322Z
-Stopped at: Completed 07-05-PLAN.md
+Last session: 2026-11-03T23:06:03.911Z
+Stopped at: Completed 07-06-PLAN.md
 Resume file: None

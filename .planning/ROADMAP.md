@@ -258,7 +258,7 @@ Plans:
   4. Errors are plain English ending with a next step, and if the work folder is gone Claude asks for the clips again
   5. From a phone on the branch, she can attach clips, answer the brief, get a reel, then say "shorter", "mute it" and "a wide version", each changing only what was asked
 
-**Plans**: 5/9 plans executed
+**Plans**: 6/9 plans executed
 
 Plans:
 **Wave 1**
@@ -280,7 +280,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 07-06-PLAN.md — The "Talking with her" draft, its commands proven on a scratch list, the user's word, EDITOR.md pasted and guarded, the cap decided (wave 5, checkpoint)
+- [x] 07-06-PLAN.md — The "Talking with her" draft, its commands proven on a scratch list, the user's word, EDITOR.md pasted and guarded, the cap decided (wave 5, checkpoint)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -411,7 +411,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | Complete    | 2026-10-19 |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 7/7 | Complete    | 2026-11-02 |
 | 6. Stage 18 – Music | M3: It can cut | 1/1 | Complete    | 2026-11-03 |
-| 7. Stage 19 – Conversation | M4: It's a conversation | 5/9 | In Progress|  |
+| 7. Stage 19 – Conversation | M4: It's a conversation | 6/9 | In Progress|  |
 | 8. Stage 20 – Her two weeks | M5: Her two weeks | 0/TBD | Not started | - |
 | 9. Stage 21 – Her look and words on screen | M6: Her look | 0/TBD | Not started | - |
 | 10. Stage 22 – Cut to the beat | M6: Her look | 0/TBD | Not started | - |
