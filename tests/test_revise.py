@@ -938,9 +938,9 @@ def test_longer_frames_gives_the_named_shots_their_room_in_order():
     ceilings = [90] * 7
     new = revise.longer_frames(TALL_LENGTHS, ceilings, 630, [1, 5])
     assert new == [90, 90, 90, 90, 90, 90, 90]
-    assert revise.longer_frames(TALL_LENGTHS, ceilings, 610, [1, 5]) == [90, 90, 90, 90, 90, 75, 90]
+    assert revise.longer_frames(TALL_LENGTHS, ceilings, 610, [1, 5]) == [90, 85, 90, 90, 90, 75, 90]  # the first named first
     assert revise.longer_frames(TALL_LENGTHS, ceilings, 700, [1, 5]) == [90, 90, 90, 90, 90, 90, 90]  # as far as they go
-    assert revise.longer_frames(TALL_LENGTHS, [90, 80, 90, 90, 90, 200, 90], 700, [5, 1]) == [90, 75 + 5, 90, 90, 90, 200, 90]
+    assert revise.longer_frames(TALL_LENGTHS, [90, 80, 90, 90, 90, 200, 90], 700, [5, 1]) == [90, 75, 90, 90, 90, 175, 90]
     assert revise.longer_frames(TALL_LENGTHS, ceilings, 600, [1]) == TALL_LENGTHS  # nothing wanted
     assert revise.longer_frames([100], [90], 200, [0]) == [100]  # a ceiling under the length never shrinks a shot
 
@@ -1024,7 +1024,7 @@ def calm_with_a_shot_starting_on_the_same_frame(data):
 @pytest.mark.parametrize("shape", SHAPES)
 def test_a_shot_starting_on_the_same_frame_is_not_a_later_one(tmp_path, shape):
     work, path, data = setup(tmp_path, shape, calm_with_a_shot_starting_on_the_same_frame)
-    assert main(revise_args(work, "longer", "--to", "6", "--from", "1")) == 0
+    assert main(revise_args(work, "longer", "--to", "20", "--from", "1")) == 0
     new = load(work / "cutlist-2.json")
     assert (new["segments"][0]["from"], new["segments"][0]["to"]) == (1.0, 6.0)  # the recipe's longest, 5 seconds, from 1.0
 

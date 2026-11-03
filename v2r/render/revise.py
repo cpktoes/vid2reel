@@ -464,9 +464,96 @@ def change_shorter(data, options, folder):
     return lines
 
 
+def longer_frames(lengths, ceilings, target, named):
+    """The shots' new lengths in frames: the named shots, in order, each gain what is wanted up to its ceiling.
+
+    `named` are 0-based shots in the order the chat's Claude named them; nothing here judges a shot. A ceiling at or
+    under a shot's own length means it gains nothing, and no shot ever gets shorter. The total is at most `target`.
+    """
+    new = list(lengths)
+    wanted = target - sum(lengths)
+    for index in named:
+        if wanted <= 0:
+            break
+        give = min(max(0, ceilings[index] - lengths[index]), wanted)
+        new[index] += give
+        wanted -= give
+    return new
+
+
+def ceiling_frames(shot, shots, entry, recipe_longest):
+    """The most frames the shot `shot` can last: the recipe's longest, the end of its clip, the next shot of its clip.
+
+    A photo is exempt from the recipe (its own clip's length is its limit). With no usable length for its clip a shot
+    can't be extended at all. `shots` are all the list's shots, `entry` the work folder's record of the shot's clip.
+    """
+    start, count = plan.segment_frames(shot)
+    seconds = None if entry is None else check.working_seconds(entry)
+    if seconds is None:
+        return count
+    most = plan.clip_frames(seconds) - start
+    for other in shots:
+        if other is not shot and other.get("clip") == shot.get("clip"):
+            later = plan.frames(other["from"])
+            if later > start:  # a shot starting on the same frame is not "after"
+                most = min(most, later - start)
+    if entry["kind"] != "photo":
+        most = min(most, recipe_longest)
+    return most
+
+
+def change_longer(data, options, folder):
+    """Let the named shots run on at their ends, in the order named, towards the length asked; see longer_frames."""
+    named, value, target, lengths, total = read_shots_and_target(data, options)
+    if target == total:
+        raise Unchanged(f"The reel is already {seconds_text(total)} seconds, so nothing was changed.")
+    if target < total:
+        raise ReviseError(
+            f"The reel is {seconds_text(total)} seconds, already longer than the {value:g} asked; use shorter to make it shorter.")
+    manifest, problems = check.read_manifest(folder)
+    if problems:
+        raise ReviseError(problems[0])
+    mismatches = check.clips_problems(data, manifest, folder)
+    if mismatches:
+        for problem in mismatches:
+            print(f"Problem: {problem}")
+        raise ReviseError("The cut list's clips do not match the work folder, so nothing was changed; run check to see why.")
+    recipe = data.get("recipe", settings.DEFAULT_RECIPE)
+    longest = plan.frames(settings.RECIPES[recipe][1])
+    segments = data["segments"]
+    ceilings = [
+        ceiling_frames(shot, segments, check.manifest_entry(manifest, shot.get("clip")), longest) for shot in segments]
+    new = longer_frames(lengths, ceilings, target, named)
+    grown = [index for index in named if new[index] > lengths[index]]
+    if not grown:
+        if len(named) == 1:
+            raise ReviseError(
+                f"Shot {named[0] + 1} cannot run longer, being at its recipe's longest, at the end of its clip or at the next "
+                "shot of the same clip, so nothing was changed; a longer reel needs a new moment added to the list.")
+        who = check.letters_sentence([str(index + 1) for index in named])
+        raise ReviseError(
+            f"None of shots {who} can run longer, each being at its recipe's longest, at the end of its clip or at the next "
+            "shot of the same clip, so nothing was changed; a longer reel needs a new moment added to the list.")
+    lines = []
+    for index in named:
+        if index not in grown:
+            lines.append(f"Shot {index + 1} cannot run longer, so it was left as it was.")
+    for index in range(len(segments)):
+        if index in grown:
+            set_frames(segments[index], new[index])
+            lines.append(f"Shot {index + 1}: was {seconds_text(lengths[index])} seconds, now {seconds_text(new[index])}.")
+    new_total = sum(new)
+    lines.append(f"The reel is now {seconds_text(new_total)} seconds; it was {seconds_text(total)}.")
+    if new_total < target:
+        lines.append(
+            f"That is {seconds_text(target - new_total)} seconds short of the {value:g} asked; "
+            "the rest needs a new moment added to the list.")
+    return lines
+
+
 CHANGES = {
     "sound": change_sound, "canvas": change_canvas, "reorder": change_reorder, "drop": change_drop,
-    "shorter": change_shorter}
+    "shorter": change_shorter, "longer": change_longer}
 
 
 def run(change, options, cutlist_path=None, work_dir=None):

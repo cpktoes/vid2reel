@@ -119,6 +119,13 @@ def main(argv=None):
     shorter_parser.add_argument(
         "--from", dest="shots", required=True, metavar="SHOTS",  # "from" is a Python keyword; text, so revise can answer in a sentence
         help="the shots to trim, weakest first, counted from 1 in list order, such as 6,2")
+    longer_parser = changes.add_parser(
+        "longer", parents=[revise_common], allow_abbrev=False,
+        help="run the shots named in --from on at their ends, in that order, towards --to seconds")
+    longer_parser.add_argument("--to", required=True, metavar="SECONDS", help="the length to aim for, such as 21")
+    longer_parser.add_argument(
+        "--from", dest="shots", required=True, metavar="SHOTS",  # "from" is a Python keyword; text, so revise can answer in a sentence
+        help="the shots to run on, best first, counted from 1 in list order, such as 2,6")
     commands.add_parser("build-skill", help="build skill/vid2reel.zip for uploading to Claude", allow_abbrev=False)
     args = parser.parse_args(argv)
     try:
