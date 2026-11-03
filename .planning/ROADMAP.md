@@ -258,7 +258,41 @@ Plans:
   4. Errors are plain English ending with a next step, and if the work folder is gone Claude asks for the clips again
   5. From a phone on the branch, she can attach clips, answer the brief, get a reel, then say "shorter", "different song" and "a wide version", each changing only what was asked
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Tracer: `revise sound` from the command line to a new numbered list, checked and reported; then `revise canvas`; the records reworded for no music and the brief settled (wave 1)
+- [ ] 07-02-PLAN.md — Tracer: the optional `recipe` field through the rulebook and check's range notes; Lively assumed with a note; the guard that keeps EDITOR.md's recipe numbers and settings.py in step (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-03-PLAN.md — Tracer: `revise reorder` with the cover following its shot; then `revise drop` by clip or shot (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-04-PLAN.md — Tracer: `revise shorter`, exact to the frame, named shots first; then `revise longer` inside each clip and recipe (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 07-05-PLAN.md — Tracer: the follow-up chain (shorter, mute it, a wide version) rendered on generated clips in both shapes; README's revise row (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 07-06-PLAN.md — The "Talking with her" draft, its commands proven on a scratch list, the user's word, EDITOR.md pasted and guarded, the cap decided (wave 5, checkpoint)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 07-07-PLAN.md — The Stage 19 rehearsal kit, the user's rehearsals as conversations, and the judging with her, brief test included (wave 6, checkpoints)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 07-08-PLAN.md — Full suite, the code-change check, the private-data scan with the user's own names scan, and the push on his word (wave 7, checkpoint)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 07-09-PLAN.md — The phone test on stage-19-conversation (brief, reel, shorter, mute it, a wide version), the phone-limits row, decision lines, traceability and the last scan of the closing commits for the merge (wave 8, checkpoint)
 
 ### Phase 8: Stage 20 – Her two weeks
 
@@ -377,7 +411,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | Complete    | 2026-10-19 |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 7/7 | Complete    | 2026-11-02 |
 | 6. Stage 18 – Music | M3: It can cut | 1/1 | Complete    | 2026-11-03 |
-| 7. Stage 19 – Conversation | M4: It's a conversation | 0/TBD | Not started | - |
+| 7. Stage 19 – Conversation | M4: It's a conversation | 0/9 | Planned | - |
 | 8. Stage 20 – Her two weeks | M5: Her two weeks | 0/TBD | Not started | - |
 | 9. Stage 21 – Her look and words on screen | M6: Her look | 0/TBD | Not started | - |
 | 10. Stage 22 – Cut to the beat | M6: Her look | 0/TBD | Not started | - |
