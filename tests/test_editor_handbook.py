@@ -1,4 +1,4 @@
-"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,500 words, real commands, the six steps in order, and no Mac-only option. They check counts and names, never wording, so the user can rewrite any sentence."""
+"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,500 words, real commands, the six steps all there, in order and written as `python3 -m v2r STEP`, and no Mac-only option. They check counts and names, never wording, so the user can rewrite any sentence."""
 
 import contextlib
 import io
@@ -12,7 +12,11 @@ MAX_WORDS = 1500  # the handbook's cap (Stage 17, D-04; raised from 1,200 to 1,5
 # The six steps, in the order they must first appear. join is a side road and is left out of the order.
 STEPS = ("doctor", "normalize", "look", "check", "match", "render")
 
-NAMED = re.compile(r"python3? -m v2r ([a-z][a-z-]*)")
+NAMED = re.compile(r"python3 -m v2r ([a-z][a-z-]*)")  # the one spelling the phone's sandbox runs
+# The two spellings that look right but are not what the sandbox runs, for the six steps only: `python -m v2r STEP` and
+# a bare `v2r STEP`. The lookbehinds keep the correct `python3 -m v2r STEP` from counting as a bare `v2r STEP`.
+WRONG_SPELLING = re.compile(
+    rf"(?:python -m v2r|(?<!-m )(?<![\w-])v2r)\s+(?:{'|'.join(STEPS)})\b")
 
 
 def word_count(text):
@@ -47,6 +51,11 @@ def handbook_problems(text):
     for name in names:
         if not is_v2r_command(name):
             problems.append(f"EDITOR.md names `v2r {name}`, which v2r does not have.")
+    for step in STEPS:
+        if step not in names:
+            problems.append(f"EDITOR.md never runs `python3 -m v2r {step}`; all six steps must be there.")
+    for wrong in dict.fromkeys(match.group(0) for match in WRONG_SPELLING.finditer(text)):
+        problems.append(f"EDITOR.md writes `{wrong}`; write the command as `python3 -m v2r STEP`.")
     # The order comes from the `python3 -m v2r NAME` matches only, never from the bare words: look, check and match
     # are ordinary English words that appear earlier in prose.
     seen = [name for name in names if name in STEPS]
@@ -134,3 +143,32 @@ def test_join_is_a_side_road_left_out_of_the_order():
 def test_the_mac_only_work_option_is_refused():
     problems = handbook_problems(steps_text(STEPS) + "Add `--work` to point at a folder.\n")
     assert any("Mac-only option" in problem for problem in problems)
+
+
+def test_a_missing_step_is_refused_whichever_one_it_is():
+    for gone in STEPS:
+        problems = handbook_problems(steps_text([step for step in STEPS if step != gone]))
+        assert any(f"never runs `python3 -m v2r {gone}`" in problem for problem in problems), gone
+
+
+def test_every_step_present_is_not_refused():
+    assert handbook_problems(steps_text(STEPS)) == []
+
+
+def test_the_wrong_spellings_of_a_step_are_refused():
+    for step in STEPS:
+        for wrong in (f"python -m v2r {step}", f"v2r {step}"):
+            problems = handbook_problems(steps_text(STEPS) + f"Then run `{wrong} --help`.\n")
+            assert any(f"writes `{wrong}`" in problem for problem in problems), wrong
+
+
+def test_a_step_written_only_in_a_wrong_spelling_is_missing_and_misspelt():
+    text = steps_text(STEPS).replace("python3 -m v2r look", "python -m v2r look")
+    problems = handbook_problems(text)
+    assert any("never runs `python3 -m v2r look`" in problem for problem in problems)
+    assert any("writes `python -m v2r look`" in problem for problem in problems)
+
+
+def test_the_right_spelling_and_ordinary_words_are_not_taken_for_a_wrong_one():
+    prose = "The v2r tool will look, check and match; v2r is the name. Use v2r join for one clip.\n"
+    assert handbook_problems(prose + steps_text(STEPS)) == []
