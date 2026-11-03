@@ -460,3 +460,150 @@ def test_follow_cover_leaves_a_broken_cover_for_check():
         assert revise.follow_cover(data, {1: 2, 2: 1}) == []
         assert data["cover"] == cover
     assert revise.follow_cover({"segments": [{}]}, {1: 1}) == []
+
+
+def only_first_shot(data):
+    data["segments"] = data["segments"][:1]
+    data["cover"] = {"segment": 1, "at": 1.0}
+
+
+def two_short_shots(data):
+    data["segments"] = [
+        {"clip": "A", "from": 1.0, "to": 3.0, "sound": "off", "why": "A 01.0 to A 03.0: one"},
+        {"clip": "A", "from": 4.0, "to": 6.0, "sound": "off", "why": "A 04.0 to A 06.0: two"},
+    ]
+    data["cover"] = {"segment": 1, "at": 0.5}
+
+
+def without_clip_c(data):
+    kept = [item for item in data["segments"] if item["clip"] != "C"]
+    cover = data["segments"][data["cover"]["segment"] - 1]
+    data["segments"] = kept
+    data["cover"]["segment"] = kept.index(cover) + 1
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_drop_a_clip_takes_out_all_its_shots_and_touches_nothing_else(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    gone = [n for n, item in enumerate(data["segments"], start=1) if item["clip"] == "A"]
+    assert main(revise_args(work, "drop", "A")) == 0
+    after = load(work / "cutlist-2.json")
+    survivors = [item for item in data["segments"] if item["clip"] != "A"]
+    assert after["segments"] == survivors
+    for new, old in zip(after["segments"], survivors):
+        assert list(new.items()) == list(old.items())
+    assert after["clips"] == data["clips"]
+    assert after["look"] == data["look"]
+    rest_before = {k: v for k, v in data.items() if k not in ("segments", "cover")}
+    rest_after = {k: v for k, v in after.items() if k not in ("segments", "cover")}
+    assert changed_paths(rest_before, rest_after) == set()
+    out = capsys.readouterr().out
+    assert out.index(revise.OLD_NUMBERS) < out.index(f"Shot {gone[0]} (clip A) was taken out.")
+    for number in gone:
+        assert f"Shot {number} (clip A) was taken out." in out
+    assert "Clip A's record and touch-up stay in the list, unused." in out
+    assert "ready to render" in out
+
+
+def test_drop_a_clip_with_no_touch_up_says_only_its_record_stays(tmp_path, capsys):
+    def bare(data):
+        del data["look"]["touch_up"]["B"]
+
+    work, path, data = setup(tmp_path, "tall", bare)
+    assert main(revise_args(work, "drop", "B")) == 0
+    assert "Clip B's record stays in the list, unused." in capsys.readouterr().out
+
+
+def test_drop_moves_the_cover_down_when_an_earlier_shot_goes(tmp_path, capsys):
+    work, path, data = setup(tmp_path, "tall")
+    assert main(revise_args(work, "drop", "A")) == 0
+    assert load(work / "cutlist-2.json")["cover"] == {"segment": 3, "at": 1.0}
+    assert "The cover moved with its shot: it was in shot 4, now shot 3." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape, words", [("tall", ["shot", "4"]), ("wide", ["B"])])
+def test_dropping_the_covers_own_shot_removes_the_cover(tmp_path, capsys, shape, words):
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "drop", *words)) == 0
+    after = load(work / "cutlist-2.json")
+    assert "cover" not in after
+    out = capsys.readouterr().out
+    assert "The cover was in shot" in out and "which was taken out, so the reel's first frame is the cover now." in out
+    assert "ready to render" in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_drop_shot_keeps_every_other_record_whole(tmp_path, shape):
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "drop", "shot", "1")) == 0
+    after = load(work / "cutlist-2.json")
+    assert after["segments"] == data["segments"][1:]
+    assert after["clips"] == data["clips"] and after["look"] == data["look"]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_drop_a_clip_that_is_not_in_the_list(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "drop", "Z")) == 1
+    used = "A, B, C, D and E" if shape == "tall" else "A, B and C"
+    assert one_line_refusal(capsys) == f"There is no clip Z in this list's shots; its shots use clips {used}."
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_drop_a_clip_with_no_shots_is_nothing_to_drop(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, without_clip_c)
+    assert "C" in data["clips"]
+    before = listing(work)
+    assert main(revise_args(work, "drop", "C")) == 0
+    assert listing(work) == before
+    assert "Clip C has no shots in this list, so nothing was changed." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("words", [["c"], ["shot"], ["C", "D"], ["drop"], ["ABCD"], ["1"]])
+def test_drop_with_the_wrong_words_says_what_it_needs(tmp_path, capsys, shape, words):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "drop", *words)) == 1
+    assert one_line_refusal(capsys) == revise.DROP_WORDS
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_drop_shot_with_a_bad_number(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    count = len(data["segments"])
+    assert main(revise_args(work, "drop", "shot", "x")) == 1
+    assert "is not a shot number" in one_line_refusal(capsys)
+    assert main(revise_args(work, "drop", "shot", "99")) == 1
+    assert one_line_refusal(capsys) == revise.no_shot(99, count)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_taking_out_every_shot_is_refused(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, only_first_shot)
+    before = listing(work)
+    assert main(revise_args(work, "drop", "A")) == 1
+    assert one_line_refusal(capsys) == revise.LAST_SHOT
+    assert main(revise_args(work, "drop", "shot", "1")) == 1
+    assert one_line_refusal(capsys) == revise.LAST_SHOT
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_reel_left_too_short_is_written_and_check_says_so(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, two_short_shots)
+    assert main(revise_args(work, "drop", "shot", "2")) == 1
+    assert (work / "cutlist-2.json").is_file()
+    assert "The reel is 2.0 seconds long; it must be at least 3 seconds." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_reorder_and_drop_never_choose(tmp_path, shape):
+    """The same words always give the same list: nothing in them is decided by revise."""
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "drop", "shot", "2")) == 0
+    assert main(revise_args(work, "drop", "shot", "2")) == 0
+    assert load(work / "cutlist-2.json") == load(work / "cutlist-3.json")
