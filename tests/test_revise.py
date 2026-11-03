@@ -7,7 +7,7 @@ from cutlists import EXAMPLES, clips_block, placeholder_work, write_list
 
 from v2r import settings
 from v2r.__main__ import main
-from v2r.render import plan, revise
+from v2r.render import check, plan, revise
 
 SHAPES = ["tall", "wide"]
 
@@ -920,3 +920,215 @@ def test_shorter_help_shows_its_two_words(capsys):
     assert caught.value.code == 0
     out = capsys.readouterr().out
     assert "--to" in out and "--from" in out
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# longer: the mirror, inside each clip and each recipe
+# ---------------------------------------------------------------------------------------------------------------
+
+LONGER = {  # the named shots: one that can grow and one that cannot (tall), a photo and a shot at its longest (wide)
+    "tall": {"shots": "2,6", "to": "21", "grown": [1, 5], "after": [90, 90, 90, 90, 90, 90, 90], "total": "20",
+             "short_to": "25", "short_by": "4", "smaller": "15", "stuck": "1,3", "stuck_to": "21"},
+    "wide": {"shots": "2,4", "to": "39", "grown": [3], "after": [300, 90, 360, 120, 300], "total": "38",
+             "short_to": "45", "short_by": "6", "smaller": "30", "stuck": "1,3", "stuck_to": "40"},
+}
+
+
+def test_longer_frames_gives_the_named_shots_their_room_in_order():
+    ceilings = [90] * 7
+    new = revise.longer_frames(TALL_LENGTHS, ceilings, 630, [1, 5])
+    assert new == [90, 90, 90, 90, 90, 90, 90]
+    assert revise.longer_frames(TALL_LENGTHS, ceilings, 610, [1, 5]) == [90, 90, 90, 90, 90, 75, 90]
+    assert revise.longer_frames(TALL_LENGTHS, ceilings, 700, [1, 5]) == [90, 90, 90, 90, 90, 90, 90]  # as far as they go
+    assert revise.longer_frames(TALL_LENGTHS, [90, 80, 90, 90, 90, 200, 90], 700, [5, 1]) == [90, 75 + 5, 90, 90, 90, 200, 90]
+    assert revise.longer_frames(TALL_LENGTHS, ceilings, 600, [1]) == TALL_LENGTHS  # nothing wanted
+    assert revise.longer_frames([100], [90], 200, [0]) == [100]  # a ceiling under the length never shrinks a shot
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_changes_only_the_ends_of_the_named_shots(tmp_path, capsys, shape):
+    case = LONGER[shape]
+    work, path, data = setup(tmp_path, shape)
+    before = path.read_bytes()
+    assert main(revise_args(work, "longer", "--to", case["to"], "--from", case["shots"])) == 0
+    new = load(work / "cutlist-2.json")
+    assert changed_paths(data, new) == {("segments", i, "to") for i in case["grown"]}
+    assert frame_counts(new) == case["after"]
+    assert sum(frame_counts(new)) == plan.frames(float(case["to"]))
+    assert path.read_bytes() == before
+    out = capsys.readouterr().out
+    assert f"The reel is now {case['to']} seconds; it was {case['total']}." in out
+    assert "ready to render" in out
+    assert "short of" not in out
+
+
+def test_tall_longer_names_a_shot_that_cannot_grow_and_lets_the_others_grow(tmp_path, capsys):
+    work, path, data = setup(tmp_path, "tall")
+    assert main(revise_args(work, "longer", "--to", "21", "--from", "1,2,6")) == 0
+    new = load(work / "cutlist-2.json")
+    assert changed_paths(data, new) == {("segments", 1, "to"), ("segments", 5, "to")}
+    out = capsys.readouterr().out
+    assert "Shot 1 cannot run longer, so it was left as it was." in out
+    assert "Shot 2: was 2.5 seconds, now 3." in out
+    assert "Shot 6: was 2.5 seconds, now 3." in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_that_cannot_get_there_writes_what_it_reached_and_says_how_far_short(tmp_path, capsys, shape):
+    case = LONGER[shape]
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "longer", "--to", case["short_to"], "--from", case["shots"])) == 0
+    assert frame_counts(load(work / "cutlist-2.json")) == case["after"]
+    out = capsys.readouterr().out
+    assert (
+        f"That is {case['short_by']} seconds short of the {case['short_to']} asked; "
+        "the rest needs a new moment added to the list.") in out
+
+
+def test_a_photo_may_run_to_its_whole_clip_past_the_recipe(tmp_path):
+    work, path, data = setup(tmp_path, "tall")
+    assert main(revise_args(work, "longer", "--to", "21", "--from", "5")) == 0
+    new = load(work / "cutlist-2.json")
+    assert frame_counts(new)[4] == 120  # four seconds: the photo's whole clip, past Lively's three
+    assert changed_paths(data, new) == {("segments", 4, "to")}
+
+
+def calm_with_a_later_shot_of_the_same_clip(data):
+    data["recipe"] = "calm"
+    data["segments"] = [
+        {"clip": "A", "from": 1.0, "to": 2.0, "sound": "off", "why": "one"},
+        {"clip": "B", "from": 2.0, "to": 4.5, "sound": "off", "why": "two"},
+        {"clip": "A", "from": 2.5, "to": 4.0, "sound": "off", "why": "three"},
+    ]
+    data["cover"] = {"segment": 1, "at": 0.5}
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_stops_at_the_first_frame_of_a_later_shot_of_the_same_clip(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, calm_with_a_later_shot_of_the_same_clip)
+    assert frame_counts(data) == [30, 75, 45]
+    assert main(revise_args(work, "longer", "--to", "10", "--from", "1")) == 0
+    new = load(work / "cutlist-2.json")
+    assert (new["segments"][0]["from"], new["segments"][0]["to"]) == (1.0, 2.5)
+    assert frame_counts(new)[0] == 45
+    assert changed_paths(data, new) == {("segments", 0, "to")}
+    assert "short of the 10 asked" in capsys.readouterr().out
+
+
+def calm_with_a_shot_starting_on_the_same_frame(data):
+    calm_with_a_later_shot_of_the_same_clip(data)
+    data["segments"][2]["from"] = 1.0
+    data["segments"][2]["to"] = 4.0
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_shot_starting_on_the_same_frame_is_not_a_later_one(tmp_path, shape):
+    work, path, data = setup(tmp_path, shape, calm_with_a_shot_starting_on_the_same_frame)
+    assert main(revise_args(work, "longer", "--to", "6", "--from", "1")) == 0
+    new = load(work / "cutlist-2.json")
+    assert (new["segments"][0]["from"], new["segments"][0]["to"]) == (1.0, 6.0)  # the recipe's longest, 5 seconds, from 1.0
+
+
+def calm_near_the_end_of_its_clip(shape):
+    last = {"tall": (11.0, 11.5), "wide": (38.0, 39.0)}[shape]
+
+    def edit(data):
+        data["recipe"] = "calm"
+        data["segments"] = [
+            {"clip": "B", "from": 0.0, "to": 3.0, "sound": "off", "why": "one"},
+            {"clip": "A", "from": last[0], "to": last[1], "sound": "off", "why": "two"},
+        ]
+        data["cover"] = {"segment": 1, "at": 0.5}
+
+    return edit
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_stops_at_the_end_of_the_clip(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, calm_near_the_end_of_its_clip(shape))
+    assert main(revise_args(work, "longer", "--to", "20", "--from", "2")) == 0
+    new = load(work / "cutlist-2.json")
+    clip_end = {"tall": 12.0, "wide": 40.0}[shape]
+    assert new["segments"][1]["to"] == clip_end
+    assert frame_counts(new)[1] == plan.frames(clip_end) - plan.frames(data["segments"][1]["from"])
+    assert "ready to render" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_with_every_named_shot_at_its_ceiling_writes_nothing(tmp_path, capsys, shape):
+    case = LONGER[shape]
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "longer", "--to", case["stuck_to"], "--from", case["stuck"])) == 1
+    assert one_line_refusal(capsys) == (
+        "None of shots 1 and 3 can run longer, each being at its recipe's longest, at the end of its clip or at the "
+        "next shot of the same clip, so nothing was changed; a longer reel needs a new moment added to the list.")
+    assert listing(work) == before
+    assert main(revise_args(work, "longer", "--to", case["stuck_to"], "--from", "3")) == 1
+    assert one_line_refusal(capsys) == (
+        "Shot 3 cannot run longer, being at its recipe's longest, at the end of its clip or at the next shot of the "
+        "same clip, so nothing was changed; a longer reel needs a new moment added to the list.")
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_to_the_current_length_or_shorter_changes_nothing(tmp_path, capsys, shape):
+    case = LONGER[shape]
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "longer", "--to", case["total"], "--from", "1")) == 0
+    out = capsys.readouterr().out
+    assert out.startswith(f"The reel is already {case['total']} seconds, so nothing was changed. ")
+    assert listing(work) == before
+    assert main(revise_args(work, "longer", "--to", case["smaller"], "--from", "1")) == 1
+    assert one_line_refusal(capsys) == (
+        f"The reel is {case['total']} seconds, already longer than the {case['smaller']} asked; "
+        "use shorter to make it shorter.")
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_without_a_manifest_says_what_check_says(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    (work / "manifest.json").unlink()
+    before = listing(work)
+    assert main(revise_args(work, "longer", "--to", LONGER[shape]["to"], "--from", LONGER[shape]["shots"])) == 1
+    assert one_line_refusal(capsys) == check.NO_MANIFEST
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_longer_over_clips_that_no_longer_match_the_work_folder_refuses(tmp_path, capsys, shape):
+    def wrong_length(data):
+        data["clips"]["A"]["seconds"] = 99.0
+
+    work, path, data = setup(tmp_path, shape, wrong_length)
+    before = listing(work)
+    assert main(revise_args(work, "longer", "--to", LONGER[shape]["to"], "--from", LONGER[shape]["shots"])) == 1
+    captured = capsys.readouterr()
+    assert "Problem: Clip A in this list is 99.00 seconds long" in captured.out
+    assert captured.err.strip() == (
+        "v2r revise: The cut list's clips do not match the work folder, so nothing was changed; run check to see why.")
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("word", ["abc", "-1", "0", "1e3"])
+def test_longer_with_a_bad_length_or_shot_is_one_plain_sentence(tmp_path, capsys, shape, word):
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "longer", "--to", word, "--from", "1")) == 1
+    assert one_line_refusal(capsys) == "The length to aim for must be a number of seconds, such as 15."
+    assert main(revise_args(work, "longer", "--to", "30", "--from", "99")) == 1
+    assert "There is no shot 99" in one_line_refusal(capsys)
+
+
+def test_the_revise_help_lists_every_change(capsys):
+    with pytest.raises(SystemExit) as caught:
+        main(["revise", "--help"])
+    assert caught.value.code == 0
+    out = capsys.readouterr().out
+    for word in ("sound", "canvas", "reorder", "drop", "shorter", "longer"):
+        assert word in out
+    with pytest.raises(SystemExit) as caught:
+        main(["revise", "longer", "--help"])
+    assert caught.value.code == 0
