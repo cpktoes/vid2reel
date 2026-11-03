@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 05
 current_phase_name: stage-17-editor-s-handbook
-status: executing
-stopped_at: Completed 05-06-PLAN.md (suite, scan and push gates passed)
-last_updated: "2026-11-02T03:18:03.097Z"
+status: phase execution complete
+stopped_at: Completed 05-07-PLAN.md (phone test approved, records written, branch pushed at c882443); awaiting verification and the user's go-ahead before any merge into main
+last_updated: "2026-11-02T12:00:00.000Z"
 last_activity: 2026-11-02
-last_activity_desc: Completed plan 05-06 (full suite, private-data scan, push on the user's word)
+last_activity_desc: Completed plan 05-07 (phone test approved, records written, branch pushed at c882443 on the user's word)
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 35
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 
 ## Current Position
 
-Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
-Plan: 6 of 7 complete (01 to 06 done)
-Status: Next is wave 5, plan 07 (the phone test)
+Phase: 05 (stage-17-editor-s-handbook) — EXECUTION COMPLETE
+Plan: 7 of 7 complete (01 to 07 done)
+Status: Phase execution complete; awaiting verification and the user's go-ahead before any merge into main. Branch stage-17-handbook is pushed at c882443; main untouched at 247685e.
 Last activity: 2026-11-02 - Completed quick task 261102-a38: viral-reel craft in the handbook, the cap to 1,500 words and four craft rules (one commit on stage-17-handbook; Phase 05 still in progress)
 
 Progress: [█████████░] 89% (1 of 14 phases complete)
@@ -94,6 +94,7 @@ Progress: [█████████░] 89% (1 of 14 phases complete)
 | Phase 05 P04 | two checkpoint rounds | 3 tasks | 1 files |
 | Phase 05 P03 | two sessions, one checkpoint round | 3 tasks | 1 files |
 | Phase 05 P05 | one rehearsal round plus checks and scoring | 3 tasks | 0 files |
+| Phase 05 P07 | phone test plus checkpoint rounds | 4 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,8 @@ Settled decisions that shape later phases:
 - [Phase ?]: [Phase 05-04]: the handbook's ordering rule, time order wins for talking, making and journeys, was the user's own addition at the read-through; EDITOR.md is 1,192 words, under the 1,200 cap
 - [Phase 05-05]: five of five rehearsal reels approved in one round with no handbook change; the pair differed only where the profiles differ, except the cover (attributed to the handbook); thirteen unclear places listed in 05-05-SUMMARY.md for the user's next edit
 
+- [Phase 05-07]: one phone test inside a Project on the stage's branch stands for both of the guide's checks; approved 2026-11-02; branch pushed at c882443 with a clean private-data scan
+
 ### Pending Todos
 
 None yet.
@@ -179,5 +182,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-11-02
-Stopped at: Completed 05-06-PLAN.md (1034 passed, scan clean, branch pushed at 54dc0d5; next plan 07, the phone test)
+Stopped at: Completed 05-07-PLAN.md (phone test approved, branch pushed at c882443; next is verification and the user's go-ahead before any merge)
 Resume file: None

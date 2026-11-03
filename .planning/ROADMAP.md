@@ -207,7 +207,7 @@ Plans:
   4. The rehearsal runs for all five fixture sets, and a second profile on the same set changes only what the two profiles differ in
   5. She would post at least three of the five fixture reels with small changes
 
-**Plans**: 6/7 plans executed
+**Plans**: 7/7 plans executed
 
 Plans:
 **Wave 1**
@@ -230,7 +230,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 05-07-PLAN.md — The phone test inside one of her Projects on stage-17-handbook, the phone-limits row, decision lines and traceability (wave 5, checkpoint)
+- [x] 05-07-PLAN.md — The phone test inside one of her Projects on stage-17-handbook, the phone-limits row, decision lines and traceability (wave 5, checkpoint)
 
 ### Phase 6: Stage 18 – Music
 

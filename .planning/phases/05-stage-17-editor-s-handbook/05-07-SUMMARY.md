@@ -13,20 +13,21 @@ provides:
 affects: [verify-work, merge into main]
 actuals:
   tokens: 3000
-  tasks: 2
-  commits: 2
+  tasks: 4
+  commits: 3
 key-files:
   created: []
   modified: [docs/phone-limits.md, docs/decisions.md, CLAUDE.md, .planning/REQUIREMENTS.md]
 key-decisions:
   - "One phone test inside a Project on the stage's branch stands for both of the guide's checks (D-11)"
 requirements-completed: [HAND-01, HAND-02, HAND-03, HAND-04, HAND-05]
-status: in-progress
+status: complete
+completed: 2026-11-02
 ---
 
 # Phase 5 Plan 07: the phone test, the records and the closing push Summary
 
-**IN PROGRESS: Tasks 1 and 2 are done (the phone test approved and the records written and committed locally); Task 3 (the user's word on the push) and Task 4 (the push) are pending. Nothing from this plan has been pushed.**
+**COMPLETE (2026-11-02): the phone test approved, the records written, the private-data scan clean, and the branch pushed at c882443 on the user's word. The commit holding this finished summary and the planning-file updates is local and not yet pushed.**
 
 ## Task 1: the phone test (approved 2026-11-02)
 
@@ -65,17 +66,49 @@ Handbook check: `uv run pytest tests/test_editor_handbook.py -q` gave 11 passed;
 
 Every rehearsal took a profile's standing answers to the brief as the message saying what the reel is about, so no question was asked. Whether that is wanted is the user's call for the handbook.
 
-## Last scan, commits and hashes
+## Task 3: the user's word (2026-11-02)
 
-To be filled in at Task 3 from the report of the scan run after this draft was committed.
+The last scan was run and put to the user with the two commits to be pushed. He replied "push" on 2026-11-02.
+
+## Task 4: the push (2026-11-02)
+
+- `git push origin stage-17-handbook` moved the remote branch from 75cf11f to c882443. The two commits sent were exactly 752fd02 (Stage 17 phone test, decisions and traceability) and c882443 (summary draft).
+- `git ls-remote origin stage-17-handbook` printed c882443, equal to local HEAD at the time.
+- `origin/main` was 247685e before and after. No `--force`; main was never pushed to or merged.
+- `git diff --name-only main -- docs/field-guide.html` printed nothing (the guide is untouched).
+
+## Last scan (run 2026-11-02, before the push)
+
+Range: `origin/stage-17-handbook..HEAD`, covering commits 752fd02 and c882443. Every item was 0, and the orchestrator re-scanned the same two commits independently with the same result.
+
+| Check | Result |
+|-------|--------|
+| (a) files under fixtures/ or work/ | 0 |
+| (b) media files | 0 |
+| (c) e-mail addresses in added lines | 0 |
+| (d) home path in the diff / in tracked files | 0 / 0 |
+| (e) Mac user name in new history / in tracked files | 0 / 0 |
+| (f) secrets | 0 |
+| (g) attribution lines in commit messages | 0 |
+| (h) private names in tracked files at HEAD / commit messages / new history | 0 / 0 / 0 |
+
+For (h) a list of 18 names, built from names on this Mac only, was used and deleted afterwards; it was never written into the repo or this file.
+
+Handbook guard test: 11 passed; EDITOR.md is 1,299 words (cap 1,500).
+
+## Commits
+
+- 752fd02: docs(05-07): Stage 17 phone test, decisions and traceability (Tasks 1 and 2)
+- c882443: docs(05-07): summary draft
+- The commit holding this finished summary, STATE.md and ROADMAP.md: local only, not pushed; the orchestrator will put it to the user with the phase-close commits.
 
 ## Next
 
-Task 3: the user's word on pushing the closing commits. Task 4: the push, if he says "push". The merge into main waits for /gsd-verify-work and the user's go-ahead.
+Phase 05 has all 7 plans complete. Next is /gsd-verify-work and the user's go-ahead; nothing merges into main until he says so.
 
 ## Deviations from Plan
 
-The plan's wording of the phone test ("one of her account Projects", two to four clips) was not met as written; the user's own-account Project and seven files stood in, and the user approved. Otherwise none so far.
+The plan's wording of the phone test ("one of her account Projects", two to four clips) was not met as written; the user's own-account Project and seven files stood in, and the user approved. Otherwise none; Tasks 3 and 4 ran as written.
 
 ## Known Stubs
 
