@@ -40,6 +40,7 @@ def setup(tmp_path, shape, edit=None):
     data["segments"][0]["zoom"] = 2
     data["segments"][1]["transition"] = "cut"
     data["text"] = "hello"
+    data.setdefault("cover", {"segment": 2, "at": 1.0})
     if edit is not None:
         edit(data)
     return work, write_list(work, data), data
@@ -344,3 +345,118 @@ def test_canvas_square_is_refused_by_the_parser(tmp_path, shape):
         main(revise_args(work, "canvas", "square"))
     assert caught.value.code == 2
     assert listing(work) == before
+
+
+def numbers_of(count):
+    return ",".join(str(n) for n in range(1, count + 1))
+
+
+def one_line_refusal(capsys):
+    err = capsys.readouterr().err
+    assert len(err.strip().splitlines()) == 1
+    assert err.startswith("v2r revise: ")
+    assert "Traceback" not in err
+    return err.strip()[len("v2r revise: "):]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_reorder_plays_the_same_records_in_the_given_order(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    count = len(data["segments"])
+    order = [4, 1, 2, 3, 5, 6, 7] if shape == "tall" else [5, 4, 3, 2, 1]
+    assert main(revise_args(work, "reorder", ",".join(str(n) for n in order))) == 0
+    after = load(work / "cutlist-2.json")
+    assert len(after["segments"]) == count
+    for new, old in zip(after["segments"], [data["segments"][n - 1] for n in order]):
+        assert new == old
+        assert list(new.items()) == list(old.items())
+    cover_moved = order.index(data["cover"]["segment"]) + 1
+    assert after["cover"] == {"segment": cover_moved, "at": data["cover"]["at"]}
+    rest_before = {k: v for k, v in data.items() if k not in ("segments", "cover")}
+    rest_after = {k: v for k, v in after.items() if k not in ("segments", "cover")}
+    assert changed_paths(rest_before, rest_after) == set()
+    out = capsys.readouterr().out
+    assert revise.OLD_NUMBERS in out
+    if cover_moved != data["cover"]["segment"]:
+        assert f"The cover moved with its shot: it was in shot {data['cover']['segment']}, now shot {cover_moved}." in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_start_with_a_shot_keeps_the_others_in_order(tmp_path, shape):
+    work, path, data = setup(tmp_path, shape)
+    count = len(data["segments"])
+    others = [n for n in range(1, count + 1) if n != 3]
+    assert main(revise_args(work, "reorder", ",".join(str(n) for n in [3] + others))) == 0
+    after = load(work / "cutlist-2.json")
+    assert after["segments"] == [data["segments"][n - 1] for n in [3] + others]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_reorder_that_leaves_the_cover_alone_prints_no_cover_line(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    order = [2, 1, 3, 4, 5, 6, 7] if shape == "tall" else [1, 2, 4, 3, 5]
+    assert data["cover"]["segment"] == order[data["cover"]["segment"] - 1]
+    assert main(revise_args(work, "reorder", ",".join(str(n) for n in order))) == 0
+    assert load(work / "cutlist-2.json")["cover"] == data["cover"]
+    assert "The cover" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_reordering_the_same_order_changes_nothing(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "reorder", numbers_of(len(data["segments"])))) == 0
+    assert listing(work) == before
+    assert "The shots are already in that order, so nothing was changed." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("text, sentence", [
+    ("missing", "Reorder needs every shot number once, in the new order; this list has {count} shots."),
+    ("1,1,2,3,4,5,6", "Shot 1 is named twice; name each shot once."),
+    ("0,1,2,3,4,5,6", "There is no shot 0 in this list; it has shots 1 to {count}."),
+    ("a,b", '"a,b" is not a list of shot numbers such as 4,2; shots are counted from 1 in list order.'),
+    ("1,,2", '"1,,2" is not a list of shot numbers such as 4,2; shots are counted from 1 in list order.'),
+    ("", '"" is not a list of shot numbers such as 4,2; shots are counted from 1 in list order.'),
+])
+def test_a_bad_order_is_one_plain_sentence(tmp_path, capsys, shape, text, sentence):
+    work, path, data = setup(tmp_path, shape)
+    count = len(data["segments"])
+    if text == "missing":
+        text = "2,1"
+    before = listing(work)
+    assert main(revise_args(work, "reorder", text)) == 1
+    assert one_line_refusal(capsys) == sentence.format(count=count)
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_list_longer_than_a_reel_can_hold_is_refused_before_reading_it(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    text = ",".join(["1"] * (settings.MAX_SEGMENTS + 1))
+    assert main(revise_args(work, "reorder", text)) == 1
+    assert "more than a list can hold" in one_line_refusal(capsys)
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_one_shot_list_reorders_to_nothing(tmp_path, capsys, shape):
+    def one(data):
+        data["segments"] = data["segments"][:1]
+        data["cover"] = {"segment": 1, "at": 1.0}
+        data["look"]["touch_up"] = {"A": data["look"]["touch_up"]["A"]}
+        data["clips"] = {"A": data["clips"]["A"]}
+
+    work, path, data = setup(tmp_path, shape, one)
+    before = listing(work)
+    assert main(revise_args(work, "reorder", "1")) == 0
+    assert listing(work) == before
+    assert main(revise_args(work, "reorder", "1,2")) == 1
+    assert "this list has 1 shot." in one_line_refusal(capsys)
+
+
+def test_follow_cover_leaves_a_broken_cover_for_check():
+    for cover in ({"segment": 1.0, "at": 0}, {"segment": 9, "at": 0}, "no", {"segment": True, "at": 0}):
+        data = {"cover": cover, "segments": [{}, {}]}
+        assert revise.follow_cover(data, {1: 2, 2: 1}) == []
+        assert data["cover"] == cover
+    assert revise.follow_cover({"segments": [{}]}, {1: 1}) == []
