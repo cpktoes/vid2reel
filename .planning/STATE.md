@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 6
 current_phase_name: Stage 18 – Music
-status: planning
-stopped_at: Completed 05-07-PLAN.md (phone test approved, branch pushed at c882443; next is verification and the user's go-ahead before any merge)
+status: executing
+stopped_at: Phase 6 re-scoped 2026-11-03: no music from the tool; handbook and records done as a quick task; next: the phone test on branch stage-18-music, then merge on the user's word
 last_updated: "2026-11-03T01:40:04.623Z"
-last_activity: 2026-11-02
-last_activity_desc: Completed plan 05-07 (phone test approved, records written, branch pushed at c882443 on the user's word)
+last_activity: 2026-11-03
+last_activity_desc: Stage 18 re-scoped, no music from the tool (quick task 261103-c0y)
 progress:
   total_phases: 4
   completed_phases: 4
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-13)
 
 **Core value:** A reel worth posting, made entirely from her phone.
-**Current focus:** Phase 05 — stage-17-editor-s-handbook
+**Current focus:** Phase 6 — Stage 18 – Music (re-scoped 2026-11-03: no music from the tool)
 
 ## Current Position
 
 Phase: 6 — Stage 18 – Music
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-02 — Phase 05 complete, transitioned to Phase 6
+Plan: one quick task done
+Status: awaiting the phone test and merge
+Last activity: 2026-11-03 - Completed quick task 261103-c0y: Stage 18 re-scoped: no music from the tool; the handbook says keep the sound or go mute
 
 Progress: [█████████░] 89% (1 of 14 phases complete)
 
@@ -171,6 +171,7 @@ None.
 | 7 | Apply the nine Stage 15 review decisions (WR-01, WR-02, WR-04, IN-02 to IN-07) on branch stage-15-review-fixes | 2026-10-18 | fc40d90 | [261018-wu5-apply-the-nine-stage-15-review-decisions](./quick/261018-wu5-apply-the-nine-stage-15-review-decisions/) |
 | 8 | Let a computer include a clip over the phone's 400 MB cap: --no-size-limit on normalize, a clearer skip sentence, README only | 2026-11-01 | one commit on stage-17-handbook | [261101-qff-let-a-computer-include-a-clip-over-the-p](./quick/261101-qff-let-a-computer-include-a-clip-over-the-p/) |
 | 9 | Viral-reel craft in the handbook: the cap to 1,500 words, four craft rules (first frame, loop ending, shortest first, bottom fifth), four [check] taste items in the three profile drafts | 2026-11-02 | one commit on stage-17-handbook | [261102-a38-viral-reel-craft-in-the-handbook-editor-](./quick/261102-a38-viral-reel-craft-in-the-handbook-editor-/) |
+| 10 | Stage 18 re-scoped: no music from the tool; the handbook says keep the sound or go mute | 2026-11-03 | 022131a | [261103-c0y-stage-18-re-scoped-no-music-from-the-too](./quick/261103-c0y-stage-18-re-scoped-no-music-from-the-too/) |
 
 ## Deferred Items
 
@@ -182,6 +183,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-11-02
-Stopped at: Completed 05-07-PLAN.md (phone test approved, branch pushed at c882443; next is verification and the user's go-ahead before any merge)
+Last session: 2026-11-03
+Stopped at: Phase 6 re-scoped 2026-11-03: no music from the tool; handbook and records done as a quick task; next: the phone test on branch stage-18-music, then merge on the user's word
 Resume file: None
