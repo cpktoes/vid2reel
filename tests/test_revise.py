@@ -7,7 +7,7 @@ from cutlists import EXAMPLES, clips_block, placeholder_work, write_list
 
 from v2r import settings
 from v2r.__main__ import main
-from v2r.render import revise
+from v2r.render import plan, revise
 
 SHAPES = ["tall", "wide"]
 
@@ -607,3 +607,316 @@ def test_reorder_and_drop_never_choose(tmp_path, shape):
     assert main(revise_args(work, "drop", "shot", "2")) == 0
     assert main(revise_args(work, "drop", "shot", "2")) == 0
     assert load(work / "cutlist-2.json") == load(work / "cutlist-3.json")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# shorter: the frame arithmetic (pure) and the command
+# ---------------------------------------------------------------------------------------------------------------
+
+LIVELY_FLOOR = 45
+TALL_LENGTHS = [90, 75, 90, 90, 90, 75, 90]  # the approved tall example, in frames: 600, twenty seconds
+WIDE_LENGTHS = [300, 90, 360, 90, 300]  # the approved wide example, in frames: 1140, thirty-eight seconds
+
+CASES = {
+    "tall": {
+        "lengths": TALL_LENGTHS, "total": "20", "to": "15", "shots": "6,2", "named": [5, 1],
+        "after": [72, 45, 72, 72, 72, 45, 72], "line": "Shot 6: was 2.5 seconds, now 1.5.",
+        "bigger": "25", "far": "5", "far_shots": "7,6", "far_dropped": "7 and 6", "far_seconds": "7.5",
+        "far_one": "10.5", "cover_edit": {"segment": 4, "at": 2.5}, "cover_shots": "6,2", "cover_to": "15",
+        "cover_old": 4, "cover_now": "2.4", "cover_at": "2.5",
+    },
+    "wide": {
+        "lengths": WIDE_LENGTHS, "total": "38", "to": "30", "shots": "4,2", "named": [3, 1],
+        "after": [250, 45, 310, 45, 250], "line": "Shot 4: was 3 seconds, now 1.5.",
+        "bigger": "40", "far": "3", "far_shots": "5,4", "far_dropped": "5 and 4", "far_seconds": "4.5",
+        "far_one": "7.5", "cover_edit": {"segment": 2, "at": 2.0}, "cover_shots": "4,2", "cover_to": "30",
+        "cover_old": 2, "cover_now": "1.5", "cover_at": "2",
+    },
+}
+
+
+def frame_counts(data):
+    return [plan.segment_frames(item)[1] for item in data["segments"]]
+
+
+def test_the_worked_example_is_exact():
+    assert revise.shorter_frames(TALL_LENGTHS, LIVELY_FLOOR, 450, [5, 1]) == ([72, 45, 72, 72, 72, 45, 72], [])
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shorter_lands_on_every_target(shape):
+    lengths, named = CASES[shape]["lengths"], CASES[shape]["named"]
+    floors = [min(length, LIVELY_FLOOR) for length in lengths]
+    for target in range(sum(floors), sum(lengths)):
+        new, dropped = revise.shorter_frames(lengths, LIVELY_FLOOR, target, named)
+        assert dropped == []
+        assert sum(new) == target
+        taken = [old - now for old, now in zip(lengths, new)]
+        assert all(floor <= now <= old for floor, now, old in zip(floors, new, lengths))
+        others = [i for i in range(len(lengths)) if i not in named]
+        if any(taken[i] for i in others):  # the named shots reach their shortest before any other shot loses a frame
+            assert all(new[i] == floors[i] for i in named)
+        first, second = named
+        if taken[second]:  # ... and in the order they were named
+            assert new[first] == floors[first]
+        free = [i for i in others if new[i] > floors[i]]  # shots the sharing did not run down to their shortest
+        for a, b in zip(free, free[1:]):
+            assert 0 <= taken[b] - taken[a] <= 1  # differ by at most one, the extra single frames from the later shots
+        if free:
+            assert max(taken[i] for i in free) - min(taken[i] for i in free) <= 1
+
+
+def test_shorter_trims_equal_shots_alike_and_gives_the_remainder_to_the_later_ones():
+    new, dropped = revise.shorter_frames([90] * 5, LIVELY_FLOOR, 447, [])
+    assert dropped == []
+    assert [90 - now for now in new] == [0, 0, 1, 1, 1]
+    new, dropped = revise.shorter_frames([90] * 5, LIVELY_FLOOR, 440, [])
+    assert new == [88, 88, 88, 88, 88]
+
+
+def test_shorter_drops_from_the_end_of_the_named_list_and_never_the_first_shot():
+    lengths = [90] * 6
+    new, dropped = revise.shorter_frames(lengths, LIVELY_FLOOR, 180, [5, 4, 3])
+    assert dropped == [3, 4]  # the end of the named list first; 4 shots at 45 is 180
+    assert new == [45, 45, 45, None, None, 45]
+    with pytest.raises(revise.CannotShorten) as caught:
+        revise.shorter_frames(lengths, LIVELY_FLOOR, 100, [0, 5])
+    assert caught.value.frames == 5 * LIVELY_FLOOR and caught.value.dropped == [5]
+    with pytest.raises(revise.CannotShorten) as caught:
+        revise.shorter_frames(lengths, LIVELY_FLOOR, 100, [0])
+    assert caught.value.frames == 6 * LIVELY_FLOOR and caught.value.dropped == []
+
+
+def test_a_drop_that_overshoots_writes_the_survivors_untrimmed():
+    new, dropped = revise.shorter_frames([45, 45, 45, 45, 300], LIVELY_FLOOR, 200, [4])
+    assert (new, dropped) == ([45, 45, 45, 45, None], [4])
+
+
+def test_a_calm_floor_is_longer():
+    new, dropped = revise.shorter_frames([200, 200, 200], 90, 300, [2])
+    assert dropped == [] and sum(new) == 300 and new[2] == 90
+
+
+def test_the_frame_loop_every_start_and_length():
+    for thousandths in range(0, 1001):
+        start = thousandths / 1000
+        for count in (1, 44, 45, 46, 90, 91, 150):
+            item = {"clip": "A", "from": start, "to": start + 99.0}
+            revise.set_frames(item, count)
+            assert item["from"] == start
+            assert plan.segment_frames(item) == (plan.frames(start), count), (start, count)
+            assert plan.frames(item["to"]) == plan.frames(start) + count, (start, count)
+            assert list(item) == ["clip", "from", "to"]
+
+
+def test_the_digit_and_decimal_settings_agree():
+    assert len(str(int(settings.MAX_CUTLIST_SECONDS))) <= settings.REVISE_SECONDS_DIGITS
+    assert 1 <= settings.REVISE_DECIMALS < settings.REVISE_DECIMALS_EXACT
+    assert settings.REVISE_SHOWN_DECIMALS == 2
+    assert revise.seconds_text(201) == "6.7"
+    assert revise.seconds_text(200) == "6.67"
+    assert revise.seconds_text(450) == "15"
+    assert revise.seconds_text(75) == "2.5"
+
+
+@pytest.mark.parametrize("text", ["15", "0.5", "10800", "3.123456"])
+def test_a_plain_number_of_seconds_is_read(text):
+    value, frames = revise.parse_target(text)
+    assert value == float(text) and frames == plan.frames(float(text))
+
+
+@pytest.mark.parametrize("text", [
+    "abc", "-1", "nan", "inf", "1e3", "0", "0.0", "", " ", "1,5", "15s", "10801", "100000", "1.1234567", ".5", "5.",
+    "\u0661\u0662"])
+def test_anything_else_is_one_plain_sentence(text):
+    with pytest.raises(revise.ReviseError) as caught:
+        revise.parse_target(text)
+    assert str(caught.value) == "The length to aim for must be a number of seconds, such as 15."
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shorter_changes_only_the_ends_of_the_shots(tmp_path, capsys, shape):
+    case = CASES[shape]
+    work, path, data = setup(tmp_path, shape)
+    before = path.read_bytes()
+    assert frame_counts(data) == case["lengths"]
+    assert main(revise_args(work, "shorter", "--to", case["to"], "--from", case["shots"])) == 0
+    new = load(work / "cutlist-2.json")
+    assert changed_paths(data, new) == {("segments", i, "to") for i in range(len(case["lengths"]))}
+    assert frame_counts(new) == case["after"]
+    assert [item["from"] for item in new["segments"]] == [item["from"] for item in data["segments"]]
+    assert new["cover"] == data["cover"]
+    assert path.read_bytes() == before
+    out = capsys.readouterr().out
+    assert case["line"] in out
+    assert f"The reel is now {case['to']} seconds; it was {case['total']}." in out
+    assert "ready to render" in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shorter_decides_nothing_the_named_order_is_the_only_choice(tmp_path, shape):
+    case = CASES[shape]
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "shorter", "--to", case["to"], "--from", case["shots"])) == 0
+    first = frame_counts(load(work / "cutlist-2.json"))
+    assert main(revise_args(work, "shorter", "--to", case["to"], "--from", case["shots"])) == 0
+    assert frame_counts(load(work / "cutlist-3.json")) == first
+    assert sum(first) == plan.frames(float(case["to"]))
+
+
+def test_tall_shorter_by_a_little_trims_only_the_first_named_shot(tmp_path, capsys):
+    work, path, data = setup(tmp_path, "tall")
+    assert main(revise_args(work, "shorter", "--to", "19", "--from", "6,2")) == 0
+    new = load(work / "cutlist-2.json")
+    assert changed_paths(data, new) == {("segments", 5, "to")}  # 30 frames off shot 6 alone, to its floor
+    assert frame_counts(new) == [90, 75, 90, 90, 90, 45, 90]
+
+
+def test_tall_dropping_a_named_shot_when_even_the_floors_are_too_long(tmp_path, capsys):
+    work, path, data = setup(tmp_path, "tall")
+    assert main(revise_args(work, "shorter", "--to", "9", "--from", "7,6,5,2")) == 0
+    new = load(work / "cutlist-2.json")
+    assert frame_counts(new) == [45] * 6
+    assert len(new["segments"]) == 6
+    assert new["cover"] == {"segment": 3, "at": 1.0}
+    out = capsys.readouterr().out
+    assert revise.OLD_NUMBERS in out
+    assert "Shot 2 was dropped: even at their shortest the shots were too long for 9 seconds." in out
+    assert "The cover moved with its shot: it was in shot 4, now shot 3." in out
+    assert "The reel is now 9 seconds; it was 20." in out
+    assert out.index(revise.OLD_NUMBERS) < out.index("Shot 2 was dropped")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shorter_that_cannot_reach_it_even_after_dropping_the_named_refuses(tmp_path, capsys, shape):
+    case = CASES[shape]
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "shorter", "--to", case["far"], "--from", case["far_shots"])) == 1
+    assert one_line_refusal(capsys) == (
+        f"Even with every shot at its shortest and shots {case['far_dropped']} dropped, the reel would be "
+        f"{case['far_seconds']} seconds, so nothing was changed; name more shots to take it to {case['far']} seconds.")
+    assert listing(work) == before
+    assert main(revise_args(work, "shorter", "--to", case["far"], "--from", "1")) == 1
+    assert one_line_refusal(capsys) == (
+        f"Even with every shot at its shortest, the reel would be {case['far_one']} seconds, so nothing was changed; "
+        f"name more shots to take it to {case['far']} seconds.")
+    assert listing(work) == before
+
+
+def five_shots_one_long(data):
+    data["segments"] = [
+        {"clip": "A", "from": 0.0, "to": 1.5, "sound": "off", "why": "one"},
+        {"clip": "A", "from": 1.5, "to": 3.0, "sound": "off", "why": "two"},
+        {"clip": "A", "from": 3.0, "to": 4.5, "sound": "off", "why": "three"},
+        {"clip": "A", "from": 4.5, "to": 6.0, "sound": "off", "why": "four"},
+        {"clip": "B", "from": 0.0, "to": 6.5, "sound": "off", "why": "five"},
+    ]
+    data["cover"] = {"segment": 1, "at": 0.5}
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_drop_that_overshoots_says_how_far_under_the_reel_is(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape, five_shots_one_long)
+    assert frame_counts(data) == [45, 45, 45, 45, 195]
+    assert main(revise_args(work, "shorter", "--to", "6.67", "--from", "5")) == 0
+    new = load(work / "cutlist-2.json")
+    assert frame_counts(new) == [45, 45, 45, 45]
+    assert new["segments"] == data["segments"][:4]
+    out = capsys.readouterr().out
+    assert "Shot 5 was dropped: even at their shortest the shots were too long for 6.67 seconds." in out
+    assert "That is 0.67 seconds under the 6.67 asked, because a whole shot had to go." in out
+
+
+def short_second_shot(data):
+    first = data["segments"][1]
+    first["to"] = first["from"] + 1.5
+
+
+@pytest.mark.parametrize("shape,to,shots", [("tall", "18", "2,6"), ("wide", "35", "2,4")])
+def test_a_named_shot_already_at_its_shortest_is_left_and_the_next_is_used(tmp_path, capsys, shape, to, shots):
+    work, path, data = setup(tmp_path, shape, short_second_shot)
+    assert frame_counts(data)[1] == 45
+    assert main(revise_args(work, "shorter", "--to", to, "--from", shots)) == 0
+    new = load(work / "cutlist-2.json")
+    assert ("segments", 1, "to") not in changed_paths(data, new)
+    assert sum(frame_counts(new)) == plan.frames(float(to))
+    out = capsys.readouterr().out
+    assert "Shot 2 was already at its shortest for Lively, so it was left as it was." in out
+    assert "Shot 2: was" not in out
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_cover_whose_moment_is_trimmed_away_is_removed_and_said(tmp_path, capsys, shape):
+    case = CASES[shape]
+
+    def move_cover(data):
+        data["cover"] = dict(case["cover_edit"])
+
+    work, path, data = setup(tmp_path, shape, move_cover)
+    assert main(revise_args(work, "shorter", "--to", case["cover_to"], "--from", case["cover_shots"])) == 0
+    new = load(work / "cutlist-2.json")
+    assert "cover" not in new
+    out = capsys.readouterr().out
+    assert (
+        f"The cover was {case['cover_at']} seconds into shot {case['cover_old']}, which is now only "
+        f"{case['cover_now']} seconds long, so the reel's first frame is the cover now.") in out
+    assert "ready to render" in out
+
+
+def test_a_calm_list_is_trimmed_to_the_calm_floor(tmp_path):
+    work, path, data = setup(tmp_path, "wide", lambda d: d.update(recipe="calm"))
+    assert main(revise_args(work, "shorter", "--to", "20", "--from", "3,1")) == 0
+    after = frame_counts(load(work / "cutlist-2.json"))
+    assert after[2] == 90 and after[0] == 90  # Calm's shortest, 3 seconds, not Lively's 1.5
+    assert sum(after) == 600
+    assert after == [90, 90, 90, 90, 240]
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shorter_to_the_current_length_or_longer_changes_nothing(tmp_path, capsys, shape):
+    case = CASES[shape]
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "shorter", "--to", case["total"], "--from", "1")) == 0
+    out = capsys.readouterr().out
+    assert out.startswith(f"The reel is already {case['total']} seconds, so nothing was changed. ")
+    assert out.strip().endswith("is still the list to use.")
+    assert listing(work) == before
+    assert main(revise_args(work, "shorter", "--to", case["bigger"], "--from", "1")) == 1
+    assert one_line_refusal(capsys) == (
+        f"The reel is {case['total']} seconds, already shorter than the {case['bigger']} asked; "
+        "use longer to make it longer.")
+    assert main(revise_args(work, "shorter", "--to", "2", "--from", "1")) == 1
+    assert one_line_refusal(capsys) == "A reel must be at least 3 seconds, so it cannot be made shorter than that."
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+@pytest.mark.parametrize("word", ["abc", "-1", "nan", "1e3", "0"])
+def test_shorter_with_a_bad_length_is_one_plain_sentence(tmp_path, capsys, shape, word):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "shorter", "--to", word, "--from", "1")) == 1
+    assert one_line_refusal(capsys) == "The length to aim for must be a number of seconds, such as 15."
+    assert listing(work) == before
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_shorter_with_a_bad_shot_list_is_one_plain_sentence(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    count = len(data["segments"])
+    before = listing(work)
+    assert main(revise_args(work, "shorter", "--to", "5", "--from", "9")) == 1
+    assert one_line_refusal(capsys) == revise.no_shot(9, count)
+    assert main(revise_args(work, "shorter", "--to", "5", "--from", "2,2")) == 1
+    assert one_line_refusal(capsys) == "Shot 2 is named twice; name each shot once."
+    assert listing(work) == before
+
+
+def test_shorter_help_shows_its_two_words(capsys):
+    with pytest.raises(SystemExit) as caught:
+        main(["revise", "shorter", "--help"])
+    assert caught.value.code == 0
+    out = capsys.readouterr().out
+    assert "--to" in out and "--from" in out
