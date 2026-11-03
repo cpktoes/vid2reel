@@ -264,10 +264,10 @@ Plans:
 **Wave 1**
 
 - [ ] 07-01-PLAN.md — Tracer: `revise sound` from the command line to a new numbered list, checked and reported; then `revise canvas`; the records reworded for no music and the brief settled (wave 1)
-- [ ] 07-02-PLAN.md — Tracer: the optional `recipe` field through the rulebook and check's range notes; Lively assumed with a note; the guard that keeps EDITOR.md's recipe numbers and settings.py in step (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
+- [ ] 07-02-PLAN.md — Tracer: the optional `recipe` field through the rulebook and check's range notes; Lively assumed with a note; the guard that keeps EDITOR.md's recipe numbers and settings.py in step (wave 2, after plan 01 because both write settings.py)
 - [ ] 07-03-PLAN.md — Tracer: `revise reorder` with the cover following its shot; then `revise drop` by clip or shot (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
