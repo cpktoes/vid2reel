@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 7
 current_phase_name: Stage 19 – Conversation
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-11-03T22:33:15.110Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-11-03T22:42:06.704Z"
 last_activity: 2026-11-03
 last_activity_desc: "Phase 7 planned: 9 plans in 8 waves"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 44
-  completed_plans: 38
+  completed_plans: 39
 ---
 
 # Project State
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 7 (Stage 19 – Conversation) — EXECUTING
-Plan: 3 of 9 complete (07-01, 07-02, 07-03 done)
+Plan: 4 of 9 complete (07-01 to 07-04 done)
 Status: Executing Phase 7
-Last activity: 2026-11-03 — Completed 07-03 (revise reorder and drop, the cover following its shot)
+Last activity: 2026-11-03 — Completed 07-04 (revise shorter and longer, exact to the frame)
 
 Progress: [████░░░░░░] 43% (6 of 14 phases complete)
 
@@ -99,6 +99,7 @@ Progress: [████░░░░░░] 43% (6 of 14 phases complete)
 | Phase 7 P01 | 40min | 3 tasks | 9 files |
 | Phase 7 P02 | 25min | 3 tasks | 6 files |
 | Phase 7 P03 | 25min | 2 tasks | 3 files |
+| Phase 7 P04 | 45min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -153,6 +154,7 @@ Settled decisions that shape later phases:
 
 - [Phase 05-07]: one phone test inside a Project on the stage's branch stands for both of the guide's checks; approved 2026-11-02; branch pushed at c882443 with a clean private-data scan
 - [Phase 07-01]: Stage 19 revise: change word first, default input stays cutlist.json, newest list named in every next command
+- [Phase ?]: [Phase 7] Plan 04: set_frames rounds the end up at the last place when a start sits exactly half way into a frame, so every shot lasts exactly the frames intended; revise shorter drops named shots from the end of the named list only, never shot 1
 
 ### Pending Todos
 
@@ -188,6 +190,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-11-03T22:33:15.086Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-11-03T22:41:56.414Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
