@@ -1,10 +1,10 @@
-"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,500 words, real commands, the six steps all there, in order and written as `python3 -m v2r STEP`, and no Mac-only option. They check counts and names, never wording, so the user can rewrite any sentence."""
+"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,500 words, real commands, the six steps all there, in order and written as `python3 -m v2r STEP`, no Mac-only option, and the two recipes' shot lengths agree with v2r/settings.py. They check counts and names, never wording, so the user can rewrite any sentence."""
 
 import contextlib
 import io
 import re
 
-from v2r import ROOT
+from v2r import ROOT, settings
 from v2r.__main__ import main
 
 MAX_WORDS = 1500  # the handbook's cap (Stage 17, D-04; raised from 1,200 to 1,500 on 2026-11-02); a repo rule, so it lives here and not in v2r/settings.py
@@ -17,6 +17,51 @@ NAMED = re.compile(r"python3 -m v2r ([a-z][a-z-]*)")  # the one spelling the pho
 # a bare `v2r STEP`. The lookbehinds keep the correct `python3 -m v2r STEP` from counting as a bare `v2r STEP`.
 WRONG_SPELLING = re.compile(
     rf"(?:python -m v2r|(?<!-m )(?<![\w-])v2r)\s+(?:{'|'.join(STEPS)})\b")
+
+
+NUMBER_WORDS = {  # the number words the handbook may use for a shot length, with their values
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+NUMBER = rf"(?:\d+(?:\.\d+)?|(?:{'|'.join(NUMBER_WORDS)})(?: and a half)?)"  # 3, 1.5, three, one and a half
+RANGE = re.compile(rf"(?P<low>{NUMBER}) to (?P<high>{NUMBER}) seconds")
+
+
+def number_value(text):
+    """The value of one number as the handbook writes it: digits, a number word, or a number word and a half."""
+    half = text.endswith(" and a half")
+    word = text.removesuffix(" and a half")
+    return (NUMBER_WORDS[word] if word in NUMBER_WORDS else float(word)) + (0.5 if half else 0)
+
+
+def recipe_numbers(text):
+    """{Name: [(shortest, longest), ...]} for each recipe of settings.RECIPES: the "A to B seconds" that follows its name.
+
+    The numbers are read from the first "A to B seconds" after the capitalised name within the same clause (no full
+    stop, semicolon, exclamation or question mark between), so "Lively: shots of one and a half to three seconds" gives
+    (1.5, 3.0). A recipe the text never gives numbers for is left out.
+    """
+    found = {}
+    for recipe in settings.RECIPES:
+        name = recipe.capitalize()
+        for match in re.finditer(rf"\b{name}\b[^.;!?]*?{RANGE.pattern}", text):
+            found.setdefault(name, []).append((number_value(match["low"]), number_value(match["high"])))
+    return found
+
+
+def recipe_problems(text):
+    """Plain sentences saying where the text's recipe lengths and settings.RECIPES disagree; empty when they agree."""
+    problems = []
+    found = recipe_numbers(text)
+    for recipe, (low, high) in settings.RECIPES.items():
+        name = recipe.capitalize()
+        if name not in found:
+            problems.append(f"EDITOR.md never states {name}'s shot lengths; say them as settings.RECIPES does, {low:g} to {high:g} seconds.")
+        for said_low, said_high in found.get(name, []):
+            if (said_low, said_high) != (low, high):
+                problems.append(
+                    f"EDITOR.md says {name} shots last {said_low:g} to {said_high:g} seconds, but settings.RECIPES says "
+                    f"{low:g} to {high:g}; change one so they agree.")
+    return problems
 
 
 def word_count(text):
@@ -172,3 +217,29 @@ def test_a_step_written_only_in_a_wrong_spelling_is_missing_and_misspelt():
 def test_the_right_spelling_and_ordinary_words_are_not_taken_for_a_wrong_one():
     prose = "The v2r tool will look, check and match; v2r is the name. Use v2r join for one clip.\n"
     assert handbook_problems(prose + steps_text(STEPS)) == []
+
+
+def test_recipe_numbers_are_read_from_words_and_from_digits():
+    assert recipe_numbers("Lively: shots of one and a half to three seconds; the default.") == {"Lively": [(1.5, 3.0)]}
+    assert recipe_numbers("Calm: 3 to 5 seconds, fewer shots.") == {"Calm": [(3.0, 5.0)]}
+    assert recipe_numbers("Lively: 1.5 to 3 seconds. Calm: three to five seconds.") == {
+        "Lively": [(1.5, 3.0)], "Calm": [(3.0, 5.0)]}
+
+
+def test_a_recipe_number_after_a_full_stop_belongs_to_no_recipe():
+    assert recipe_numbers("Lively is the default. A photo lasts three to four seconds.") == {}
+
+
+def test_editor_md_recipe_numbers_match_settings():
+    text = (ROOT / "EDITOR.md").read_text(encoding="utf-8")
+    assert recipe_problems(text) == []
+
+
+def test_a_recipe_sentence_that_differs_from_settings_is_named():
+    problems = recipe_problems("Lively: shots of one and a half to three seconds. Calm: three to six seconds.")
+    assert problems == ["EDITOR.md says Calm shots last 3 to 6 seconds, but settings.RECIPES says 3 to 5; change one so they agree."]
+
+
+def test_a_handbook_that_never_states_a_recipe_is_named():
+    problems = recipe_problems("Lively: shots of one and a half to three seconds.")
+    assert problems == ["EDITOR.md never states Calm's shot lengths; say them as settings.RECIPES does, 3 to 5 seconds."]
