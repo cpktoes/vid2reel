@@ -258,7 +258,7 @@ Plans:
   4. Errors are plain English ending with a next step, and if the work folder is gone Claude asks for the clips again
   5. From a phone on the branch, she can attach clips, answer the brief, get a reel, then say "shorter", "mute it" and "a wide version", each changing only what was asked
 
-**Plans**: 1/9 plans executed
+**Plans**: 2/9 plans executed
 
 Plans:
 **Wave 1**
@@ -267,7 +267,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — Tracer: the optional `recipe` field through the rulebook and check's range notes; Lively assumed with a note; the guard that keeps EDITOR.md's recipe numbers and settings.py in step (wave 2, after plan 01 because both write settings.py)
+- [x] 07-02-PLAN.md — Tracer: the optional `recipe` field through the rulebook and check's range notes; Lively assumed with a note; the guard that keeps EDITOR.md's recipe numbers and settings.py in step (wave 2, after plan 01 because both write settings.py)
 - [ ] 07-03-PLAN.md — Tracer: `revise reorder` with the cover following its shot; then `revise drop` by clip or shot (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -411,7 +411,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stage 16 – Cut list and renderer | M3: It can cut | 11/11 | Complete    | 2026-10-19 |
 | 5. Stage 17 – Editor's handbook | M3: It can cut | 7/7 | Complete    | 2026-11-02 |
 | 6. Stage 18 – Music | M3: It can cut | 1/1 | Complete    | 2026-11-03 |
-| 7. Stage 19 – Conversation | M4: It's a conversation | 1/9 | In Progress|  |
+| 7. Stage 19 – Conversation | M4: It's a conversation | 2/9 | In Progress|  |
 | 8. Stage 20 – Her two weeks | M5: Her two weeks | 0/TBD | Not started | - |
 | 9. Stage 21 – Her look and words on screen | M6: Her look | 0/TBD | Not started | - |
 | 10. Stage 22 – Cut to the beat | M6: Her look | 0/TBD | Not started | - |
