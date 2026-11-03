@@ -68,13 +68,13 @@ Dropped 2026-11-03: the tool adds no music; music is added in the posting app. T
 
 ### Conversation (Stage 19)
 
-- [x] **CONV-01**: EDITOR.md's "Talking with her" section asks a brief straight away, before looking at the footage: four numbered questions in one message (what the reel is about; which clip or moment is the star; lively or calm; shape and length), each answerable in a few words and each with a default, leaving out any question the message or the chat's Reel style section already answers, and skipping the brief when she says to just make it; sound needs no question, because the clips' own sound is kept unless she says "mute"
+- [ ] **CONV-01**: EDITOR.md's "Talking with her" section asks a brief straight away, before looking at the footage: four numbered questions in one message (what the reel is about; which clip or moment is the star; lively or calm; shape and length), each answerable in a few words and each with a default, leaving out any question the message or the chat's Reel style section already answers, and skipping the brief when she says to just make it; sound needs no question, because the clips' own sound is kept unless she says "mute"
 - [ ] **CONV-02**: At most one further question is asked after looking at the footage, and only if the moment she named can't be found
 - [ ] **CONV-03**: Work starts with one line and a time estimate, then silence until the reel
 - [ ] **CONV-04**: The reply is the video, at most two lines on what is in it, and three suggested follow-ups chosen from what revise can do and fitted to the reel; clips are described by what is in them, never by letter, and no track is named because the tool adds no music
-- [x] **CONV-05**: `python -m v2r revise` applies one named change to an existing cut list (shorten or lengthen to a target, reorder, drop a clip or a shot, keep or mute the sound, change the canvas), writes the result as a new numbered list beside it, and leaves every other field untouched, and tests prove each revision changes only its own fields
-- [x] **CONV-06**: Errors are plain English ending with a next step, and if the work folder is gone Claude asks for the clips again instead of failing confusingly
-- [x] **CONV-07**: The whole conversation works from a phone on the branch: attach, brief, reel, then "shorter", "mute it" and "a wide version", each changing only what was asked (checked by a person)
+- [ ] **CONV-05**: `python -m v2r revise` applies one named change to an existing cut list (shorten or lengthen to a target, reorder, drop a clip or a shot, keep or mute the sound, change the canvas), writes the result as a new numbered list beside it, and leaves every other field untouched, and tests prove each revision changes only its own fields
+- [ ] **CONV-06**: Errors are plain English ending with a next step, and if the work folder is gone Claude asks for the clips again instead of failing confusingly
+- [ ] **CONV-07**: The whole conversation works from a phone on the branch: attach, brief, reel, then "shorter", "mute it" and "a wide version", each changing only what was asked (checked by a person)
 
 ### Her two weeks (Stage 20)
 
