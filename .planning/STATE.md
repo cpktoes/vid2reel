@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 05
 current_phase_name: stage-17-editor-s-handbook
 status: executing
-stopped_at: Completed 05-03-PLAN.md (profiles reviewed and pasted)
+stopped_at: Completed 05-05-PLAN.md (five sets rehearsed and approved)
 last_updated: "2026-11-02T03:18:03.097Z"
-last_activity: 2026-10-24
-last_activity_desc: Phase 05 execution started
+last_activity: 2026-11-02
+last_activity_desc: Completed plan 05-05 (rehearsals, pair comparison, scores)
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 35
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 ## Current Position
 
 Phase: 05 (stage-17-editor-s-handbook) — EXECUTING
-Plan: 4 of 7 complete (01, 02, 03, 04 done)
-Status: Next is plan 05; its rehearsals are already running in separate sessions
+Plan: 5 of 7 complete (01, 02, 03, 04, 05 done)
+Status: Next is wave 4, plan 06 (the full suite and the private scan)
 Last activity: 2026-11-02 - Completed quick task 261102-a38: viral-reel craft in the handbook, the cap to 1,500 words and four craft rules (one commit on stage-17-handbook; Phase 05 still in progress)
 
 Progress: [█████████░] 89% (1 of 14 phases complete)
@@ -93,6 +93,7 @@ Progress: [█████████░] 89% (1 of 14 phases complete)
 | Phase 05 P02 | 10min | 2 tasks | 1 files |
 | Phase 05 P04 | two checkpoint rounds | 3 tasks | 1 files |
 | Phase 05 P03 | two sessions, one checkpoint round | 3 tasks | 1 files |
+| Phase 05 P05 | one rehearsal round plus checks and scoring | 3 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,7 @@ Settled decisions that shape later phases:
 - [Phase 04]: Stage 16 phone test approved; check's crop note names the band the crop keeps (follows each shot's focus point); both fixes to be retested from the phone with one wide reel before merging
 - [Phase ?]: Phase 05-02: the 1,200-word handbook limit lives in tests/test_editor_handbook.py, step order read from python3 -m v2r matches only
 - [Phase ?]: [Phase 05-04]: the handbook's ordering rule, time order wins for talking, making and journeys, was the user's own addition at the read-through; EDITOR.md is 1,192 words, under the 1,200 cap
+- [Phase 05-05]: five of five rehearsal reels approved in one round with no handbook change; the pair differed only where the profiles differ, except the cover (attributed to the handbook); thirteen unclear places listed in 05-05-SUMMARY.md for the user's next edit
 
 ### Pending Todos
 
@@ -176,6 +178,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-24T21:10:40.274Z
-Stopped at: Completed 05-04-PLAN.md (plan 03 parked at its Task 3 human gate)
+Last session: 2026-11-02
+Stopped at: Completed 05-05-PLAN.md (HAND-04 and HAND-05 met in one round; next plan 06)
 Resume file: None

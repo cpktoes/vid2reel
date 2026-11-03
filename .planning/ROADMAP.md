@@ -222,7 +222,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 05-05-PLAN.md — Five rehearsals in fresh sessions, the second-profile pair compared by category, her scores, and one change at a time until three of five (wave 3, checkpoints)
+- [x] 05-05-PLAN.md — Five rehearsals in fresh sessions, the second-profile pair compared by category, her scores, and one change at a time until three of five (wave 3, checkpoints)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
