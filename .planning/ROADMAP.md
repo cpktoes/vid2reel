@@ -253,10 +253,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. User is asked three to five numbered questions in one message, each answerable in a few words and each with a default, with already-answered questions left out, and the brief skipped when she says to just make it
-  2. Work starts with one line and a time estimate, then silence until the reel; the reply is the video, at most two lines on what is in it and which track, and three suggested follow-ups, with clips described by what is in them
-  3. `python -m v2r revise` applies one named change (shorten or lengthen, reorder, drop a clip, change the music or sound, change the canvas) and leaves every other field untouched, proved by tests
+  2. Work starts with one line and a time estimate, then silence until the reel; the reply is the video, at most two lines on what is in it, and three suggested follow-ups, with clips described by what is in them and no track named
+  3. `python -m v2r revise` applies one named change (shorten or lengthen, reorder, drop a clip or a shot, keep or mute the sound, change the canvas) as a new numbered cut list and leaves every other field untouched, proved by tests
   4. Errors are plain English ending with a next step, and if the work folder is gone Claude asks for the clips again
-  5. From a phone on the branch, she can attach clips, answer the brief, get a reel, then say "shorter", "different song" and "a wide version", each changing only what was asked
+  5. From a phone on the branch, she can attach clips, answer the brief, get a reel, then say "shorter", "mute it" and "a wide version", each changing only what was asked
 
 **Plans**: 9 plans
 
