@@ -6,12 +6,12 @@ current_phase: 7
 current_phase_name: Stage 19 – Conversation
 status: planning
 stopped_at: Phase 6 closed 2026-11-03 (phone test approved, merged into main); next is /gsd-discuss-phase 7
-last_updated: "2026-11-03T01:40:04.623Z"
+last_updated: "2026-11-03T17:53:38.989Z"
 last_activity: 2026-11-03
 last_activity_desc: Stage 18 closed (phone test approved, merged into main)
 progress:
-  total_phases: 5
-  completed_phases: 5
+  total_phases: 4
+  completed_phases: 4
   total_plans: 35
   completed_plans: 35
 ---
@@ -172,6 +172,7 @@ None.
 | 8 | Let a computer include a clip over the phone's 400 MB cap: --no-size-limit on normalize, a clearer skip sentence, README only | 2026-11-01 | one commit on stage-17-handbook | [261101-qff-let-a-computer-include-a-clip-over-the-p](./quick/261101-qff-let-a-computer-include-a-clip-over-the-p/) |
 | 9 | Viral-reel craft in the handbook: the cap to 1,500 words, four craft rules (first frame, loop ending, shortest first, bottom fifth), four [check] taste items in the three profile drafts | 2026-11-02 | one commit on stage-17-handbook | [261102-a38-viral-reel-craft-in-the-handbook-editor-](./quick/261102-a38-viral-reel-craft-in-the-handbook-editor-/) |
 | 10 | Stage 18 re-scoped: no music from the tool; the handbook says keep the sound or go mute | 2026-11-03 | 022131a | [261103-c0y-stage-18-re-scoped-no-music-from-the-too](./quick/261103-c0y-stage-18-re-scoped-no-music-from-the-too/) |
+| 11 | Field guide, twenty-first edition: Stages 17 and 18 brought level with the build, Stage 22 marked in question; published and copied into docs/ | 2026-11-03 | e663ca6 | — |
 
 ## Deferred Items
 
