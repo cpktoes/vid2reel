@@ -850,6 +850,17 @@ def test_shorter_that_cannot_reach_it_even_after_dropping_the_named_refuses(tmp_
     assert listing(work) == before
 
 
+@pytest.mark.parametrize("shape, to, would_be", [("tall", "6", "9"), ("wide", "5", "6")])
+def test_one_dropped_shot_is_called_shot_not_shots(tmp_path, capsys, shape, to, would_be):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    assert main(revise_args(work, "shorter", "--to", to, "--from", "3")) == 1
+    assert one_line_refusal(capsys) == (
+        f"Even with every shot at its shortest and shot 3 dropped, the reel would be {would_be} seconds, "
+        f"so nothing was changed; name more shots to take it to {to} seconds.")
+    assert listing(work) == before
+
+
 def five_shots_one_long(data):
     data["segments"] = [
         {"clip": "A", "from": 0.0, "to": 1.5, "sound": "off", "why": "one"},

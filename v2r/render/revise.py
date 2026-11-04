@@ -424,9 +424,9 @@ def change_shorter(data, options, folder):
     except CannotShorten as refusal:
         gone = [index + 1 for index in named if index in refusal.dropped]  # in the order they were named
         if gone:
-            who = check.letters_sentence([str(number) for number in gone])
+            who = ("shot " if len(gone) == 1 else "shots ") + check.letters_sentence([str(number) for number in gone])
             raise ReviseError(
-                f"Even with every shot at its shortest and shots {who} dropped, the reel would be "
+                f"Even with every shot at its shortest and {who} dropped, the reel would be "
                 f"{seconds_text(refusal.frames)} seconds, so nothing was changed; name more shots to take it to {value:g} seconds."
             ) from None
         raise ReviseError(
