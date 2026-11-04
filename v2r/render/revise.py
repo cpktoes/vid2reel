@@ -14,7 +14,7 @@ import math
 import re
 from pathlib import Path
 
-from v2r import WORK_DIR, normalize, settings
+from v2r import WORK_DIR, look, normalize, settings
 from v2r.render import check, plan
 
 WORK_GONE = (
@@ -252,8 +252,9 @@ def change_drop(data, options, folder):
     words = options["what"]
     segments = data["segments"]
     count = len(segments)
-    # A clip letter is one to three capitals: normalize's and the schema's own pattern, not a new limit.
-    if len(words) == 1 and re.fullmatch("[A-Z]{1,3}", words[0], flags=re.ASCII):
+    # A clip letter is one to three capitals: normalize's and the schema's own pattern, not a new limit. look.LETTER is
+    # the one place it is written in code (check reads letters with it too), so the two never drift apart.
+    if len(words) == 1 and look.LETTER.fullmatch(words[0]):
         letter = words[0]
         gone = [number for number, shot in enumerate(segments, start=1) if shot.get("clip") == letter]
         if not gone:
@@ -282,8 +283,8 @@ def change_drop(data, options, folder):
     for number in gone:
         lines.append(f"Shot {number} (clip {check.shown(segments[number - 1].get('clip'))}) was taken out.")
     if whole_clip:
-        look = data.get("look")
-        touch_ups = look.get("touch_up") if isinstance(look, dict) else None
+        look_block = data.get("look")  # the list's own "look" field, not the look module
+        touch_ups = look_block.get("touch_up") if isinstance(look_block, dict) else None
         if isinstance(touch_ups, dict) and letter in touch_ups:
             lines.append(f"Clip {letter}'s record and touch-up stay in the list, unused.")
         else:

@@ -1,11 +1,12 @@
 """`v2r revise`: one named change to a cut list, written as a new numbered list beside it, in both shapes; no FFmpeg."""
 
 import json
+import re
 
 import pytest
 from cutlists import EXAMPLES, clips_block, placeholder_work, write_list
 
-from v2r import settings
+from v2r import look, settings
 from v2r.__main__ import main
 from v2r.render import check, plan, revise
 
@@ -604,6 +605,16 @@ def test_drop_with_the_wrong_words_says_what_it_needs(tmp_path, capsys, shape, w
     assert main(revise_args(work, "drop", *words)) == 1
     assert one_line_refusal(capsys) == revise.DROP_WORDS
     assert listing(work) == before
+
+
+def test_drop_reads_clip_letters_with_looks_one_pattern(tmp_path, capsys, monkeypatch):
+    """The letter rule is written once, in look.LETTER: when it changes, drop reads letters the new way too."""
+    work, path, data = setup(tmp_path, "tall")
+    monkeypatch.setattr(look, "LETTER", re.compile(r"[a-z]{1,3}"))
+    assert main(revise_args(work, "drop", "a")) == 1
+    assert one_line_refusal(capsys).startswith("There is no clip a in this list's shots")
+    assert main(revise_args(work, "drop", "A")) == 1
+    assert one_line_refusal(capsys) == revise.DROP_WORDS
 
 
 @pytest.mark.parametrize("shape", SHAPES)
