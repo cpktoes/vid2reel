@@ -24,6 +24,9 @@ BROKEN = "The cut list breaks its rulebook, so nothing was changed; fix the prob
 NO_WRITE = "The new cut list could not be written beside the old one, so nothing was changed."
 OLD_NUMBERS = "Shot numbers in the lines below are the old list's."
 STILL_IN_USE = "{path} is still the list to use."
+NEWER_LIST = (
+    "Note: this change started from {path}, but a newer list exists, {newest}. "
+    "To change the newest list, add --cutlist {newest} after the change word.")
 
 
 class ReviseError(Exception):
@@ -64,11 +67,12 @@ def shown_path(path):
     return normalize.clean_text(str(path))
 
 
-def next_list_path(path):
-    """The next free name in the input's family: cutlist.json gives cutlist-2.json, then cutlist-3.json.
+def list_family(path):
+    """(stem, highest): the family a list belongs to and the highest number a list of it beside `path` holds.
 
-    Numbers only go up, even when a middle file has been deleted. The folder is read with iterdir, never glob, because
-    the stem may hold glob characters.
+    cutlist.json and cutlist-2.json are both of the family "cutlist"; its numbered lists are cutlist-N.json. `highest`
+    is 1 when no numbered list is there: the unnumbered list counts as the first. The folder is read with iterdir,
+    never glob, because the stem may hold glob characters.
     """
     path = Path(path)
     stem = re.sub("-[0-9]+$", "", path.stem)
@@ -82,7 +86,26 @@ def next_list_path(path):
         found = pattern.fullmatch(name)
         if found:
             highest = max(highest, int(found.group(1)))
+    return stem, highest
+
+
+def next_list_path(path):
+    """The next free name in the input's family: cutlist.json gives cutlist-2.json, then cutlist-3.json.
+
+    Numbers only go up, even when a middle file has been deleted.
+    """
+    path = Path(path)
+    stem, highest = list_family(path)
     return path.parent / f"{stem}-{highest + 1}.json"
+
+
+def newest_list_path(path):
+    """The highest-numbered list of `path`'s family beside it, or None when no numbered list is there."""
+    path = Path(path)
+    stem, highest = list_family(path)
+    if highest < 2:
+        return None
+    return path.parent / f"{stem}-{highest}.json"
 
 
 def write_new(path, data):
@@ -565,17 +588,23 @@ def run(change, options, cutlist_path=None, work_dir=None):
     """Make the change; returns (new list path or None, lines to print, ready). Raises ReviseError when it can't.
 
     The new path comes first among the lines so it is never lost. Nothing is written when nothing needed changing.
+
+    Without `cutlist_path` the change starts from the work folder's cutlist.json, the first list. When a numbered list
+    already sits beside it, a note names the newest one and the --cutlist flag that reaches it; the change itself is
+    made all the same, and revise chooses no list on its own.
     """
     folder = Path(WORK_DIR if work_dir is None else work_dir)
     path = Path(folder / "cutlist.json" if cutlist_path is None else cutlist_path)
     data = read_list(path, folder)
+    newest = newest_list_path(path) if cutlist_path is None else None  # found before the new list is written
+    notes = [] if newest is None else [NEWER_LIST.format(path=shown_path(path), newest=shown_path(newest))]
     new = copy.deepcopy(data)
     try:
         lines = CHANGES[change](new, options, folder)
     except Unchanged as same:
-        return None, [f"{same} " + STILL_IN_USE.format(path=shown_path(path))], True
+        return None, [f"{same} " + STILL_IN_USE.format(path=shown_path(path))] + notes, True
     new_path = write_new(path, new)
-    out = ["New cut list: " + shown_path(new_path)] + lines
+    out = ["New cut list: " + shown_path(new_path)] + notes + lines
     checked = check.check(new_path, work_dir)
     out += check.report(checked)
     ready = not checked.problems

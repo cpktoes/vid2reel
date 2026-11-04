@@ -145,6 +145,75 @@ def test_output_names_the_new_list_first_and_the_next_commands(tmp_path, capsys,
     assert lines[-1].endswith(f"{new} --work {work}")
 
 
+def numbered_lists(work, *numbers):
+    """Placeholder cutlist-N.json files beside the first list, as earlier revises would have left them."""
+    for number in numbers:
+        (work / f"cutlist-{number}.json").write_text("{}", encoding="utf-8")
+
+
+def the_note(work, newest):
+    return revise.NEWER_LIST.format(path=work / "cutlist.json", newest=work / f"cutlist-{newest}.json")
+
+
+NEWER = "but a newer list exists"  # the words that mark revise's own note; check prints notes of its own
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_default_start_beside_newer_lists_names_the_newest_and_the_flag(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    numbered_lists(work, 2, 3)
+    assert main(revise_args(work, "sound", "off")) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "New cut list: " + str(work / "cutlist-4.json")
+    assert lines[1] == the_note(work, 3)
+    assert f"add --cutlist {work / 'cutlist-3.json'} after the change word." in lines[1]
+    assert "cutlist-2.json" not in lines[1]
+    assert sum(NEWER in line for line in lines) == 1
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_no_note_without_a_numbered_list_or_with_the_flag(tmp_path, capsys, shape):
+    work, path, data = setup(tmp_path, shape)
+    assert main(revise_args(work, "sound", "off")) == 0
+    assert NEWER not in capsys.readouterr().out  # cutlist.json alone: nothing newer to point at
+    assert main(revise_args(work, "sound", "keep", path=work / "cutlist-2.json")) == 0
+    assert NEWER not in capsys.readouterr().out  # the newest list was named
+    assert main(revise_args(work, "sound", "keep", path=path)) == 0
+    assert NEWER not in capsys.readouterr().out  # the first list was named on purpose, flag and all
+    assert (work / "cutlist-4.json").is_file()
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_note_changes_nothing_in_the_list_written(tmp_path, capsys, shape):
+    (tmp_path / "alone").mkdir()
+    (tmp_path / "beside").mkdir()
+    work, path, data = setup(tmp_path / "alone", shape)
+    assert main(revise_args(work, "sound", "off")) == 0
+    without_note = (work / "cutlist-2.json").read_bytes()
+    work, path, data = setup(tmp_path / "beside", shape)
+    numbered_lists(work, 2, 3)
+    assert main(revise_args(work, "sound", "off")) == 0
+    assert NEWER in capsys.readouterr().out
+    assert (work / "cutlist-4.json").read_bytes() == without_note
+    assert (work / "cutlist-3.json").read_text(encoding="utf-8") == "{}"
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_the_note_is_printed_when_nothing_was_changed_too(tmp_path, capsys, shape):
+    def mute(data):
+        for item in data["segments"]:
+            item["sound"] = "off"
+
+    work, path, data = setup(tmp_path, shape, mute)
+    numbered_lists(work, 2)
+    before = listing(work)
+    assert main(revise_args(work, "sound", "off")) == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert lines[0].endswith("is still the list to use.")
+    assert lines[1] == the_note(work, 2)
+    assert listing(work) == before
+
+
 @pytest.mark.parametrize("shape", SHAPES)
 def test_nothing_to_change_writes_no_file(tmp_path, capsys, shape):
     def mute(data):
