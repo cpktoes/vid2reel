@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 7
-current_phase_name: Stage 19 – Conversation
-status: executing
+current_phase: 8
+current_phase_name: Stage 20 – Her two weeks
+status: planning
 stopped_at: Completed 07-09-PLAN.md
-last_updated: "2026-11-04T22:59:08.000Z"
+last_updated: "2026-11-04T23:12:01.799Z"
 last_activity: 2026-11-04
 last_activity_desc: Completed 07-09 (phone test approved, 7 min 33 s; records, decisions and CONV-01 to CONV-07 complete; closing commits scanned, not pushed)
 progress:
-  total_phases: 5
-  completed_phases: 4
+  total_phases: 14
+  completed_phases: 7
   total_plans: 44
   completed_plans: 44
 ---
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 
 ## Current Position
 
-Phase: 7 (Stage 19 – Conversation) — EXECUTING
-Plan: 9 of 9 complete (07-01 to 07-09 done)
-Status: Phase 7 execution complete; next: code review gate, regression gate, verifier and phase.complete, then the merge on the user's word
-Last activity: 2026-11-04 — Completed 07-09 (phone test approved, 7 min 33 s; records, decisions and CONV-01 to CONV-07 complete; closing commits scanned, not pushed)
+Phase: 8 — Stage 20 – Her two weeks
+Plan: Not started
+Status: Phase 7 verified and reviewed; next: review fixes on the user's choice, then the merge into main on his word (nothing merges without it); Phase 8 is planned only after the merge
+Last activity: 2026-11-04 — Phase 7 complete, transitioned to Phase 8
 
 Progress: [█████░░░░░] 50% (7 of 14 phases complete)
 
@@ -38,7 +38,7 @@ Progress: [█████░░░░░] 50% (7 of 14 phases complete)
 
 **Velocity:**
 
-- Total plans completed: 35
+- Total plans completed: 44
 - Average duration: -
 - Total execution time: 0.0 hours
 
@@ -51,6 +51,7 @@ Progress: [█████░░░░░] 50% (7 of 14 phases complete)
 | 3 | 9 | - | - |
 | 04 | 11 | - | - |
 | 05 | 7 | - | - |
+| 7 | 9 | - | - |
 
 **Recent Trend:**
 
