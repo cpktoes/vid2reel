@@ -274,6 +274,41 @@ def test_a_full_name_space_is_a_plain_refusal(tmp_path, capsys, monkeypatch, sha
     assert (work / "cutlist-2.json").read_text(encoding="utf-8") == "{}"
 
 
+class FailsAtClose:
+    """A file that takes the first hundred characters and then fails when it is closed, the way a full disk does."""
+
+    def __init__(self, handle):
+        self.handle = handle
+
+    def write(self, text):
+        self.handle.write(text[:100])
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exception):
+        self.handle.close()
+        raise OSError(28, "No space left on device")
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_write_that_fails_at_close_leaves_no_half_written_list(tmp_path, capsys, monkeypatch, shape):
+    work, path, data = setup(tmp_path, shape)
+    before = listing(work)
+    real_open = open
+
+    def failing_open(file, mode="r", *args, **kwargs):
+        handle = real_open(file, mode, *args, **kwargs)
+        return FailsAtClose(handle) if "x" in mode else handle
+
+    monkeypatch.setattr(revise, "open", failing_open, raising=False)
+    assert main(revise_args(work, "sound", "off")) == 1
+    err = capsys.readouterr().err
+    assert err.strip() == "v2r revise: " + revise.NO_WRITE
+    assert not (work / "cutlist-2.json").exists()
+    assert listing(work) == before
+
+
 @pytest.mark.parametrize("shape", SHAPES)
 def test_the_top_level_sound_block_and_everything_else_stay(tmp_path, shape):
     work, path, data = setup(tmp_path, shape)

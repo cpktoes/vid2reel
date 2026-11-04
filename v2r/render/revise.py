@@ -86,21 +86,25 @@ def next_list_path(path):
 
 
 def write_new(path, data):
-    """Write `data` as the next numbered list beside `path`, created exclusively; returns the new path."""
+    """Write `data` as the next numbered list beside `path`, created exclusively; returns the new path.
+
+    The create, the write and the close share one cleanup: a list is small enough to sit in Python's buffer until the
+    file is closed, so a full disk shows up at the close, not at the write. Whatever step fails, the half-written file
+    is removed before NO_WRITE is raised, so "nothing was changed" stays true and the number is not used up.
+    """
     text = json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
     for _ in range(max(1, settings.REVISE_NAME_TRIES)):
         target = next_list_path(path)
         try:
             with open(target, "x", encoding="utf-8") as handle:
-                try:
-                    handle.write(text)
-                except (OSError, ValueError):
-                    handle.close()
-                    target.unlink(missing_ok=True)
-                    raise
-        except FileExistsError:
+                handle.write(text)
+        except FileExistsError:  # the "x" open created nothing, so there is nothing to remove: try the next name
             continue
-        except (OSError, ValueError):
+        except (OSError, ValueError):  # the "x" open did create the file, so removing it is right
+            try:
+                target.unlink(missing_ok=True)
+            except OSError:
+                pass
             raise ReviseError(NO_WRITE) from None
         return target
     raise ReviseError(NO_WRITE)
