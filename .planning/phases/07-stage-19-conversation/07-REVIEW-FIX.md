@@ -126,3 +126,5 @@ The reviewer's four suggestions (from 07-REVIEW.md, "For the user"), copied here
 _Fixed: 2026-11-04T23:26:07Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
+
+_Pasted 2026-11-04, in the user's own revised wording, as EDITOR.md commit 1493898; the handbook is at its 1,800-word cap._
