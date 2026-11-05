@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-10-13)
 Phase: 8 — Stage 20 – Her two weeks
 Plan: Not started
 Status: Phase 7 verified and reviewed; next: review fixes on the user's choice, then the merge into main on his word (nothing merges without it); Phase 8 is planned only after the merge
-Last activity: 2026-11-04 — Phase 7 complete, transitioned to Phase 8
+Last activity: 2026-11-04 — Completed quick task 261104-pt9: handbook-shortening review of EDITOR.md (1,800 to 1,701 words, cap 1,750, on stage-19-handbook-review; push, phone test and merge wait on the user's word)
 
 Progress: [█████░░░░░] 50% (7 of 14 phases complete)
 
@@ -187,6 +187,7 @@ None.
 | 9 | Viral-reel craft in the handbook: the cap to 1,500 words, four craft rules (first frame, loop ending, shortest first, bottom fifth), four [check] taste items in the three profile drafts | 2026-11-02 | one commit on stage-17-handbook | [261102-a38-viral-reel-craft-in-the-handbook-editor-](./quick/261102-a38-viral-reel-craft-in-the-handbook-editor-/) |
 | 10 | Stage 18 re-scoped: no music from the tool; the handbook says keep the sound or go mute | 2026-11-03 | 022131a | [261103-c0y-stage-18-re-scoped-no-music-from-the-too](./quick/261103-c0y-stage-18-re-scoped-no-music-from-the-too/) |
 | 11 | Field guide, twenty-first edition: Stages 17 and 18 brought level with the build, Stage 22 marked in question; published and copied into docs/ | 2026-11-03 | e663ca6 | — |
+| 12 | Handbook-shortening review of EDITOR.md: 1,800 to 1,701 words, ten fixes from the rehearsals and phone test, cap lowered to 1,750, on stage-19-handbook-review | 2026-11-04 | 4ef024b | [261104-pt9-handbook-shortening-review-of-editor-md](./quick/261104-pt9-handbook-shortening-review-of-editor-md/) |
 
 ## Deferred Items
 
