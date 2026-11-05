@@ -1,4 +1,4 @@
-"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,800 words, real commands, the six steps all there, in order and written as `python3 -m v2r STEP`, no Mac-only option, and the two recipes' shot lengths agree with v2r/settings.py. They check counts and names, never wording, so the user can rewrite any sentence."""
+"""Guards for EDITOR.md, the handbook the phone's Claude follows: at most 1,750 words, real commands, the six steps all there, in order and written as `python3 -m v2r STEP`, no Mac-only option, and the two recipes' shot lengths agree with v2r/settings.py. They check counts and names, never wording, so the user can rewrite any sentence."""
 
 import contextlib
 import io
@@ -7,7 +7,7 @@ import re
 from v2r import ROOT, settings
 from v2r.__main__ import main
 
-MAX_WORDS = 1800  # the handbook's cap (Stage 17, D-04; raised from 1,200 to 1,500 on 2026-11-02 and to 1,800 on 2026-11-03 for Stage 19's "Talking with her"); a repo rule, so it lives here and not in v2r/settings.py
+MAX_WORDS = 1750  # the handbook's cap (Stage 17, D-04; raised from 1,200 to 1,500 on 2026-11-02 and to 1,800 on 2026-11-03 for Stage 19's "Talking with her"; lowered to 1,750 on 2026-11-04 after the shortening review); a repo rule, so it lives here and not in v2r/settings.py
 
 # The six steps, in the order they must first appear. join is a side road and is left out of the order.
 STEPS = ("doctor", "normalize", "look", "check", "match", "render")
